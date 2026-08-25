@@ -3,7 +3,7 @@
  * Selection state, DOM measurement, keyboard routing, and viewport focus stay with the caller.
  */
 import type { Ref } from 'vue'
-import type { CardDocument } from '../../entities/card/model'
+import { getBlockProperty, setBlockProperty, type CardDocument } from '../../entities/card/model'
 import type { ParentLookup } from '../../entities/card/tree'
 
 export type CdeSelectionResizeIntent = {
@@ -64,11 +64,11 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
     const heightLocked = options.isResizeAxisLocked?.(intent.blockId, 'height') === true
     let changed = false
     if (intent.width !== undefined && !widthLocked) {
-      target.block.width = formatCssPixels(intent.width)
+      setBlockProperty(target.block, 'width', formatCssPixels(intent.width))
       changed = true
     }
     if (intent.height !== undefined && !heightLocked) {
-      target.block.height = formatCssPixels(intent.height)
+      setBlockProperty(target.block, 'height', formatCssPixels(intent.height))
       changed = true
     }
     if (target.location.type === 'simple-container-location') {
@@ -104,7 +104,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
       if (target.location.type !== 'simple-container-location') return false
       let changed = false
       if (intent.width !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'width')) {
-        target.block.width = formatCssPixels(intent.width)
+        setBlockProperty(target.block, 'width', formatCssPixels(intent.width))
         if (intent.x !== undefined) target.location.x = formatCssPixels(intent.x)
         changed = true
       } else if (intent.operation === 'center' && intent.x !== undefined) {
@@ -112,7 +112,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
         changed = true
       }
       if (intent.height !== undefined && !options.isResizeAxisLocked?.(intent.blockId, 'height')) {
-        target.block.height = formatCssPixels(intent.height)
+        setBlockProperty(target.block, 'height', formatCssPixels(intent.height))
         if (intent.y !== undefined) target.location.y = formatCssPixels(intent.y)
         changed = true
       } else if (intent.operation === 'center' && intent.y !== undefined) {
@@ -128,12 +128,12 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
       if (target.location.type !== 'simple-container-location') return false
       let changed = false
       if (intent.width && !options.isResizeAxisLocked?.(intent.blockId, 'width')) {
-        target.block.width = '100%'
+        setBlockProperty(target.block, 'width', '100%')
         target.location.x = '0px'
         changed = true
       }
       if (intent.height && !options.isResizeAxisLocked?.(intent.blockId, 'height')) {
-        target.block.height = '100%'
+        setBlockProperty(target.block, 'height', '100%')
         target.location.y = '0px'
         changed = true
       }
@@ -147,10 +147,10 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
       if (intent.type === 'fill-cross-axis') {
         if (target.parent.direction === 'lr' || target.parent.direction === 'rl') {
           if (options.isResizeAxisLocked?.(intent.blockId, 'height')) return false
-          target.block.height = '100%'
+          setBlockProperty(target.block, 'height', '100%')
         } else {
           if (options.isResizeAxisLocked?.(intent.blockId, 'width')) return false
-          target.block.width = '100%'
+          setBlockProperty(target.block, 'width', '100%')
         }
         target.location.align = 'justify'
       } else {
@@ -182,7 +182,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
     const target = resolveTarget(intent.blockId)
     if (!target) return false
 
-    const parsed = Number(target.block.zIndex ?? '0')
+    const parsed = Number(getBlockProperty<string>(target.block, 'zIndex') ?? '0')
     const current = Number.isFinite(parsed) ? parsed : 0
     let next = Math.round((current + intent.delta) * 100) / 100
     if (intent.existingLayersOnly) {
@@ -194,7 +194,7 @@ export function useCdeSelectionCommands(options: UseCdeSelectionCommandsOptions)
       next = adjacent
     }
 
-    target.block.zIndex = String(Object.is(next, -0) ? 0 : next)
+    setBlockProperty(target.block, 'zIndex', String(Object.is(next, -0) ? 0 : next))
     commitAction()
     return true
   }

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { createBlock, type AdditionalFieldKeyError, type CardDocument } from '../../entities/card/model'
+import { createBlock, getBlockProperty, type AdditionalFieldKeyError, type CardDocument } from '../../entities/card/model'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import type { ProjectCustomBlockCatalog } from '../workspace/model/projectCustomBlocks'
 
@@ -131,7 +131,7 @@ describe('useCdeDataTableCommands', () => {
   it('applies workbook values and inheritance resets in one action', () => {
     const { cardDoc, markDocumentChanged, refreshDocumentState, state } = createHarness()
     cardDoc.value!.faces.front.children = [{
-      block: { type: 'text-block', id: 'text', name: 'Text', content: 'Before' },
+      block: createBlock('text-block', { id: 'text', name: 'Text', content: 'Before' }),
       location: { type: 'simple-container-location', id: 'location', anchor: 'lt' },
     }]
     cardDoc.value!.instances = [{
@@ -156,7 +156,7 @@ describe('useCdeDataTableCommands', () => {
   it('creates workbook Instances, renames Blocks, and applies their values atomically', () => {
     const { cardDoc, markDocumentChanged, refreshDocumentState, state } = createHarness()
     cardDoc.value!.faces.front.children = [{
-      block: { type: 'text-block', id: 'text', name: 'Before', content: 'Blueprint' },
+      block: createBlock('text-block', { id: 'text', name: 'Before', content: 'Blueprint' }),
       location: { type: 'simple-container-location', id: 'location', anchor: 'lt' },
     }]
     const instance = {
@@ -179,7 +179,7 @@ describe('useCdeDataTableCommands', () => {
       }],
       warnings: [],
     })).toBe(true)
-    expect(cardDoc.value!.faces.front.children[0]!.block.name).toBe('After')
+    expect(getBlockProperty<string>(cardDoc.value!.faces.front.children[0]!.block, 'name')).toBe('After')
     expect(cardDoc.value!.instances).toEqual([{
       ...instance,
       data: { text: { content: 'Imported value' } },

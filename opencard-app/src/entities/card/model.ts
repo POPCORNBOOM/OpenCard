@@ -33,27 +33,8 @@ export type {
 } from './schema'
 
 // Block and document data models.
-export type BaseBlock = {
+export type BlockIdentity = {
     id: string
-    name?: string
-    notes?: string
-    visible?: string
-    width?: CssValue
-    height?: CssValue
-    borderColor?: string
-    borderWidth?: string
-    borderStyle?: 'solid' | 'dashed' | 'dotted'
-    borderRadius?: CssValue
-    background?: string
-    translateX?: CssValue
-    translateY?: CssValue
-    scaleX?: string
-    scaleY?: string
-    transformAnchor?: AnchorPosition
-    zIndex?: string
-    rotation?: string
-    opacity?: string
-    customCss?: string
     additionalFieldDefinition?: AdditionalFieldDefinitionMap
 }
 
@@ -69,16 +50,8 @@ export type AlignmentPosition = 'start' | 'center' | 'end' | 'justify'
 export type VerticalAlignmentPosition = 'top' | 'center' | 'bottom'
 export type TextWritingMode = 'horizontal-tb' | 'vertical-rl' | 'vertical-lr'
 
-type TextContentBlock = BaseBlock & {
+type TextContentBlock = BlockIdentity & {
     content: string
-    fontSize?: CssValue
-    fontFamily?: string
-    fontWeight?: TextFontWeight
-    color?: string
-    textAlign?: AlignmentPosition
-    verticalAlign?: VerticalAlignmentPosition
-    lineHeight?: CssValue
-    writingMode?: TextWritingMode
 }
 
 export type TextBlock = TextContentBlock & {
@@ -89,14 +62,14 @@ export type MarkdownTextBlock = TextContentBlock & {
     type: "markdown-text-block"
 }
 
-export type ImageBlock = BaseBlock & {
+export type ImageBlock = BlockIdentity & {
     type: "image-block"
     image: string
     imagePath?: string
     fit: "cover" | "contain" | "fill"
 }
 
-export type QrCodeBlock = BaseBlock & {
+export type QrCodeBlock = BlockIdentity & {
     type: "qrcode-block"
     content: string
     errorCorrection: "L" | "M" | "Q" | "H"
@@ -105,7 +78,7 @@ export type QrCodeBlock = BaseBlock & {
     quietZone: string
 }
 
-export type ShapeBlock = BaseBlock & {
+export type ShapeBlock = BlockIdentity & {
     type: "shape-block"
     shape: "rectangle" | "ellipse" | "line" | "triangle" | "diamond"
     fill: string
@@ -129,7 +102,7 @@ export type ContainerPackaging = {
     packaged?: string
 }
 
-export type SimpleContainerBlock = BaseBlock & ContainerPackaging & {
+export type SimpleContainerBlock = BlockIdentity & ContainerPackaging & {
     type: "simple-container-block"
     clip: string
     children: {
@@ -147,7 +120,7 @@ export type FlowContainerLocationInfo = {
 
 export type FlowDirection = 'lr' | 'rl' | 'tb' | 'bt'
 
-export type FlowContainerBlock = BaseBlock & ContainerPackaging & {
+export type FlowContainerBlock = BlockIdentity & ContainerPackaging & {
     type: "flow-container-block"
     clip: string
     direction: FlowDirection
@@ -158,7 +131,7 @@ export type FlowContainerBlock = BaseBlock & ContainerPackaging & {
     }[]
 }
 
-export type CustomBlock = BaseBlock & {
+export type CustomBlock = BlockIdentity & {
     type: 'custom-block'
     customBlockKey: string
 }
@@ -263,6 +236,19 @@ export function getCardFieldValue(record: Record<string, unknown>, fieldKey: str
     return record[fieldKey]
 }
 
+export function getBlockProperty<T = unknown>(block: CardBlock | null | undefined, fieldKey: string): T | undefined {
+    if (!block) return undefined
+    return (block as unknown as Record<string, unknown>)[fieldKey] as T | undefined
+}
+
+export function setBlockProperty(block: CardBlock, fieldKey: string, value: unknown): void {
+    ;(block as unknown as Record<string, unknown>)[fieldKey] = value
+}
+
+export function deleteBlockProperty(block: CardBlock, fieldKey: string): void {
+    delete (block as unknown as Record<string, unknown>)[fieldKey]
+}
+
 export function setCardFieldValue(
     record: Record<string, unknown>,
     fieldKey: string,
@@ -351,16 +337,29 @@ export function deleteBlockAdditionalField(
     return removedOverrides
 }
 
-// Internal helper types for block factory functions.
-type BlockInit = Pick<BaseBlock, 'id'> & Partial<Omit<BaseBlock, 'id'>>
-type TextBlockInit = Partial<Omit<TextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type MarkdownTextBlockInit = Partial<Omit<MarkdownTextBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type ImageBlockInit = Partial<Omit<ImageBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type QrCodeBlockInit = Partial<Omit<QrCodeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type ShapeBlockInit = Partial<Omit<ShapeBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type SimpleContainerBlockInit = Partial<Omit<SimpleContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type FlowContainerBlockInit = Partial<Omit<FlowContainerBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
-type CustomBlockInit = Partial<Omit<CustomBlock, keyof BaseBlock | 'type'>> & Partial<BaseBlock>
+// Internal helper types for block factory functions. Attribute keys are intentionally
+// explicit here; they are accepted as input but are not part of the block model.
+type BlockInit = {
+    id?: string
+    name?: string; notes?: string; visible?: string; width?: CssValue; height?: CssValue
+    borderColor?: string; borderWidth?: string; borderStyle?: 'solid' | 'dashed' | 'dotted'
+    borderRadius?: CssValue; background?: string; translateX?: CssValue; translateY?: CssValue
+    scaleX?: string; scaleY?: string; transformAnchor?: AnchorPosition; zIndex?: string
+    rotation?: string; opacity?: string; customCss?: string
+    additionalFieldDefinition?: AdditionalFieldDefinitionMap
+}
+type TextBlockInit = BlockInit & {
+    content?: string; fontSize?: CssValue; fontFamily?: string; fontWeight?: TextFontWeight
+    color?: string; textAlign?: AlignmentPosition; verticalAlign?: VerticalAlignmentPosition
+    lineHeight?: CssValue; writingMode?: TextWritingMode
+}
+type MarkdownTextBlockInit = TextBlockInit
+type ImageBlockInit = BlockInit & { image?: string; imagePath?: string; fit?: 'cover' | 'contain' | 'fill' }
+type QrCodeBlockInit = BlockInit & { content?: string; errorCorrection?: 'L' | 'M' | 'Q' | 'H'; foreground?: string; backgroundColor?: string; quietZone?: string }
+type ShapeBlockInit = BlockInit & { shape?: ShapeBlock['shape']; fill?: string; stroke?: string; strokeWidth?: string; strokeStyle?: ShapeBlock['strokeStyle']; strokeAlignment?: ShapeBlock['strokeAlignment']; strokeJoin?: ShapeBlock['strokeJoin']; strokeCap?: ShapeBlock['strokeCap']; strokeMiterLimit?: string }
+type SimpleContainerBlockInit = BlockInit & { packaged?: string; clip?: string; children?: SimpleContainerBlock['children'] }
+type FlowContainerBlockInit = BlockInit & { packaged?: string; clip?: string; direction?: FlowDirection; gap?: CssValue; children?: FlowContainerBlock['children'] }
+type CustomBlockInit = BlockInit & { customBlockKey?: string }
 type CardFaceInit = Partial<Omit<CardFace, 'type'>>
 
 // Shared block creation helpers.
@@ -377,33 +376,15 @@ export function createCardFace(init: CardFaceInit = {}): CardFace {
     }
 }
 
-function createBaseBlock(init: BlockInit = { id: createBlockId() }): BaseBlock {
-    const block: Record<string, unknown> = {
-        id: init.id ?? createBlockId(),
+function createBlockIdentity(init: BlockInit = {}): BlockIdentity & Record<string, unknown> {
+    const block: Record<string, unknown> = { id: init.id ?? createBlockId() }
+    for (const [key, value] of Object.entries(init)) {
+        if (key !== 'id' && key !== 'additionalFieldDefinition' && value !== undefined) block[key] = value
     }
-
-    setIfDefined(block, 'name', init.name)
-    setIfDefined(block, 'notes', init.notes)
-    setIfDefined(block, 'visible', init.visible)
-    setIfDefined(block, 'width', init.width)
-    setIfDefined(block, 'height', init.height)
-    setIfDefined(block, 'borderColor', init.borderColor)
-    setIfDefined(block, 'borderWidth', init.borderWidth)
-    setIfDefined(block, 'borderStyle', init.borderStyle)
-    setIfDefined(block, 'borderRadius', init.borderRadius)
-    setIfDefined(block, 'background', init.background)
-    setIfDefined(block, 'translateX', init.translateX)
-    setIfDefined(block, 'translateY', init.translateY)
-    setIfDefined(block, 'scaleX', init.scaleX)
-    setIfDefined(block, 'scaleY', init.scaleY)
-    setIfDefined(block, 'transformAnchor', init.transformAnchor)
-    setIfDefined(block, 'zIndex', init.zIndex)
-    setIfDefined(block, 'rotation', init.rotation)
-    setIfDefined(block, 'opacity', init.opacity)
-    setIfDefined(block, 'customCss', init.customCss)
-    setIfDefined(block, 'additionalFieldDefinition', cloneAdditionalFieldDefinitions(init.additionalFieldDefinition))
-
-    return block as BaseBlock
+    if (init.additionalFieldDefinition) {
+        block.additionalFieldDefinition = cloneAdditionalFieldDefinitions(init.additionalFieldDefinition)
+    }
+    return block as BlockIdentity & Record<string, unknown>
 }
 
 function getDefaultBlockName(type: CardBlock['type']): string {
@@ -429,7 +410,7 @@ function getDefaultBlockName(type: CardBlock['type']): string {
 
 export function createTextBlock(init: TextBlockInit = {}): TextBlock {
     const block: Record<string, unknown> = {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('text-block'),
             name: init.name ?? getDefaultBlockName('text-block'),
             ...init,
@@ -452,7 +433,7 @@ export function createTextBlock(init: TextBlockInit = {}): TextBlock {
 
 export function createMarkdownTextBlock(init: MarkdownTextBlockInit = {}): MarkdownTextBlock {
     const block: Record<string, unknown> = {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('markdown-text-block'),
             name: init.name ?? getDefaultBlockName('markdown-text-block'),
             ...init,
@@ -475,7 +456,7 @@ export function createMarkdownTextBlock(init: MarkdownTextBlockInit = {}): Markd
 
 export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
     const block: Record<string, unknown> = {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('image-block'),
             name: init.name ?? getDefaultBlockName('image-block'),
             ...init,
@@ -492,7 +473,7 @@ export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
 
 export function createQrCodeBlock(init: QrCodeBlockInit = {}): QrCodeBlock {
     return {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('qrcode-block'),
             name: init.name ?? getDefaultBlockName('qrcode-block'),
             ...init,
@@ -503,12 +484,12 @@ export function createQrCodeBlock(init: QrCodeBlockInit = {}): QrCodeBlock {
         foreground: init.foreground ?? '#000000',
         backgroundColor: init.backgroundColor ?? '#FFFFFF',
         quietZone: init.quietZone ?? '4',
-    }
+    } as QrCodeBlock
 }
 
 export function createShapeBlock(init: ShapeBlockInit = {}): ShapeBlock {
     return {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('shape-block'),
             name: init.name ?? getDefaultBlockName('shape-block'),
             ...init,
@@ -523,11 +504,11 @@ export function createShapeBlock(init: ShapeBlockInit = {}): ShapeBlock {
         strokeJoin: init.strokeJoin ?? 'miter',
         strokeCap: init.strokeCap ?? 'butt',
         strokeMiterLimit: init.strokeMiterLimit ?? '4',
-    }
+    } as ShapeBlock
 }
 export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}): SimpleContainerBlock {
     const block: SimpleContainerBlock = {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('simple-container-block'),
             name: init.name ?? getDefaultBlockName('simple-container-block'),
             ...init,
@@ -543,7 +524,7 @@ export function createSimpleContainerBlock(init: SimpleContainerBlockInit = {}):
 
 export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): FlowContainerBlock {
     const block: FlowContainerBlock = {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('flow-container-block'),
             name: init.name ?? getDefaultBlockName('flow-container-block'),
             ...init,
@@ -561,14 +542,14 @@ export function createFlowContainerBlock(init: FlowContainerBlockInit = {}): Flo
 
 export function createCustomBlock(init: CustomBlockInit = {}): CustomBlock {
     return {
-        ...createBaseBlock({
+        ...createBlockIdentity({
             id: init.id ?? createBlockId('custom-block'),
             name: init.name ?? getDefaultBlockName('custom-block'),
             ...init,
         }),
         type: 'custom-block',
         customBlockKey: init.customBlockKey ?? '',
-    }
+    } as CustomBlock
 }
 
 export function createBlock(type: 'text-block', init?: TextBlockInit): TextBlock

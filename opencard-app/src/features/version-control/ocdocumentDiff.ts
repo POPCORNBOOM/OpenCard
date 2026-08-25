@@ -1,4 +1,4 @@
-import type { CardBlock, CardDocument, CardFaceKey, CardInstanceRecord } from '../../entities/card/model'
+import { getBlockProperty, type CardBlock, type CardDocument, type CardFaceKey, type CardInstanceRecord } from '../../entities/card/model'
 import { parseCardDocument } from '../../entities/card/storage'
 
 export type OcdocumentChangeKind = 'added' | 'removed' | 'changed' | 'moved'
@@ -145,7 +145,7 @@ function compareBlocks(beforeDocument: CardDocument, afterDocument: CardDocument
     const after = afterBlocks.get(id)
     const descriptor = after ?? before
     if (!descriptor) continue
-    const label = descriptor.block.name?.trim() || id
+    const label = getBlockProperty<string>(descriptor.block, 'name')?.trim() || id
     const context = { blockId: id, faceKey: descriptor.faceKey }
     if (!before || !after) {
       changes.push({

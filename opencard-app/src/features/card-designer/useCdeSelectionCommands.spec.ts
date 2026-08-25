@@ -4,6 +4,8 @@ import {
   createFlowContainerBlock,
   createSimpleContainerBlock,
   createTextBlock,
+  getBlockProperty,
+  setBlockProperty,
   type CardDocument,
 } from '../../entities/card/model'
 import { buildParentLookup } from '../../entities/card/tree'
@@ -109,10 +111,10 @@ describe('useCdeSelectionCommands', () => {
     const { commands, simple } = createHarness((_blockId, axis) => axis === 'width')
     const child = simple.children[0].block
     expect(commands.resizeSelection({ blockId: child.id, width: 99 })).toBe(false)
-    expect(child.width).toBe('20px')
+    expect(getBlockProperty<string>(child, 'width')).toBe('20px')
     expect(commands.resizeSelection({ blockId: child.id, width: 99, height: 44 })).toBe(true)
-    expect(child.width).toBe('20px')
-    expect(child.height).toBe('44px')
+    expect(getBlockProperty<string>(child, 'width')).toBe('20px')
+    expect(getBlockProperty<string>(child, 'height')).toBe('44px')
     expect(commands.resizeSelection({ blockId: child.id, x: 99 })).toBe(false)
     expect(simple.children[0]!.location.x).toBe('1px')
   })
@@ -195,9 +197,9 @@ describe('useCdeSelectionCommands', () => {
     expect(flow.children[0]!.location.align).toBe('justify')
 
     flow.direction = 'tb'
-    flow.children[0]!.block.width = '40px'
+    setBlockProperty(flow.children[0]!.block, 'width', '40px')
     expect(commands.applySelectionLayout({ type: 'fill-cross-axis', blockId: 'flow-child' })).toBe(true)
-    expect(flow.children[0]!.block.width).toBe('100%')
+    expect(getBlockProperty<string>(flow.children[0]!.block, 'width')).toBe('100%')
     expect(commands.applySelectionLayout({ type: 'center-cross-axis', blockId: 'flow-child' })).toBe(true)
     expect(flow.children[0]!.location.align).toBe('center')
   })
@@ -241,21 +243,21 @@ describe('useCdeSelectionCommands', () => {
       delta: 1,
       existingLayersOnly: false,
     })).toBe(true)
-    expect(block.zIndex).toBe('2.5')
+    expect(getBlockProperty<string>(block, 'zIndex')).toBe('2.5')
 
-    block.zIndex = '1.5'
+    setBlockProperty(block, 'zIndex', '1.5')
     expect(commands.changeSelectionZIndex({
       blockId: 'simple-child',
       delta: 1,
       existingLayersOnly: true,
     })).toBe(true)
-    expect(block.zIndex).toBe('4')
+    expect(getBlockProperty<string>(block, 'zIndex')).toBe('4')
     expect(commands.changeSelectionZIndex({
       blockId: 'simple-child',
       delta: -1,
       existingLayersOnly: true,
     })).toBe(true)
-    expect(block.zIndex).toBe('1.5')
+    expect(getBlockProperty<string>(block, 'zIndex')).toBe('1.5')
   })
 
   it('ignores stale ids and existing-layer boundaries without a transaction', () => {
@@ -268,7 +270,7 @@ describe('useCdeSelectionCommands', () => {
     } = createHarness()
 
     expect(commands.moveSelection({ blockId: 'missing', x: 1, y: 2 })).toBe(false)
-    simple.children[0]!.block.zIndex = '4'
+    setBlockProperty(simple.children[0]!.block, 'zIndex', '4')
     availableLayerZIndices.value = [-2, 1.5, 4]
     expect(commands.changeSelectionZIndex({
       blockId: 'simple-child',

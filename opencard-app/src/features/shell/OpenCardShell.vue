@@ -132,7 +132,6 @@
               </Transition>
             </WorkbenchWorkspace>
           </div>
-
           <WorkspaceBottomPanel
             :expanded="isBottomPanelExpanded"
             :active-tab="activeBottomTab"
@@ -3418,6 +3417,7 @@ async function handleResourcePackageBuilt(path: string): Promise<void> {
 </script>
 
 <style scoped>
+
 .open-card-shell__workspace-stack {
   width: 100%;
   height: 100%;

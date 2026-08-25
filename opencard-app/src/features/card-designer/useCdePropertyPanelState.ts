@@ -1,10 +1,11 @@
 import { computed, ref, type ComputedRef, type DeepReadonly, type Ref } from 'vue'
-import type {
-  CardBlock,
-  CardDocument,
-  CardFace,
-  CardInstanceRecord,
-  FlowContainerLocationInfo,
+import {
+  getBlockProperty,
+  type CardBlock,
+  type CardDocument,
+  type CardFace,
+  type CardInstanceRecord,
+  type FlowContainerLocationInfo,
   SimpleContainerLocationInfo,
 } from '../../entities/card/model'
 import type {
@@ -217,10 +218,8 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     const block = options.selectedBlock.value
     if (block?.type !== 'custom-block') return new Set<string>()
     const entry = findCustomBlockEntry(block.customBlockKey)
-    if (!entry) return new Set(Object.keys(getTypePropertyEditorSchema('custom-block')))
-    const allowed = new Set(Object.keys(selectedBlockPropertySchema.value.fields).map(key => key.toLowerCase()))
-    return new Set(Object.keys(getTypePropertyEditorSchema('custom-block'))
-      .filter(fieldKey => !allowed.has(fieldKey.toLowerCase())))
+    if (!entry) return new Set(['id', 'type', 'additionalFieldDefinition'])
+    return new Set<string>()
   })
 
   const blockInputOverride = computed<Record<string, Partial<EditorPropertyDefinition>> | undefined>(() => {
@@ -296,7 +295,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     if (selectedBlockEditorRecord.value && selectedBlock) {
       inputs.push({
         key: selectedBlock.id,
-        title: selectedBlock.name?.trim() || selectedBlock.id,
+        title: getBlockProperty<string>(selectedBlock, 'name')?.trim() || selectedBlock.id,
         record: selectedBlockEditorRecord.value,
         fields: resolveFields(
           selectedBlockEditorRecord.value,

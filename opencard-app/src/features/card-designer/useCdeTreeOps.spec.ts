@@ -5,6 +5,7 @@ import {
   createCustomBlock,
   createSimpleContainerBlock,
   createTextBlock,
+  getBlockProperty,
   type CardDocument,
   type CardFaceKey,
 } from '../../entities/card/model'
@@ -94,14 +95,14 @@ describe('useCdeTreeOps active face boundary', () => {
     })
 
     state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'hide-block', source: 'inline' })
-    expect(document.faces.front.children[0]!.block.visible).toBe('false')
+    expect(getBlockProperty<string>(document.faces.front.children[0]!.block, 'visible')).toBe('false')
     expect(state.blockTreeData.value.items.get('front-text')).toMatchObject({
       actions: ['show-block', 'block-more'],
       iconTone: 'muted',
     })
 
     state.handleTreeIntent({ type: 'action.invoke', key: 'front-text', actionKey: 'show-block', source: 'inline' })
-    expect(document.faces.front.children[0]!.block.visible).toBe('true')
+    expect(getBlockProperty<string>(document.faces.front.children[0]!.block, 'visible')).toBe('true')
     expect(markDocumentChanged).toHaveBeenCalledWith('action', 'structure-tree', true)
 
     activeFaceKey.value = 'back'
@@ -112,13 +113,13 @@ describe('useCdeTreeOps active face boundary', () => {
     state.handleRootAction('add-text-block')
     expect(document.faces.back.children).toHaveLength(2)
     expect(document.faces.front.children).toHaveLength(1)
-    expect(document.faces.back.children[1]?.block.name).toBe('Localized text-block')
+    expect(getBlockProperty<string>(document.faces.back.children[1]?.block, 'name')).toBe('Localized text-block')
     expect(markDocumentChanged).toHaveBeenCalledWith('action', 'structure-tree', true)
 
     state.handleRootAction('add-markdown-text-block')
     expect(document.faces.back.children).toHaveLength(3)
     expect(document.faces.back.children[2]?.block.type).toBe('markdown-text-block')
-    expect(document.faces.back.children[2]?.block.name).toBe('Localized markdown-text-block')
+    expect(getBlockProperty<string>(document.faces.back.children[2]?.block, 'name')).toBe('Localized markdown-text-block')
   })
 
   it('projects packaged containers as atomic tree nodes and preserves nested package boundaries', () => {
@@ -260,7 +261,7 @@ describe('useCdeTreeOps active face boundary', () => {
     state.handleRootAction('add-custom-block:alice/square')
     expect(document.faces.front.children[2]?.block).toMatchObject({
       type: 'custom-block',
-      customBlockKey: 'alice@block:square',
+      customBlockKey: 'alice/square',
     })
 
     state.handleTreeIntent({
@@ -386,6 +387,10 @@ describe('useCdeTreeOps active face boundary', () => {
     const documentRevision = ref(0)
     const parentLookup = ref(buildParentLookup(document))
     const selectedBlockKeys = ref(['container', 'child'])
+    document.instances = [{
+      type: 'card-instance', id: 'instance', name: 'Instance', amount: '1',
+      data: { container: { width: '10px' }, child: { content: 'override' }, sibling: { content: 'keep' } },
+    }]
     const refreshDocumentState = vi.fn(() => {
       documentRevision.value += 1
       parentLookup.value = buildParentLookup(document)
@@ -393,6 +398,7 @@ describe('useCdeTreeOps active face boundary', () => {
     const markDocumentChanged = vi.fn()
     const state = useCdeTreeOps({
       activeFace: ref(document.faces.front),
+      cardDoc: ref(document),
       documentRevision,
       parentLookup,
       selectedBlockKeys,
@@ -407,6 +413,7 @@ describe('useCdeTreeOps active face boundary', () => {
 
     state.handleRootAction('delete-selected')
     expect(document.faces.front.children.map(entry => entry.block.id)).toEqual(['sibling'])
+    expect(document.instances[0]!.data).toEqual({ sibling: { content: 'keep' } })
     expect(selectedBlockKeys.value).toEqual([])
     expect(refreshDocumentState).toHaveBeenCalledTimes(1)
     expect(markDocumentChanged).toHaveBeenCalledTimes(1)

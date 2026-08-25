@@ -367,13 +367,9 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
 }
 
 function createCustomBlockPropertyEditorSchema(): Record<string, EditorPropertyDefinition> {
-    const base = createBaseBlockPropertyEditorSchema()
-    const visibleKeys = new Set(['name', 'notes', 'visible'])
     return {
-        ...Object.fromEntries(Object.entries(base).map(([key, definition]) => [
-            key,
-            visibleKeys.has(key) ? definition : { ...definition, isHidden: true },
-        ])),
+        id: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false },
+        type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false, exposesReference: false },
         customBlockKey: {
             fieldType: 'string',
             required: true,
@@ -382,6 +378,7 @@ function createCustomBlockPropertyEditorSchema(): Record<string, EditorPropertyD
             acceptsBinding: false,
             exposesReference: false,
         },
+        additionalFieldDefinition: { fieldType: 'object', objectType: 'AdditionalFieldDefinition', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     }
 }
 

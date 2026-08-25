@@ -1,8 +1,9 @@
 import { computed, type DeepReadonly, type Ref } from 'vue'
-import type {
-  CardBlock,
-  CardDocument,
-  CardFaceKey,
+import {
+  getBlockProperty,
+  type CardBlock,
+  type CardDocument,
+  type CardFaceKey,
 } from '../../entities/card/model'
 import { isBlockContainer, isBlockPackaged } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
@@ -81,6 +82,18 @@ function hasOwn(record: object, fieldKey: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, fieldKey)
 }
 
+function findCatalogEntry(
+  catalog: ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>> | undefined,
+  key: string,
+): DeepReadonly<ProjectCustomBlockCatalogEntry> | undefined {
+  if (!catalog) return undefined
+  const identity = key.toLocaleLowerCase()
+  const legacy = identity.includes('@block:')
+    ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + 7)}`
+    : identity
+  return catalog.get(identity) ?? catalog.get(legacy)
+}
+
 export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
   const columns = computed<CdeDataTableColumn[]>(() => {
     options.documentRevision.value
@@ -147,7 +160,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     function visit(block: CardBlock, depth: number): void {
       rows.push({
         key: block.id,
-        title: block.name?.trim() || block.id,
+        title: getBlockProperty<string>(block, 'name')?.trim() || block.id,
         type: block.type,
         depth,
         fields: projectFieldCatalog(document, block),
@@ -173,7 +186,7 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
     }
 
     const customEntry = block.type === 'custom-block'
-      ? options.customBlockCatalog?.value.get(block.customBlockKey.toLowerCase())
+      ? findCatalogEntry(options.customBlockCatalog?.value, block.customBlockKey)
       : undefined
     const packageSchema = customEntry ? createProjectCustomBlockPropertySchema(customEntry) : null
     const override = packageSchema?.fields ?? {}

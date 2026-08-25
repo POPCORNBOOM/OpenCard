@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CardDocument, TextBlock } from '../../entities/card/model'
+import { createTextBlock, type CardDocument, type TextBlock } from '../../entities/card/model'
 import { compareOcdocuments } from './ocdocumentDiff'
 
 function textBlock(id: string, content = id): TextBlock {
-  return { id, type: 'text-block', content, name: id }
+  return createTextBlock({ id, content, name: id })
 }
 
 function document(blocks: TextBlock[] = [textBlock('title')]): CardDocument {

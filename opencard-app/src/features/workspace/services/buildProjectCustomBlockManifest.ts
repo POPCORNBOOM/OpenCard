@@ -1,4 +1,4 @@
-import type { CardBlock } from '../../../entities/card/model'
+import { getBlockProperty, type CardBlock } from '../../../entities/card/model'
 import { visitCardBlockTree } from '../../../entities/card/tree'
 import { parseAdditionalFieldDefinitions, resolvePropertyEditorSchema } from '../../../entities/card/schema'
 import {
@@ -87,7 +87,7 @@ export async function buildProjectCustomBlockManifest(options: {
     type: 'opencard-custom-block',
     packageId: `block:${key}`,
     version: '0.0.0',
-    name: options.name?.trim() || options.root.name?.trim() || key,
+    name: options.name?.trim() || getBlockProperty<string>(options.root, 'name')?.trim() || key,
     ...(options.description?.trim() ? { description: options.description.trim() } : {}),
     publicFieldKeys,
   }

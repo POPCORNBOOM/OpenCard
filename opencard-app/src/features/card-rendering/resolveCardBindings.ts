@@ -4,6 +4,7 @@ import {
   exposesCardFieldReference,
   getCardFieldKeys,
   getCardFieldValue,
+  getBlockProperty,
   getCardFieldValueKind,
   hasCardField,
   setCardFieldValue,
@@ -267,7 +268,7 @@ export function resolveReferences(
 
       const sourceBlock = sourceChild.block
       const targetBlock = targetChild.block
-      const blockPath = joinBlockPath(parentBlockPath, sourceBlock.name ?? '')
+      const blockPath = joinBlockPath(parentBlockPath, getBlockProperty<string>(sourceBlock, 'name') ?? '')
 
       const blockOwner: ReferenceOwner = {
         kind: 'block',

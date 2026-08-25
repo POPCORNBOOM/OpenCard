@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { computed } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import type { ImageBlock as ImageBlockModel } from '../../../entities/card/model'
+import { createImageBlock } from '../../../entities/card/model'
 import ImageBlockRenderer from './ImageBlockRenderer.vue'
 import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
 import type { RenderReadyImageBlock } from '../render.types'
@@ -11,14 +11,10 @@ vi.mock('../../workspace/store/projectStore', () => ({
   useProjectStore: () => ({ resolveAssetSrc: (path: string) => path }),
 }))
 
-function createBlock(image: string, fit: ImageBlockModel['fit'] = 'contain'): RenderReadyImageBlock {
-  return parseRenderReadyBlockForTest({
-    id: 'image-block-test',
-    name: 'Test image',
-    type: 'image-block',
-    image,
-    fit,
-  })
+function createBlock(image: string, fit: 'cover' | 'contain' | 'fill' = 'contain'): RenderReadyImageBlock {
+  return parseRenderReadyBlockForTest(createImageBlock({
+    id: 'image-block-test', name: 'Test image', image, fit,
+  }))
 }
 
 describe('ImageBlockRenderer', () => {

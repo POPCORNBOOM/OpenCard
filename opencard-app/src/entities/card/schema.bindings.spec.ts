@@ -165,9 +165,7 @@ describe('property binding schema policy', () => {
       'simple-container-block': { ...commonBlock, container: ['clip'] },
       'flow-container-block': { ...commonBlock, container: ['clip', 'direction', 'gap'] },
       'custom-block': {
-        general: ['name', 'notes'],
-        layer: ['visible'],
-        advanced: ['packageId'],
+        advanced: ['id', 'type', 'customBlockKey'],
       },
       'simple-container-location': {
         advanced: ['id', 'type'],

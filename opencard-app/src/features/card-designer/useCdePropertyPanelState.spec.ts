@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { createBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
+import { createBlock, createTextBlock, getBlockProperty, setBlockProperty, type CardDocument } from '../../entities/card/model'
 import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
 import { useCdePropertyPanelState } from './useCdePropertyPanelState'
 
@@ -167,13 +167,13 @@ describe('useCdePropertyPanelState additional fields', () => {
 
   it('deletes optional native fields but protects required fields', () => {
     const { block, document, state } = createHarness()
-    block.name = 'Optional name'
+    setBlockProperty(block, 'name', 'Optional name')
     document.instances[0]!.data.text = { name: 'Instance name' }
 
     expect(state.propertyInputs.value[0]?.fields.name?.deletable).toBe(true)
     expect(state.propertyInputs.value[0]?.fields.content?.deletable).toBe(false)
     expect(state.deleteProperty({ key: block.id, fieldKey: 'name' })).toBe(true)
-    expect(block.name).toBeUndefined()
+    expect(getBlockProperty(block, 'name')).toBeUndefined()
     expect(document.instances[0]!.data.text).toBeUndefined()
     expect(state.deleteProperty({ key: block.id, fieldKey: 'content' })).toBe(false)
     expect(block.content).toBe('Blueprint')

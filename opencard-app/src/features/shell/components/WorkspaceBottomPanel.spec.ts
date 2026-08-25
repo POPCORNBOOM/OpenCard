@@ -137,14 +137,15 @@ describe('WorkspaceBottomPanel', () => {
     }
   })
 
-  it('toggles expansion from the center control', async () => {
+  it('locks and unlocks from the floating control', async () => {
     const wrapper = mountPanel(true)
-
-    await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
-    await wrapper.setProps({ expanded: false })
-    await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
-
-    expect(wrapper.emitted('expanded-change')).toEqual([[false], [true]])
+    const toggle = wrapper.get('.workspace-bottom-panel__toggle')
+ 
+    await toggle.trigger('click')
+    await toggle.trigger('click')
+ 
+    expect(wrapper.emitted('expanded-change')).toEqual([[true]])
+    expect(toggle.attributes('aria-pressed')).toBe('false')
   })
 
   it('moves focus to the toggle before making the panel content inert', async () => {
@@ -181,26 +182,31 @@ describe('WorkspaceBottomPanel', () => {
     expect(toggle.attributes()).not.toHaveProperty('data-issue-severity')
   })
 
-  it('disables automatic expansion and collapse while pinned', async () => {
+  it('locks and unlocks automatic expansion from the floating toggle', async () => {
     vi.useFakeTimers()
     const wrapper = mountPanel(true)
-
+    const toggle = wrapper.get('.workspace-bottom-panel__toggle')
+ 
     try {
-      const pin = wrapper.get('.workspace-bottom-panel__pin')
-      expect(pin.getComponent(OcIcon).props('name')).toBe('tool.pin-off')
-      await pin.trigger('click')
-      expect(pin.attributes('aria-pressed')).toBe('true')
-      expect(pin.getComponent(OcIcon).props('name')).toBe('tool.pin')
-
+      expect(toggle.getComponent(OcIcon).props('name')).toBe('nav.chevron-down')
+      await toggle.trigger('mouseenter')
+      expect(toggle.getComponent(OcIcon).props('name')).toBe('tool.pin')
+      expect(toggle.attributes('aria-pressed')).toBe('false')
+      await toggle.trigger('click')
+      expect(toggle.attributes('aria-pressed')).toBe('true')
+      expect(toggle.getComponent(OcIcon).props('name')).toBe('tool.pin-off')
+      expect(toggle.attributes('aria-label')).toBe('Unpin panel')
       await wrapper.get('.workspace-bottom-panel').trigger('mouseleave')
       vi.advanceTimersByTime(180)
-      expect(wrapper.emitted('expanded-change')).toBeUndefined()
-
-      await wrapper.get('.workspace-bottom-panel__toggle').trigger('click')
-      await wrapper.setProps({ expanded: false })
-      await wrapper.get('.workspace-bottom-panel__toggle').trigger('mouseenter')
-
-      expect(wrapper.emitted('expanded-change')).toEqual([[false]])
+      expect(wrapper.emitted('expanded-change')).toEqual([[true]])
+ 
+      await toggle.trigger('mouseleave')
+      expect(toggle.getComponent(OcIcon).props('name')).toBe('nav.chevron-down')
+      await toggle.trigger('click')
+      expect(toggle.attributes('aria-pressed')).toBe('false')
+      await toggle.trigger('mouseenter')
+      expect(toggle.getComponent(OcIcon).props('name')).toBe('tool.pin')
+      expect(toggle.attributes('aria-label')).toBe('Pin panel')
     } finally {
       vi.useRealTimers()
     }
@@ -214,15 +220,16 @@ describe('WorkspaceBottomPanel', () => {
     expect(wrapper.emitted('expanded-change')).toBeUndefined()
   })
 
-  it('opens on keyboard focus and closes when focus leaves the panel', () => {
+  it('opens on keyboard focus and closes when focus leaves the panel', async () => {
     const wrapper = mountPanel(false)
     const panel = wrapper.get('.workspace-bottom-panel')
     panel.element.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    await wrapper.setProps({ expanded: true })
     panel.element.dispatchEvent(new FocusEvent('focusout', {
       bubbles: true,
       relatedTarget: document.body,
     }))
-
+ 
     expect(wrapper.emitted('expanded-change')).toEqual([[true], [false]])
   })
 

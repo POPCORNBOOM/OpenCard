@@ -1,4 +1,4 @@
-import { createBlock, createCustomBlock, type CardBlock, type CardDocument, type CardFaceKey, type CardInstanceRecord } from '../../entities/card/model'
+import { createBlock, createCustomBlock, getBlockProperty, type CardBlock, type CardDocument, type CardFaceKey, type CardInstanceRecord } from '../../entities/card/model'
 import { visitCardBlockTree } from '../../entities/card/tree'
 import { parseRichTextHtml, type RichTextCustomBlockNode, type RichTextDocument, type RichTextNode } from '../../shared/rich-text/richTextHtml'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
@@ -52,8 +52,8 @@ function customBlockNodes(nodes: readonly RichTextNode[]): RichTextCustomBlockNo
 function createProxy(host: RichTextHost, embeds: readonly EmbedWork[]): CardBlock {
   const proxy = createBlock('simple-container-block', {
     id: `rich-host:${host.block.id}`,
-    width: host.block.width,
-    height: host.block.height,
+    width: getBlockProperty<string>(host.block, 'width'),
+    height: getBlockProperty<string>(host.block, 'height'),
   })
   const source = host.block as unknown as Record<string, unknown>
   const target = proxy as unknown as Record<string, unknown>

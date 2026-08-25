@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import type { TextBlock as TextBlockModel } from '../../../entities/card/model'
+import { createTextBlock } from '../../../entities/card/model'
 import TextBlockRenderer from './TextBlockRenderer.vue'
 import { parseRenderReadyBlockForTest, rendererTestGlobal, richTextRendererTestGlobal } from './renderTestUtils'
 import CardBlockRenderer from './CardBlockRenderer.vue'
@@ -28,12 +28,10 @@ describe('TextBlockRenderer', () => {
   })
 
   it('renders content through the rich-text contract', () => {
-    const source: TextBlockModel = {
+    const block = parseRenderReadyBlockForTest(createTextBlock({
       id: 'rich-text-block',
-      type: 'text-block',
       content: '<p style="text-align: center">first <strong>second</strong></p>',
-    }
-    const block = parseRenderReadyBlockForTest(source)
+    }))
 
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
@@ -63,14 +61,12 @@ describe('TextBlockRenderer', () => {
   })
 
   it('keeps horizontal text alignment independent from vertical content alignment', () => {
-    const source: TextBlockModel = {
+    const block = parseRenderReadyBlockForTest(createTextBlock({
       id: 'text-block-test',
-      type: 'text-block',
       content: 'A paragraph long enough to exercise text layout.',
       textAlign: 'justify',
       verticalAlign: 'bottom',
-    }
-    const block = parseRenderReadyBlockForTest(source)
+    }))
 
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },
@@ -86,12 +82,11 @@ describe('TextBlockRenderer', () => {
 
   it('renders semicolon-separated project and system font fallbacks', () => {
     const resolveFontFamily = vi.fn(() => '"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
-    const block = parseRenderReadyBlockForTest({
+    const block = parseRenderReadyBlockForTest(createTextBlock({
       id: 'project-font-block',
-      type: 'text-block',
       content: 'Brand text',
       fontFamily: 'font:brand-sans; Microsoft YaHei; sans-serif',
-    })
+    }))
 
     const wrapper = mount(TextBlockRenderer, {
       props: { block, layoutMode: 'static' },

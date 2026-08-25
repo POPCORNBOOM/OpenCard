@@ -1,4 +1,4 @@
-import { createCustomBlock, type CustomBlock } from '../../../entities/card/model'
+import { createCustomBlock, setBlockProperty, type CustomBlock } from '../../../entities/card/model'
 
 type CustomBlockInstanceSource = {
   readonly manifest: {
@@ -23,11 +23,12 @@ function customBlockReferenceFromManifestId(packageId: string): string {
 
 export function createProjectCustomBlockInstance(
   entry: CustomBlockInstanceSource,
-  init: Partial<Pick<CustomBlock, 'id' | 'name'>> = {},
+  init: { id?: string; name?: string } = {},
 ): CustomBlock {
-  return createCustomBlock({
+  const block = createCustomBlock({
     id: init.id,
-    name: init.name ?? entry.manifest.name,
     customBlockKey: customBlockReferenceFromManifestId(entry.manifest.packageId),
   })
+  setBlockProperty(block, 'name', init.name ?? entry.manifest.name)
+  return block
 }

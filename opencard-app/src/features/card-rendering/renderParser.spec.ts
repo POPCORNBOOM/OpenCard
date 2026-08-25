@@ -3,6 +3,7 @@ import {
   createMarkdownTextBlock,
   createSimpleContainerBlock,
   createTextBlock,
+  setBlockProperty,
   type CardDocument,
 } from '../../entities/card/model'
 import { parseRenderDocument } from './renderParser'
@@ -69,8 +70,8 @@ describe('renderParser', () => {
   it('parses block notes and visibility without materializing the source', () => {
     const document = createDocument()
     const block = document.faces.front.children[0]!.block
-    block.notes = 'Shown beside the selection.'
-    block.visible = 'false'
+    setBlockProperty(block, 'notes', 'Shown beside the selection.')
+    setBlockProperty(block, 'visible', 'false')
     const sourceSnapshot = structuredClone(document)
 
     const parsed = parseRenderDocument(document).document.faces.front.children[0]!.block

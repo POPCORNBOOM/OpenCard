@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createSimpleContainerBlock,
   createTextBlock,
+  setBlockProperty,
   type CardBlock,
   type CardDocument,
   type CardInstanceRecord,
@@ -119,7 +120,7 @@ describe('renderPipeline', () => {
 
   it('returns binding and render diagnostics through one ordered issue stream', () => {
     const block = createTextBlock({ id: 'text', name: 'Title', content: 'Blueprint' })
-    block.opacity = 'not-a-number'
+    setBlockProperty(block, 'opacity', 'not-a-number')
     const instance: CardInstanceRecord = {
       type: 'card-instance',
       id: 'instance',

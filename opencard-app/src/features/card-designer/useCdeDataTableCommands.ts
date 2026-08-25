@@ -5,6 +5,9 @@
 import { computed, type DeepReadonly, type Ref } from 'vue'
 import {
   setCardFieldValue,
+  getBlockProperty,
+  setBlockProperty,
+  deleteBlockProperty,
   type AdditionalFieldKeyError,
   type AdditionalFieldDefinition,
   type CardBlock,
@@ -161,10 +164,10 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     for (const rename of result.blockRenames) {
       const block = blockLookup.get(rename.blockId)
       if (!block) continue
-      const currentName = block.name?.trim() || block.id
+      const currentName = getBlockProperty<string>(block, 'name')?.trim() || block.id
       if (currentName === rename.nextName) continue
-      if (rename.nextName) block.name = rename.nextName
-      else delete block.name
+      if (rename.nextName) setBlockProperty(block, 'name', rename.nextName)
+      else deleteBlockProperty(block, 'name')
       changed = true
     }
 
@@ -309,7 +312,12 @@ function isCustomBlockFieldAllowed(
   if (!document) return false
   const block = createBlockLookup(document).get(blockId)
   if (block?.type !== 'custom-block') return true
-  return catalog?.get(block.customBlockKey.toLowerCase())?.manifest.publicFieldKeys
+  const identity = block.customBlockKey.toLocaleLowerCase()
+  const legacy = identity.includes('@block:')
+    ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + 7)}`
+    : identity
+  const entry = catalog?.get(identity) ?? catalog?.get(legacy)
+  return entry?.manifest.publicFieldKeys
     .some(key => key.toLowerCase() === fieldKey.toLowerCase()) === true
 }
 

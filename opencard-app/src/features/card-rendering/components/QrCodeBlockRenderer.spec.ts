@@ -1,21 +1,15 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import type { QrCodeBlock as QrCodeBlockModel } from '../../../entities/card/model'
+import { createQrCodeBlock } from '../../../entities/card/model'
 import QrCodeBlockRenderer from './QrCodeBlockRenderer.vue'
 import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
 import type { RenderReadyQrCodeBlock } from '../render.types'
 
 function createBlock(content: string): RenderReadyQrCodeBlock {
-  const block: QrCodeBlockModel = {
-    id: 'qr-test',
-    name: 'QR test',
-    type: 'qrcode-block',
-    content,
-    errorCorrection: 'H',
-    foreground: '#112233',
-    backgroundColor: '#FDFDFD',
-    quietZone: '2',
-  }
+  const block = createQrCodeBlock({
+    id: 'qr-test', name: 'QR test', content, errorCorrection: 'H',
+    foreground: '#112233', backgroundColor: '#FDFDFD', quietZone: '2',
+  })
   return parseRenderReadyBlockForTest(block)
 }
 

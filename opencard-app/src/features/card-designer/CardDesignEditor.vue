@@ -328,7 +328,7 @@
       :document="cardDoc"
       :root-block-id="customBlockExportBlock?.id ?? null"
       :fields="customBlockExportFields"
-      :default-name="customBlockExportBlock?.name ?? ''"
+      :default-name="getBlockProperty<string>(customBlockExportBlock, 'name') ?? ''"
       :default-key="customBlockExportDefaultKey"
       :project-root-path="props.resourceRootPath || projectStore.projectPath.value"
       :busy="customBlockExportBusy"
@@ -364,6 +364,7 @@ import type { EditorEmits, EditorProps, EditorSnapshotContext } from '../editor-
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
   getCardFieldDefinition,
+  getBlockProperty,
   type AdditionalFieldDefinition,
   type CardBlock,
   type CardDocument,
@@ -1281,7 +1282,7 @@ const diffBlockTreeData = computed<OcTreeData>(() => {
           : undefined
     if (kind) statusById.set(id, kind)
     items.set(id, {
-      label: block.name || id,
+      label: getBlockProperty<string>(block, 'name') || id,
       icon: getBlockPresentation(block.type).icon,
       iconTone: getBlockPresentation(block.type).iconTone,
       tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : kind === 'changed' ? 'warning' : undefined,
@@ -1623,6 +1624,7 @@ const {
   pasteBlockPayloads,
 } = useCdeTreeOps({
   activeFace,
+  cardDoc,
   documentRevision,
   parentLookup,
   selectedBlockKeys,
@@ -1676,7 +1678,7 @@ const customBlockExportFields = computed(() => customBlockExportAnalysis.value.f
     : field.key),
 })))
 const customBlockExportDefaultKey = computed(() => toKeySlug(
-  customBlockExportBlock.value?.name ?? '',
+  getBlockProperty<string>(customBlockExportBlock.value, 'name') ?? '',
   'custom-block',
 ))
 
@@ -2004,7 +2006,7 @@ const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => {
   )
   const inputs: PropertyEditorInput[] = [{
     key: blockId,
-    title: block.name?.trim() || blockId,
+    title: getBlockProperty<string>(block, 'name')?.trim() || blockId,
     record: blockProjection.record,
     fields: blockProjection.fields,
   }]
@@ -2518,7 +2520,7 @@ const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   return {
     icon: presentation.icon,
     iconTone: presentation.iconTone,
-    name: renderedBlock?.name.trim() || block.name?.trim() || block.id,
+    name: renderedBlock?.name.trim() || getBlockProperty<string>(block, 'name')?.trim() || block.id,
     notes: renderedBlock?.notes.trim() || '',
   }
 })

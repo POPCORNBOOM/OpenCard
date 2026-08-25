@@ -3,7 +3,10 @@ import type { CardBlockPayload } from '../../shared/model/clipboard/cardBlockCli
 import { computed, toRaw, watch, type Ref } from 'vue'
 import {
   createBlock,
+  getBlockProperty,
+  setBlockProperty,
   type CardBlock,
+  type CardDocument,
   type CardFace,
   type FlowContainerLocationInfo,
   type SimpleContainerLocationInfo,
@@ -13,6 +16,7 @@ import {
   isBlockContainer,
   isBlockPackaged,
   removeBlockFromContainer,
+  visitCardBlockTree,
   type BlockContainer,
   type ParentLookup,
 } from '../../entities/card/tree'
@@ -30,6 +34,7 @@ type IndexedBlock = {
 
 type UseCdeTreeOpsOptions = {
   activeFace: Readonly<Ref<CardFace | null>>
+  cardDoc?: Readonly<Ref<CardDocument | null>>
   documentRevision: Readonly<Ref<number>>
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
@@ -67,10 +72,10 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
       const childKeys = isBlockContainer(block) && !packaged
         ? block.children.map((child) => child.block.id)
         : []
-      const visibility = block.visible === 'false' ? 'hidden' : 'visible'
+      const visibility = getBlockProperty<string>(block, 'visible') === 'false' ? 'hidden' : 'visible'
       const presentation = getBlockPresentation(block.type)
       items.set(block.id, {
-        label: block.name?.trim() || block.id,
+        label: getBlockProperty<string>(block, 'name')?.trim() || block.id,
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
         renamable: true,
@@ -277,8 +282,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function setBlockVisibility(block: CardBlock, visible: boolean): void {
     const nextValue = visible ? 'true' : 'false'
-    if (block.visible === nextValue) return
-    block.visible = nextValue
+    if (getBlockProperty<string>(block, 'visible') === nextValue) return
+    setBlockProperty(block, 'visible', nextValue)
     options.refreshDocumentState(true)
     options.markDocumentChanged('action', 'structure-tree', true)
   }
@@ -286,8 +291,8 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   function renameBlock(key: string, name: string): void {
     const block = blockIndex.value.get(key)?.block
     const nextName = name.trim()
-    if (!block || !nextName || block.name === nextName) return
-    block.name = nextName
+    if (!block || !nextName || getBlockProperty<string>(block, 'name') === nextName) return
+    setBlockProperty(block, 'name', nextName)
     options.refreshDocumentState(true)
     options.markDocumentChanged('action', 'structure-tree', true)
   }
@@ -502,8 +507,16 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     })
     if (targets.length !== keys.length || targets.length === 0) return
 
+    const deletedBlockIds = new Set<string>()
     for (const target of targets) {
-      removeBlockFromContainer(target.container, target.key, options.parentLookup.value)
+      const removed = removeBlockFromContainer(target.container, target.key, options.parentLookup.value)
+      if (!removed) continue
+      visitCardBlockTree(removed, block => deletedBlockIds.add(block.id))
+    }
+    if (deletedBlockIds.size > 0) {
+      for (const instance of options.cardDoc?.value?.instances ?? []) {
+        for (const blockId of deletedBlockIds) delete instance.data[blockId]
+      }
     }
     options.selectedBlockKeys.value = []
     options.refreshDocumentState(true)
@@ -527,7 +540,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function cloneBlockWithNewIds(source: CardBlock): CardBlock {
     const raw = toRaw(source) as CardBlock
-    const rootName = raw.name?.trim() || raw.id
+    const rootName = getBlockProperty<string>(raw, 'name')?.trim() || raw.id
     let duplicate: CardBlock
     try {
       duplicate = structuredClone(raw)
@@ -540,7 +553,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function remapBlockIds(block: CardBlock, root: boolean, rootName: string): void {
     block.id = `${block.type}-${crypto.randomUUID()}`
-    if (root) block.name = `${rootName} 副本`
+    if (root) setBlockProperty(block, 'name', `${rootName} 副本`)
     if (!isBlockContainer(block)) return
     for (const child of block.children) remapBlockIds(child.block, false, rootName)
   }

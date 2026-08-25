@@ -7,13 +7,15 @@
       class="workspace-bottom-panel__toggle"
       type="button"
       :aria-expanded="expanded"
-      :aria-label="expanded ? collapseLabel : expandLabel"
-      :data-tooltip="expanded ? collapseLabel : expandLabel"
+      :aria-label="pinned ? unpinLabel : pinLabel"
+      :data-tooltip="pinned ? unpinLabel : pinLabel"
+      :aria-pressed="pinned"
       :data-issue-severity="issueCount > 0 ? issueSeverity : null"
-      @mouseenter="requestExpansion"
-      @click="toggleExpansion"
+      @mouseenter="handleToggleMouseEnter"
+      @mouseleave="isToggleHovered = false"
+      @click="togglePinned"
     >
-      <OcIcon :name="expanded ? 'nav.chevron-down' : 'nav.chevron-up'" size="sm" />
+      <OcIcon :name="isToggleHovered ? (pinned ? 'tool.pin-off' : 'tool.pin') : (expanded ? 'nav.chevron-down' : 'nav.chevron-up')" size="sm" />
     </button>
 
     <div
@@ -43,39 +45,30 @@
             </span>
           </button>
         </div>
-        <button
-          class="workspace-bottom-panel__pin"
-          :class="{ 'is-pinned': pinned }"
-          type="button"
-          :aria-label="pinned ? unpinLabel : pinLabel"
-          :aria-pressed="pinned"
-          :data-tooltip="pinned ? unpinLabel : pinLabel"
-          @click="pinned = !pinned"
-        >
-          <OcIcon :name="pinned ? 'tool.pin' : 'tool.pin-off'" size="sm" />
-        </button>
       </div>
 
       <div
         v-show="activeTab === 'issues'"
         id="workspace-bottom-tabpanel-issues"
-        class="workspace-bottom-panel__tabpanel"
+        class="workspace-bottom-panel__tabpanel workspace-bottom-panel__issues"
         role="tabpanel"
         aria-labelledby="workspace-bottom-tab-issues"
       >
         <OcFieldInput :value="issueFilter" class="workspace-bottom-panel__issue-filter"
           type="search" :placeholder="issueFilterLabel" :aria-label="issueFilterLabel" full-width
           @input="issueFilter = ($event.target as HTMLInputElement).value" />
-        <OcTree
-          v-if="filteredIssueTreeData.rootKeys.length > 0"
-          :data="filteredIssueTreeData"
-          :expanded-keys="expandedIssueKeys"
-          activation-mode="double-click"
-          selection-mode="none"
-          fill
-          @intent="handleIssueTreeIntent"
-        />
-        <div v-else class="workspace-bottom-panel__empty">{{ issueEmptyLabel }}</div>
+        <div class="workspace-bottom-panel__issues-scroll">
+          <OcTree
+            v-if="filteredIssueTreeData.rootKeys.length > 0"
+            :data="filteredIssueTreeData"
+            :expanded-keys="expandedIssueKeys"
+            activation-mode="double-click"
+            selection-mode="none"
+            fill
+            @intent="handleIssueTreeIntent"
+          />
+          <div v-else class="workspace-bottom-panel__empty">{{ issueEmptyLabel }}</div>
+        </div>
       </div>
 
       <div
@@ -201,6 +194,7 @@ const emit = defineEmits<{
 const HOVER_COLLAPSE_DELAY_MS = 180
 const pinned = ref(false)
 const toggleRef = ref<HTMLButtonElement | null>(null)
+const isToggleHovered = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
 const issueFilter = ref('')
 const filteredIssueTreeData = computed<OcTreeData>(() => {
@@ -231,18 +225,23 @@ function clearCollapseTimer(): void {
 
 function requestExpansion(): void {
   clearCollapseTimer()
-  if (pinned.value) return
+  if (pinned.value || props.expanded) return
   emit('expanded-change', true)
 }
 
-function toggleExpansion(): void {
-  clearCollapseTimer()
-  emit('expanded-change', !props.expanded)
+function handleToggleMouseEnter(): void {
+  isToggleHovered.value = true
+  requestExpansion()
 }
 
+function togglePinned(): void {
+  clearCollapseTimer()
+  pinned.value = !pinned.value
+  if (pinned.value) emit('expanded-change', true)
+}
 function scheduleCollapse(): void {
   clearCollapseTimer()
-  if (pinned.value) return
+  if (pinned.value || !props.expanded) return
   collapseTimer = setTimeout(() => {
     collapseTimer = null
     emit('expanded-change', false)
@@ -254,7 +253,7 @@ function handlePanelFocusOut(event: FocusEvent): void {
   const panel = event.currentTarget
   if (panel instanceof HTMLElement && nextTarget instanceof Node && panel.contains(nextTarget)) return
   clearCollapseTimer()
-  if (pinned.value) return
+  if (pinned.value || !props.expanded) return
   emit('expanded-change', false)
 }
 
@@ -354,10 +353,12 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
 }
 
 .workspace-bottom-panel__toggle {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  z-index: 2;
+  position: fixed;
+  right: var(--oc-space-3, 8px);
+  bottom: var(--oc-space-3, 8px);
+  left: auto;
+  top: auto;
+  z-index: var(--oc-z-overlay-toolbar);
   width: 24px;
   height: 24px;
   padding: 0;
@@ -369,7 +370,7 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   background: var(--oc-bg-surface);
   color: var(--oc-fg-muted);
   box-shadow: var(--oc-shadow-sm);
-  transform: translate(-50%, -50%);
+  transform: none;
   transition:
     border-color var(--oc-duration-fast, 100ms) var(--oc-ease, ease),
     background-color var(--oc-duration-fast, 100ms) var(--oc-ease, ease),
@@ -425,24 +426,6 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
   gap: var(--oc-space-1, 4px);
 }
 
-.workspace-bottom-panel__pin {
-  width: 28px;
-  margin-left: auto;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: var(--oc-fg-subtle);
-}
-
-.workspace-bottom-panel__pin:hover,
-.workspace-bottom-panel__pin:focus-visible,
-.workspace-bottom-panel__pin.is-pinned {
-  color: var(--oc-fg-default);
-  outline: none;
-}
 
 .workspace-bottom-panel__tab {
   position: relative;
@@ -497,6 +480,17 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
 .workspace-bottom-panel__tabpanel {
   min-height: 0;
   padding: var(--oc-space-2, 6px) var(--oc-space-3, 8px);
+  overflow: auto;
+}
+
+.workspace-bottom-panel__issues {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.workspace-bottom-panel__issues-scroll {
+  min-height: 0;
   overflow: auto;
 }
 

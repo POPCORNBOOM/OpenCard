@@ -4,6 +4,7 @@ import { config, shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createCardFace,
+  setBlockProperty,
   createFlowContainerBlock,
   createImageBlock,
   createSimpleContainerBlock,
@@ -1061,7 +1062,7 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const source = createDocument()
-    source.faces.front.children[0]!.block.zIndex = '2'
+    setBlockProperty(source.faces.front.children[0]!.block, 'zIndex', '2')
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
         filePath: 'D:/Project/cards/hero.ocdocument',
