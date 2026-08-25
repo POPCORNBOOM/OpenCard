@@ -1929,13 +1929,23 @@ const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
 
 const debugMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
   import.meta.env.DEV
-    ? [{
+    ? [
+      {
         key: 'toggle-debug-hide-cde-overlays',
-        title: debugHideCdeOverlays.value
-          ? t('app.debug.showCdeOverlays')
-          : t('app.debug.hideCdeOverlays'),
+        title: debugHideCdeOverlays.value ? t('app.debug.showCdeOverlays') : t('app.debug.hideCdeOverlays'),
         icon: debugHideCdeOverlays.value ? 'action.check' : 'format.code-braces',
-      }]
+      },
+      {
+        key: 'toggle-debug-transparent-cde-viewport',
+        title: debugTransparentCdeViewport.value ? t('app.debug.showCdeViewportBackground') : t('app.debug.transparentCdeViewport'),
+        icon: debugTransparentCdeViewport.value ? 'action.check' : 'format.code-braces',
+      },
+      {
+        key: 'toggle-debug-passive-cde-viewport',
+        title: debugPassiveCdeViewport.value ? t('app.debug.interactiveCdeViewport') : t('app.debug.passiveCdeViewport'),
+        icon: debugPassiveCdeViewport.value ? 'action.check' : 'format.code-braces',
+      },
+    ]
     : []
 ))
 
