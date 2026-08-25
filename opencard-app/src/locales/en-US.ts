@@ -219,6 +219,10 @@ export default {
     debug: {
       hideCdeOverlays: 'Hide CDE overlays (debug)',
       showCdeOverlays: 'Show CDE overlays (debug)',
+      transparentCdeViewport: 'Make CDE viewport background transparent (debug)',
+      showCdeViewportBackground: 'Show CDE viewport background (debug)',
+      passiveCdeViewport: 'Make CDE viewport passive (debug)',
+      interactiveCdeViewport: 'Make CDE viewport interactive (debug)',
     },
     feedback: {
       title: 'Feedback and Suggestions',

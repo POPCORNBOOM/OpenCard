@@ -541,6 +541,8 @@ const resourcePackageBuilderEntries = computed(() => indexedEntries.value
   .map(entry => entry.name.replace(/\\/g, '/')))
 const developerMode = ref(false)
 const debugHideCdeOverlays = ref(false)
+const debugTransparentCdeViewport = ref(false)
+const debugPassiveCdeViewport = ref(false)
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
 const SHELL_SHORTCUT_KEYS = {
@@ -900,6 +902,8 @@ const {
   settings: settingsStore.settings,
   comparison: editorComparison,
   debugHideCdeOverlays,
+  debugTransparentCdeViewport,
+  debugPassiveCdeViewport,
   sessionActions: {
     updateDraftContent,
     setSessionDirtyState,
@@ -2837,6 +2841,15 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'toggle-debug-hide-cde-overlays' && import.meta.env.DEV) {
     debugHideCdeOverlays.value = !debugHideCdeOverlays.value
+    return
+  }
+
+  if (actionKey === 'toggle-debug-transparent-cde-viewport' && import.meta.env.DEV) {
+    debugTransparentCdeViewport.value = !debugTransparentCdeViewport.value
+    return
+  }
+  if (actionKey === 'toggle-debug-passive-cde-viewport' && import.meta.env.DEV) {
+    debugPassiveCdeViewport.value = !debugPassiveCdeViewport.value
     return
   }
 

@@ -213,6 +213,7 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-data-table-preview-default-width',
   '--oc-data-table-preview-default-height',
   '--oc-z-data-table-preview',
+  '--oc-z-card-designer',
   '--oc-overlay-toolbar-field-min-width',
   '--oc-overlay-toolbar-field-max-width',
   '--oc-autocomplete-popover-min-width',

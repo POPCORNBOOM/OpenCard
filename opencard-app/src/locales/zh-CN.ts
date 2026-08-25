@@ -219,6 +219,10 @@ export default {
     debug: {
       hideCdeOverlays: '隐藏 CDE 浮层（调试）',
       showCdeOverlays: '显示 CDE 浮层（调试）',
+      transparentCdeViewport: '让 CDE 画布背景透明（调试）',
+      showCdeViewportBackground: '显示 CDE 画布背景（调试）',
+      passiveCdeViewport: '让 CDE 画布进入展示模式（调试）',
+      interactiveCdeViewport: '让 CDE 画布恢复交互（调试）',
     },
     feedback: {
       title: '反馈与建议',

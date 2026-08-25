@@ -63,6 +63,8 @@ type UseShellEditorHostOptions = {
   sessionActions: SessionActions
   comparison?: Readonly<Ref<EditorComparisonInput | null>>
   debugHideCdeOverlays?: Readonly<Ref<boolean>>
+  debugTransparentCdeViewport?: Readonly<Ref<boolean>>
+  debugPassiveCdeViewport?: Readonly<Ref<boolean>>
 }
 
 const AUTO_SAVE_REGISTRY_EDITOR_IDS = new Set(['font-registry', 'icon-registry'])
@@ -199,6 +201,8 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
           alignmentSnappingEnabledByDefault:
             options.settings.value.workspace.alignmentSnappingEnabledByDefault,
           debugHideCdeOverlays: options.debugHideCdeOverlays?.value ?? false,
+          debugTransparentCdeViewport: options.debugTransparentCdeViewport?.value ?? false,
+          debugPassiveCdeViewport: options.debugPassiveCdeViewport?.value ?? false,
         }
       }
 

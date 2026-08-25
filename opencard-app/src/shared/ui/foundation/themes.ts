@@ -108,6 +108,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-data-table-preview-default-width': '320px',
   '--oc-data-table-preview-default-height': '280px',
   '--oc-z-data-table-preview': '6',
+  '--oc-z-card-designer': '7',
   '--oc-overlay-toolbar-field-min-width': '48px',
   '--oc-overlay-toolbar-field-max-width': '56px',
   '--oc-autocomplete-popover-min-width': '240px',

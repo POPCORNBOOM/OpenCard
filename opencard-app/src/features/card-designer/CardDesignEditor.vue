@@ -39,16 +39,16 @@
               @render-readiness-change="handleRenderReadinessChange" />
           </div>
           <template v-else>
-          <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :face="viewFace"
+          <CardViewport ref="cardViewportRef" v-if="viewFace && renderResources" class="card-design-editor__viewport" :class="{ 'is-debug-transparent': props.debugTransparentCdeViewport, 'is-debug-passive': props.debugPassiveCdeViewport }" :face="viewFace"
           :clip-to-face="clipToFace"
           :resource-context="renderResources"
           :restore-key="props.filePath" :transform="viewportTransform"
-          :selected-block-id="selectedBlock?.id ?? null" :selected-location-type="selectedLocationType"
+          :selected-block-id="props.debugPassiveCdeViewport ? null : selectedBlock?.id ?? null" :selected-location-type="props.debugPassiveCdeViewport ? null : selectedLocationType"
           :selected-anchor="selectedAnchor" :selected-parent-block-id="selectedParentBlockId"
           :selected-parent-flow-direction="selectedParentFlowDirection"
           :selected-flow-align="selectedFlowAlign"
           :viewport-insets="viewportInsets"
-          :selection-info="selectionInfo"
+          :selection-info="props.debugPassiveCdeViewport ? null : selectionInfo"
           :width-locked="selectedCustomBlockResize.widthLocked"
           :height-locked="selectedCustomBlockResize.heightLocked"
           :selection-action-labels="selectionActionLabels"
@@ -59,10 +59,10 @@
           :layer-view-shortcut-legend-label="t('cardDesigner.layerView.shortcutLegend')"
           :layer-view-shortcut-hints="layerViewShortcutHints"
           :layer-view-atomic-block-ids="layerViewAtomicBlockIds"
-          :show-info="!selectedBlock"
-          :show-position-on-move="props.showSelectionPositionOnMove ?? true"
-          :show-size-on-resize="props.showSelectionSizeOnResize ?? true"
-          :alignment-snapping-enabled="alignmentSnappingEnabled"
+          :show-info="!selectedBlock && !props.debugPassiveCdeViewport"
+          :show-position-on-move="!props.debugPassiveCdeViewport && (props.showSelectionPositionOnMove ?? true)"
+          :show-size-on-resize="!props.debugPassiveCdeViewport && (props.showSelectionSizeOnResize ?? true)"
+          :alignment-snapping-enabled="!props.debugPassiveCdeViewport && alignmentSnappingEnabled"
           :transform-disabled-block-ids="transformDisabledBlockIds"
           @pointerdown.capture="handleCanvasPointerDown"
           @block-click="handleViewportBlockClick"
@@ -2883,6 +2883,8 @@ onUnmounted(() => {
 
 <style scoped>
 .card-design-editor {
+  position: relative;
+  z-index: var(--oc-z-card-designer);
   opacity: 1;
   transition: opacity var(--oc-duration-normal) var(--oc-ease);
 }
@@ -2893,6 +2895,10 @@ onUnmounted(() => {
 
 .card-design-editor__multi-selection-summary {
   margin: auto;
+}
+
+.card-design-editor__viewport.is-debug-passive {
+  pointer-events: none;
 }
 
 .card-design-editor__viewport {
@@ -3036,14 +3042,14 @@ onUnmounted(() => {
 }
 
 .card-design-editor__data-table-preview-layer,
-.card-design-editor__stage-layer {
+ .card-design-editor__stage-layer {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   pointer-events: none;
-  z-index: 2;
+  z-index: var(--oc-z-card-designer);
   opacity: 1;
   transition: opacity var(--oc-duration-normal) var(--oc-ease);
 }
@@ -3068,6 +3074,12 @@ onUnmounted(() => {
 .card-design-editor__data-table-preview-panel.is-opening :deep(.oc-card__header) {
   cursor: default;
 }
+
+.card-design-editor__viewport.is-debug-transparent {
+  background-color: transparent;
+  background-image: none;
+}
+
 
 .card-design-editor__data-table-preview-panel {
   position: absolute;
