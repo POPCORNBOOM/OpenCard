@@ -367,6 +367,8 @@ import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
+  PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY,
+  PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY,
   PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
@@ -1074,6 +1076,8 @@ const {
   registeredFontSources: computed(() => fontRegistryReady.value
     ? projectFontFamilies.value.flatMap(projectFontSources)
     : null),
+  customBlockDefinitions: projectStore.projectCustomBlockDefinitionCatalog,
+  customBlockRegistry: projectStore.projectCustomBlockRegistry,
 })
 
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {
@@ -1461,7 +1465,17 @@ const updateOperationTask = computed<{
   return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
 
-const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map())
+const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  [PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY, {
+    title: t('projectTemplates.actions.registerCustomBlock'),
+    icon: 'action.check',
+  }],
+  [PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY, {
+    title: t('sidebar.fileActions.delete'),
+    icon: 'action.close',
+    iconTone: 'danger',
+  }],
+]))
 const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
 watch([updateOperationTask, locale], ([task]) => {
@@ -2569,12 +2583,25 @@ async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
     await handleProjectManagementSelect(intent.selectedKeys)
     return
   }
-
   if (intent.type === 'expansion.change') {
     setProjectManagementEntryExpanded(intent.key, intent.expanded)
     return
   }
-
+  if (intent.type === 'action.invoke' && intent.actionKey === PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY) {
+    try {
+      await projectStore.installProjectCustomBlockFile(intent.key)
+    } catch (error) {
+      reportAppError('OC-E3011', { path: intent.key, error })
+    }
+    return
+  }
+  if (intent.type === 'action.invoke' && intent.actionKey === PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY) {
+    try {
+      await projectStore.deleteUnregisteredProjectCustomBlockFile(intent.key)
+    } catch (error) {
+      reportAppError('OC-E3011', { path: intent.key, error })
+    }
+  }
 }
 
 async function handleProjectTreeIntent(intent: OcTreeIntent) {

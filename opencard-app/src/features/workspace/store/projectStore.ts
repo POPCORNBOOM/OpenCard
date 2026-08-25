@@ -1265,6 +1265,17 @@ async function installProjectCustomBlockFile(sourcePath: string): Promise<Import
   return { blockKey, path, replaced: false }
 }
 
+async function deleteUnregisteredProjectCustomBlockFile(path: string): Promise<void> {
+  const normalized = normalizePath(path)
+  const blocksRoot = `${ensureProjectOpen()}/.opencard/blocks/`
+  const lowerPath = normalized.toLocaleLowerCase()
+  if (!lowerPath.startsWith(blocksRoot.toLocaleLowerCase()) || !lowerPath.endsWith('.ocblock')) {
+    throw new Error('Invalid custom block file path')
+  }
+  await fileSystemService.deleteFile(normalized)
+  await refreshIndexedEntries()
+}
+
 async function installResourcePackageFile(
   sourcePath: string,
   confirmReplacement?: Parameters<typeof installResourcePackage>[0]['confirmReplacement'],
@@ -1780,6 +1791,7 @@ export function useProjectStore() {
     importProjectIconFile,
     getProjectIconImportConflict,
     installProjectCustomBlockFile,
+    deleteUnregisteredProjectCustomBlockFile,
     installResourcePackageFile,
     uninstallResourcePackageFile,
     uninstallProjectCustomBlock,

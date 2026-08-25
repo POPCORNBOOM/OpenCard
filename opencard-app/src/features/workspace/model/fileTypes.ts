@@ -133,7 +133,7 @@ const fileTypes: FileTypeDefinition[] = [
     icon: 'file.custom-block',
     iconTone: iconTone.opencard,
     language: 'json',
-    editorId: 'monaco',
+    editorId: 'custom-block',
     previewable: true,
   },
   {
