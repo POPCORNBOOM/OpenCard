@@ -28,6 +28,7 @@ function resolveFontStack(fontFamily: string | undefined, fallback: string): str
 }
 
 let currentTheme: OcThemeId = DEFAULT_OC_THEME
+let themeTransitionTimer: ReturnType<typeof setTimeout> | null = null
 
 export function resolveOcPixelToken(
   token: OcThemeTokenKey,
@@ -239,6 +240,17 @@ function applyTheme(
   }
 
   const root = document.documentElement
+  if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer)
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!prefersReducedMotion) {
+    root.classList.add('oc-theme-transitioning')
+    themeTransitionTimer = setTimeout(() => {
+      root.classList.remove('oc-theme-transitioning')
+      themeTransitionTimer = null
+    }, 180)
+  }
   const tokens = resolveOcThemeTokens(themeId, overrides, accentNeighborAngle, typography)
   for (const token of OC_THEME_TOKEN_KEYS) {
     const value = tokens[token]
