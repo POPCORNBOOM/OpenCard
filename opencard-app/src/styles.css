@@ -6,6 +6,16 @@
   color-scheme: light;
 }
 
+@property --oc-fg-default { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-muted { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-disabled { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-accent-fg { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-default { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-muted { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
+
 html.oc-theme-transitioning,
 html.oc-theme-transitioning *,
 html.oc-theme-transitioning *::before,
@@ -17,7 +27,20 @@ html.oc-theme-transitioning *::after {
     outline-color var(--oc-duration-theme) var(--oc-ease),
     box-shadow var(--oc-duration-theme) var(--oc-ease),
     fill var(--oc-duration-theme) var(--oc-ease),
-    stroke var(--oc-duration-theme) var(--oc-ease);
+    stroke var(--oc-duration-theme) var(--oc-ease) !important;
+}
+
+html.oc-theme-transitioning {
+  transition:
+    --oc-fg-default var(--oc-duration-theme) var(--oc-ease),
+    --oc-fg-muted var(--oc-duration-theme) var(--oc-ease),
+    --oc-fg-subtle var(--oc-duration-theme) var(--oc-ease),
+    --oc-fg-disabled var(--oc-duration-theme) var(--oc-ease),
+    --oc-fg-accent var(--oc-duration-theme) var(--oc-ease),
+    --oc-accent-fg var(--oc-duration-theme) var(--oc-ease),
+    --oc-icon-default var(--oc-duration-theme) var(--oc-ease),
+    --oc-icon-muted var(--oc-duration-theme) var(--oc-ease),
+    --oc-icon-accent var(--oc-duration-theme) var(--oc-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
