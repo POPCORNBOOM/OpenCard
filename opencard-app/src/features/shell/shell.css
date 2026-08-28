@@ -918,6 +918,6 @@
 
 .app-select-option:hover,
 .app-select-option.selected {
-  background: var(--oc-bg-hover);
+  background-color: var(--oc-bg-hover);
   color: var(--oc-fg-default);
 }
