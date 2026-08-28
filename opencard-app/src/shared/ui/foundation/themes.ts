@@ -159,6 +159,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-duration-fast': '100ms',
   '--oc-duration-normal': '150ms',
   '--oc-duration-slow': '250ms',
+  '--oc-duration-theme': '420ms',
   '--oc-viewport-status-duration': '1200ms',
   '--oc-overflow-text-duration': '4s',
   '--oc-ease': 'cubic-bezier(0.2, 0, 0, 1)',
