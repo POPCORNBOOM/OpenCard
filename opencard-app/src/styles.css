@@ -30,6 +30,15 @@ html.oc-theme-transitioning *::after {
     stroke var(--oc-duration-theme) var(--oc-ease) !important;
 }
 
+html.oc-theme-transitioning .shell-sidebar-group-slide-forward-enter-active,
+html.oc-theme-transitioning .shell-sidebar-group-slide-forward-leave-active,
+html.oc-theme-transitioning .shell-sidebar-group-slide-backward-enter-active,
+html.oc-theme-transitioning .shell-sidebar-group-slide-backward-leave-active {
+  transition:
+    transform var(--oc-duration-normal) var(--oc-ease),
+    opacity var(--oc-duration-normal) var(--oc-ease) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.oc-theme-transitioning,
   html.oc-theme-transitioning *,
