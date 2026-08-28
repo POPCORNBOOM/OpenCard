@@ -6,6 +6,8 @@ import OcActionMenu, { isActionMenuBranchEvent } from '../../../components/stand
 import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from '../../../components/standard/actionBadge';
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
 import AppearanceShaderPreview from '../../settings/components/AppearanceShaderPreview.vue';
+import ShellTitleBarNotice from './ShellTitleBarNotice.vue';
+import { titleBarNotices } from '../titlebarNotices';
 import type {
   ShellProgressTask,
   ShellTitleBarAppAction,
@@ -42,6 +44,10 @@ const menuBranchId = useId();
 const titlebarRef = ref<HTMLElement | null>(null);
 const taskPanelAnchor = ref<HTMLElement | null>(null);
 const taskPanelOpen = ref(false);
+const noticeAnchor = ref<HTMLElement | null>(null);
+const noticePanelAnchor = ref<DOMRect | null>(null);
+const noticePanelOpen = ref(false);
+let noticePanelCloseTimer: number | null = null;
 const menuAnchors = new Map<string, HTMLElement>();
 let taskPanelCloseTimer: number | null = null;
 const activeProgressTasks = computed(() => (props.tasks ?? []).filter(task => task.active !== false));
@@ -55,6 +61,34 @@ const titlebarProgress = computed(() => {
   }, { progress: 0, weight: 0 });
   return totals.progress / totals.weight;
 });
+const latestTitleBarNotice = computed(() => titleBarNotices.value[titleBarNotices.value.length - 1] ?? null);
+
+function cancelNoticePanelClose(): void {
+  if (noticePanelCloseTimer == null) return;
+  window.clearTimeout(noticePanelCloseTimer);
+  noticePanelCloseTimer = null;
+}
+
+function openNoticePanel(): void {
+  cancelNoticePanelClose();
+  if (titleBarNotices.value.length) {
+    const anchor = noticeAnchor.value;
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect();
+      const topSpace = Number.parseFloat(getComputedStyle(anchor).getPropertyValue('--oc-space-2')) || 0;
+      noticePanelAnchor.value = new DOMRect(rect.left, rect.top - topSpace, rect.width, rect.height);
+    }
+    noticePanelOpen.value = true;
+  }
+}
+
+function scheduleNoticePanelClose(): void {
+  cancelNoticePanelClose();
+  noticePanelCloseTimer = window.setTimeout(() => {
+    noticePanelCloseTimer = null;
+    noticePanelOpen.value = false;
+  }, 120);
+}
 
 function taskProgressPercent(task: ShellProgressTask): number {
   return Math.round(Math.min(1, Math.max(0, task.progress)) * 100);
@@ -133,6 +167,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelTaskPanelClose();
+  cancelNoticePanelClose();
   document.removeEventListener('pointerdown', onDocumentPointerDown);
   document.removeEventListener('keydown', onDocumentKeydown);
 });
@@ -284,6 +319,37 @@ onBeforeUnmount(() => {
     </OcFloatingLayer>
 
     <div class="titlebar-right">
+      <div
+        v-if="latestTitleBarNotice"
+        ref="noticeAnchor"
+        class="titlebar-notice-host"
+        @pointerenter="openNoticePanel"
+        @pointerleave="scheduleNoticePanelClose"
+        @focusin="openNoticePanel"
+        @focusout="scheduleNoticePanelClose"
+      >
+        <ShellTitleBarNotice :key="latestTitleBarNotice.id" :notice="latestTitleBarNotice" />
+      </div>
+      <OcFloatingLayer
+        :open="noticePanelOpen"
+        :anchor="noticePanelAnchor"
+        placement="bottom-end"
+        :gap="-(noticeAnchor?.offsetHeight ?? 0)"
+        :max-height="360"
+        class="titlebar-notice-floating"
+        @pointerenter="cancelNoticePanelClose"
+        @pointerleave="scheduleNoticePanelClose"
+      >
+        <section
+          class="titlebar-notice-panel"
+          aria-label="Title bar messages"
+        >
+          <div v-for="notice in [...titleBarNotices].reverse()" :key="notice.id" class="titlebar-notice-history-row">
+            <OcIcon v-if="notice.icon" :name="notice.icon" size="sm" :tone="notice.tone" />
+            <span>{{ notice.message }}</span>
+          </div>
+        </section>
+      </OcFloatingLayer>
       <button
         v-for="(control, controlIndex) in props.windowControls ?? []"
         :key="control.key"

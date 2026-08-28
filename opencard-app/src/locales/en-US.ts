@@ -12,6 +12,7 @@ export default {
     selectedCount: '{count} items selected', clearSelection: 'Clear selection', noCandidates: 'This project has no packageable resources.',
     unnamed: 'Unnamed package', fonts: 'Fonts', icons: 'Icons', images: 'Images', other: 'Other resources',
     select: 'Add to package', deselect: 'Remove from package',
+    build: 'Create package',
     building: 'Building…',
     built: 'External package {name} was created.',
     name: 'Package name',
@@ -230,6 +231,7 @@ export default {
       showCdeViewportBackground: 'Show CDE viewport background (debug)',
       passiveCdeViewport: 'Make CDE viewport passive (debug)',
       interactiveCdeViewport: 'Make CDE viewport interactive (debug)',
+      sendTestMessages: 'Send 128 test messages (debug)',
     },
     feedback: {
       title: 'Feedback and Suggestions',
@@ -842,6 +844,7 @@ export default {
     },
     fields: {
       language: 'Language',
+      titleBarNoticeHistoryLimit: 'Title bar instant message history limit',
       suppressReleaseNotesAfterUpdate: 'Do not show release notes after an update',
       openCdeWorkbookAfterExport: 'Open CDE workbook after export',
       theme: 'Theme',
@@ -867,6 +870,7 @@ export default {
       customBlockMaxDepth: 'Maximum custom block recursion depth',
     },
     values: {
+      messages: ' messages',
       historyEntries: ' entries',
       recursionLevels: ' levels',
       systemLanguage: 'System',

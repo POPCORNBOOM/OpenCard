@@ -22,11 +22,18 @@ describe('useSettingsWorkspace', () => {
       value: 'system',
     })
     expect(activeCategory.value.fields[1]).toMatchObject({
+      type: 'range',
+      key: 'shell.titleBarNoticeHistoryLimit',
+      value: 128,
+      min: 1,
+      max: 512,
+    })
+    expect(activeCategory.value.fields[2]).toMatchObject({
       type: 'switch',
       key: 'updates.suppressReleaseNotesAfterUpdate',
       checked: false,
     })
-    expect(activeCategory.value.fields[2]).toMatchObject({
+    expect(activeCategory.value.fields[3]).toMatchObject({
       type: 'switch',
       key: 'exporting.openCdeWorkbookAfterExport',
       checked: true,

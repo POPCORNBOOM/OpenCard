@@ -275,6 +275,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { confirm as showConfirm, message as showMessage } from '@tauri-apps/plugin-dialog'
+import { addTitleBarNotice, setTitleBarNoticeHistoryLimit } from './titlebarNotices'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
 import { projectFontSources } from '../workspace/model/projectFontRegistry'
@@ -480,6 +481,11 @@ const {
 
 const settingsStore = useAppSettingsStore()
 watch(
+  () => settingsStore.settings.value.shell.titleBarNoticeHistoryLimit,
+  limit => setTitleBarNoticeHistoryLimit(limit),
+  { immediate: true },
+)
+watch(
   () => settingsStore.settings.value.workspace.historyEntryLimit,
   limit => editorHistoryManager.setEntryLimit(limit),
   { immediate: true },
@@ -532,6 +538,9 @@ const developerMode = ref(false)
 const debugHideCdeOverlays = ref(false)
 const debugTransparentCdeViewport = ref(false)
 const debugPassiveCdeViewport = ref(false)
+const DEBUG_NOTICE_COUNT = 128
+const DEBUG_NOTICE_INTERVAL_MS = 40
+let debugNoticeTimer: number | null = null
 const usesNativeMacosWindowControls = typeof navigator !== 'undefined'
   && /Macintosh|Mac OS X/.test(navigator.userAgent)
 const SHELL_SHORTCUT_KEYS = {
@@ -1886,6 +1895,11 @@ const debugMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
         title: debugPassiveCdeViewport.value ? t('app.debug.interactiveCdeViewport') : t('app.debug.passiveCdeViewport'),
         icon: debugPassiveCdeViewport.value ? 'action.check' : 'format.code-braces',
       },
+      {
+        key: 'send-debug-test-messages',
+        title: t('app.debug.sendTestMessages'),
+        icon: 'action.refresh',
+      },
     ]
     : []
 ))
@@ -2739,6 +2753,28 @@ function createUntitledOpenCard() {
   })
 }
 
+function stopDebugTestMessages(): void {
+  if (debugNoticeTimer == null) return
+  window.clearInterval(debugNoticeTimer)
+  debugNoticeTimer = null
+}
+
+function sendDebugTestMessages(): void {
+  stopDebugTestMessages()
+  let sent = 0
+  const sendNext = () => {
+    sent += 1
+    addTitleBarNotice({
+      message: `testmessage ${sent}`,
+      tone: 'success',
+      icon: 'action.check',
+    })
+    if (sent >= DEBUG_NOTICE_COUNT) stopDebugTestMessages()
+  }
+  sendNext()
+  debugNoticeTimer = window.setInterval(sendNext, DEBUG_NOTICE_INTERVAL_MS)
+}
+
 async function runShellCommand(actionKey: string) {
   if ((isCreateProjectMode.value && isProjectTemplateBusy.value) || isExportTemplateBusy.value) return
 
@@ -2764,6 +2800,11 @@ async function runShellCommand(actionKey: string) {
   if (actionKey === 'toggle-developer-mode' && import.meta.env.DEV) {
     developerMode.value = !developerMode.value
     stopDeveloperUpdatePreview()
+    return
+  }
+
+  if (actionKey === 'send-debug-test-messages' && import.meta.env.DEV) {
+    sendDebugTestMessages()
     return
   }
 
@@ -3332,6 +3373,7 @@ onMounted(() => {
 
 
 onUnmounted(() => {
+  stopDebugTestMessages()
   removeShellProgressTask(UPDATE_PROGRESS_TASK_KEY)
   disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
@@ -3348,8 +3390,10 @@ async function openResourcePackageBuilder(): Promise<void> {
 
 async function handleResourcePackageBuilt(path: string): Promise<void> {
   if (!path) return
-  await showMessage(t('resourcePackage.built', { name: path.split(/[\\/]/).pop() ?? path }), {
-    title: t('resourcePackage.title'), kind: 'info',
+  addTitleBarNotice({
+    message: t('resourcePackage.built', { name: path.split(/[\\/]/).pop() ?? path }),
+    tone: 'success',
+    icon: 'action.check',
   })
 }
 </script>

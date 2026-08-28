@@ -11,7 +11,9 @@ import {
 import {
   APP_THEME_PRESETS,
   MAX_CUSTOM_BLOCK_MAX_DEPTH,
+  MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
   MIN_CUSTOM_BLOCK_MAX_DEPTH,
+  MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT,
   resolveThemePresetId,
   type AppSettingKey,
   type AppSettings,
@@ -159,6 +161,16 @@ export function useSettingsWorkspace(
               { value: 'zh-CN', label: '简体中文' },
               { value: 'en-US', label: 'English' },
             ],
+          },
+          {
+            type: 'range',
+            key: 'shell.titleBarNoticeHistoryLimit',
+            label: options.translate('settings.fields.titleBarNoticeHistoryLimit', 'Instant message history limit'),
+            value: settings.shell.titleBarNoticeHistoryLimit,
+            min: MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT,
+            max: MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
+            step: 1,
+            suffix: options.translate('settings.values.messages', ' messages'),
           },
           {
             type: 'switch',

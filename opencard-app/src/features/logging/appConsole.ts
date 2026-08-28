@@ -17,6 +17,7 @@ export type AppConsoleEntry = {
 }
 
 const MAX_ENTRY_COUNT = 1_000
+const DUPLICATE_WINDOW_MS = 250
 const GLOBAL_STATE_KEY = '__OPENCARD_APP_CONSOLE_STATE__'
 
 type AppConsoleState = {
@@ -67,12 +68,16 @@ function appendEntry(severity: AppConsoleSeverity, args: readonly unknown[]): vo
   const errorReport = severity === 'error' && isAppErrorReport(args[0]) ? args[0] : null
   const message = errorReport ? formatErrorReport(errorReport) : args.map(formatValue).join(' ')
   const errorCode = severity === 'error' ? errorReport?.code ?? 'OC-E1001' : undefined
-  const previous = state.entries.value[state.entries.value.length - 1]
-  if (previous?.severity === severity && previous.message === message && previous.errorCode === errorCode) return
+  const now = Date.now()
+  for (let index = state.entries.value.length - 1; index >= 0; index -= 1) {
+    const recent = state.entries.value[index]
+    if (now - recent.timestamp > DUPLICATE_WINDOW_MS) break
+    if (recent.severity === severity && recent.message === message && recent.errorCode === errorCode) return
+  }
   const entry: AppConsoleEntry = {
     id: state.nextEntryId++,
     severity,
-    timestamp: Date.now(),
+    timestamp: now,
     message,
     ...(errorCode ? { errorCode } : {}),
   }

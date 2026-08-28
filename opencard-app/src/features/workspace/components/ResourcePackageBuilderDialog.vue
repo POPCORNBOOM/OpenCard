@@ -4,37 +4,6 @@
     :dismissible="!busy" :close-on-backdrop="!busy" :aria-busy="busy"
     @request-close="close" @submit.prevent="build">
     <div class="resource-package-builder" :inert="busy ? true : undefined">
-      <header class="resource-package-builder__header">
-        <div>
-          <OcText as="h2" size="lg">{{ t('resourcePackage.builderTitle') }}</OcText>
-          <OcText size="sm" tone="muted">{{ t('resourcePackage.builderDescription') }}</OcText>
-        </div>
-        <OcText v-if="selectedCount" size="sm" tone="muted">
-          {{ t('resourcePackage.selectedCount', { count: selectedCount }) }}
-        </OcText>
-      </header>
-
-      <section class="resource-package-builder__metadata" aria-labelledby="resource-package-info-title">
-        <OcText id="resource-package-info-title" as="h3" size="sm">{{ t('resourcePackage.packageInfo') }}</OcText>
-        <div class="resource-package-builder__fields">
-          <label>
-            <OcText as="span" size="sm">{{ t('resourcePackage.name') }}</OcText>
-            <OcFieldInput full-width autofocus :value="name" :disabled="busy"
-              @input="name = ($event.target as HTMLInputElement).value" />
-          </label>
-          <label>
-            <OcText as="span" size="sm">{{ t('resourcePackage.key') }}</OcText>
-            <OcFieldInput full-width mono :value="packageKey" :disabled="busy"
-              @input="packageKey = ($event.target as HTMLInputElement).value" />
-          </label>
-          <label>
-            <OcText as="span" size="sm">{{ t('resourcePackage.version') }}</OcText>
-            <OcFieldInput full-width mono :value="version" :disabled="busy"
-              @input="version = ($event.target as HTMLInputElement).value" />
-          </label>
-        </div>
-      </section>
-
       <div class="resource-package-builder__workspace">
         <section class="resource-package-builder__selection" aria-labelledby="resource-package-selection-title">
           <div class="resource-package-builder__section-heading">
@@ -62,12 +31,30 @@
             </div>
             <OcIcon name="file.package" size="lg" tone="opencard" />
           </div>
-          <dl class="resource-package-builder__manifest">
-            <div><dt>{{ t('resourcePackage.name') }}</dt><dd>{{ name.trim() || t('resourcePackage.unnamed') }}</dd></div>
-            <div><dt>{{ t('resourcePackage.key') }}</dt><dd><code>{{ normalizedKey || '-' }}</code></dd></div>
-            <div><dt>{{ t('resourcePackage.version') }}</dt><dd><code>{{ version.trim() || '-' }}</code></dd></div>
-            <div><dt>{{ t('resourcePackage.resources') }}</dt><dd><code>{{ selectedResourceCount }}</code></dd></div>
-          </dl>
+          <div class="resource-package-builder__fields">
+            <label>
+              <OcText as="span" size="sm">{{ t('resourcePackage.name') }}</OcText>
+              <OcFieldInput full-width autofocus :value="name" :disabled="busy"
+                @input="name = ($event.target as HTMLInputElement).value" />
+            </label>
+            <label>
+              <OcText as="span" size="sm">{{ t('resourcePackage.key') }}</OcText>
+              <OcFieldInput full-width mono :value="packageKey" :disabled="busy"
+                @input="packageKey = ($event.target as HTMLInputElement).value" />
+            </label>
+            <label>
+              <OcText as="span" size="sm">{{ t('resourcePackage.version') }}</OcText>
+              <OcFieldInput full-width mono :value="version" :disabled="busy"
+                @input="version = ($event.target as HTMLInputElement).value" />
+            </label>
+          </div>
+          <OcText v-if="selectedCount" size="sm" tone="muted">
+            {{ t('resourcePackage.selectedCount', { count: selectedCount }) }}
+          </OcText>
+          <div class="resource-package-builder__resource-count">
+            <OcText as="span" size="sm" tone="muted">{{ t('resourcePackage.resources') }}</OcText>
+            <code>{{ selectedResourceCount }}</code>
+          </div>
           <OcText v-if="errorText" class="resource-package-builder__error" tone="danger" role="alert">{{ errorText }}</OcText>
         </aside>
       </div>
@@ -268,25 +255,18 @@ async function build(): Promise<void> {
 </script>
 
 <style scoped>
-.resource-package-builder { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-width: 0; min-height: 0; background: var(--oc-bg-inset); }
-.resource-package-builder__header, .resource-package-builder__metadata { padding: var(--oc-space-5) var(--oc-space-6); background: var(--oc-bg-base); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.resource-package-builder__header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--oc-space-4); }
-.resource-package-builder__header h2, .resource-package-builder__metadata h3 { margin: 0; }
-.resource-package-builder__header > div { display: grid; gap: var(--oc-space-1); }
-.resource-package-builder__metadata { display: grid; gap: var(--oc-space-3); }
+.resource-package-builder { display: grid; grid-template-rows: minmax(0, 1fr); height: 100%; min-width: 0; min-height: 0; background: var(--oc-bg-inset); }
 .resource-package-builder__fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(8rem, 1fr); gap: var(--oc-space-3); }
 .resource-package-builder__fields label { display: grid; gap: var(--oc-space-1); min-width: 0; }
 .resource-package-builder__workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, .8fr); min-height: 0; }
 .resource-package-builder__selection, .resource-package-builder__summary { min-width: 0; min-height: 0; overflow: hidden; }
 .resource-package-builder__selection { display: grid; grid-template-rows: auto minmax(0, 1fr); border-right: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
 .resource-package-builder__summary { padding: var(--oc-space-6); background: var(--oc-bg-inset); }
+.resource-package-builder__summary .resource-package-builder__fields { grid-template-columns: 1fr; margin-top: var(--oc-space-5); }
 .resource-package-builder__section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--oc-space-3); padding: var(--oc-space-4) var(--oc-space-5); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
 .resource-package-builder__section-heading > div { display: grid; gap: var(--oc-space-1); min-width: 0; }
 .resource-package-builder__section-heading h3 { margin: 0; }
-.resource-package-builder__manifest { display: grid; gap: var(--oc-space-3); margin: var(--oc-space-5) 0 0; }
-.resource-package-builder__manifest > div { display: grid; grid-template-columns: minmax(0, 7rem) minmax(0, 1fr); gap: var(--oc-space-3); padding-bottom: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.resource-package-builder__manifest dt { color: var(--oc-fg-muted); }
-.resource-package-builder__manifest dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.resource-package-builder__resource-count { display: flex; align-items: center; justify-content: space-between; gap: var(--oc-space-3); margin-top: var(--oc-space-4); padding-top: var(--oc-space-3); border-top: var(--oc-border-width) solid var(--oc-border-muted); }
 .resource-package-builder__error { margin-top: var(--oc-space-5); }
 @media (max-width: 760px) { .resource-package-builder__fields, .resource-package-builder__workspace { grid-template-columns: 1fr; } .resource-package-builder__workspace { overflow: auto; } .resource-package-builder__selection { min-height: 22rem; border-right: 0; border-bottom: var(--oc-border-width) solid var(--oc-border-muted); } }
 </style>

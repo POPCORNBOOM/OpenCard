@@ -79,6 +79,18 @@ describe('appSettingsStore', () => {
     expect(await persistence.load()).toMatchObject({ workspace: { customBlockMaxDepth: 24 } })
   })
 
+  it('persists the title bar notice history limit', async () => {
+    const persistence = new MemorySettingsPersistence()
+    const store = createAppSettingsStore(persistence)
+    await store.initialize()
+
+    store.updateSetting('shell.titleBarNoticeHistoryLimit', 64)
+    await store.flush()
+
+    expect(store.settings.value.shell.titleBarNoticeHistoryLimit).toBe(64)
+    expect(await persistence.load()).toMatchObject({ shell: { titleBarNoticeHistoryLimit: 64 } })
+  })
+
   it('applies continuous previews without persisting until commit', async () => {
     const persistence = new MemorySettingsPersistence()
     const save = vi.spyOn(persistence, 'save')

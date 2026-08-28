@@ -12,6 +12,7 @@ export default {
     selectedCount: '已选择 {count} 项', clearSelection: '清空选择', noCandidates: '当前项目没有可制作的资源。',
     unnamed: '未命名包', fonts: '字体', icons: '图标', images: '图片', other: '其他资源',
     select: '加入包', deselect: '移出包',
+    build: '制作包',
     building: '正在构建…',
     built: '外部包 {name} 已创建。',
     name: '包名称',
@@ -230,6 +231,7 @@ export default {
       showCdeViewportBackground: '显示 CDE 画布背景（调试）',
       passiveCdeViewport: '让 CDE 画布进入展示模式（调试）',
       interactiveCdeViewport: '让 CDE 画布恢复交互（调试）',
+      sendTestMessages: '连续发送 128 条测试消息（调试）',
     },
     feedback: {
       title: '反馈与建议',
@@ -841,6 +843,7 @@ export default {
     },
     fields: {
       language: '语言',
+      titleBarNoticeHistoryLimit: '标题栏即时信息历史条数上限',
       suppressReleaseNotesAfterUpdate: '更新后不显示新版本说明',
       openCdeWorkbookAfterExport: '导出 CDE 表格后自动打开',
       theme: '主题',
@@ -866,6 +869,7 @@ export default {
       customBlockMaxDepth: '自定义块最大递归深度',
     },
     values: {
+      messages: ' 条',
       historyEntries: ' 条',
       recursionLevels: ' 层',
       systemLanguage: '跟随系统',

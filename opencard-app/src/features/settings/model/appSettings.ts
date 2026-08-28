@@ -19,6 +19,8 @@ export const MIN_BASE_FONT_SIZE = 10
 export const MAX_BASE_FONT_SIZE = 16
 export const MIN_CUSTOM_BLOCK_MAX_DEPTH = 1
 export const MAX_CUSTOM_BLOCK_MAX_DEPTH = 64
+export const MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT = 1
+export const MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT = 512
 
 export type AppLocale = 'system' | 'zh-CN' | 'en-US'
 export type AppThemePreference = OcThemeId | 'system'
@@ -108,6 +110,7 @@ export type AppSettingKey =
   | 'appearance.locale'
   | 'appearance.glassIntensity'
   | 'appearance.baseFontSize'
+  | 'shell.titleBarNoticeHistoryLimit'
   | 'updates.suppressReleaseNotesAfterUpdate'
   | 'exporting.openCdeWorkbookAfterExport'
   | 'workspace.structureTreeSelectionBehavior'
@@ -137,6 +140,7 @@ export interface AppSettings {
   shell: {
     sidebarWidth: number
     sidebarCollapsed: boolean
+    titleBarNoticeHistoryLimit: number
   }
   updates: {
     suppressReleaseNotesAfterUpdate: boolean
@@ -216,6 +220,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   shell: Object.freeze({
     sidebarWidth: 292,
     sidebarCollapsed: false,
+    titleBarNoticeHistoryLimit: 128,
   }),
   updates: Object.freeze({
     suppressReleaseNotesAfterUpdate: false,
@@ -259,6 +264,16 @@ function clampPercentage(value: unknown, fallback: number): number {
 function clampHistoryEntryLimit(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_APP_SETTINGS.workspace.historyEntryLimit
   return Math.min(1000, Math.max(10, Math.round(value / 10) * 10))
+}
+
+function clampTitleBarNoticeHistoryLimit(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_APP_SETTINGS.shell.titleBarNoticeHistoryLimit
+  }
+  return Math.min(
+    MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
+    Math.max(MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT, Math.round(value)),
+  )
 }
 
 function clampCustomBlockMaxDepth(value: unknown): number {
@@ -591,6 +606,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       sidebarCollapsed: typeof shell.sidebarCollapsed === 'boolean'
         ? shell.sidebarCollapsed
         : DEFAULT_APP_SETTINGS.shell.sidebarCollapsed,
+      titleBarNoticeHistoryLimit: clampTitleBarNoticeHistoryLimit(shell.titleBarNoticeHistoryLimit),
     },
     updates: {
       suppressReleaseNotesAfterUpdate: typeof updates.suppressReleaseNotesAfterUpdate === 'boolean'
