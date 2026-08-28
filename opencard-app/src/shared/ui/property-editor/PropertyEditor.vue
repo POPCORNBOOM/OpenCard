@@ -101,7 +101,7 @@
 // Vue 基础能力与依赖组件。
 import { computed, nextTick, onBeforeUnmount, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { reportAppError } from '../../../features/logging/appErrorCatalog'
+import { notifyAppError } from '../../../features/notifications/titlebarNotices'
 import type {
   PropertyEditorBindingInterpreter,
   PropertyEditorCategoryDefinition,
@@ -187,7 +187,7 @@ async function copyFieldKey(fieldKey: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(fieldKey)
   } catch (error) {
-    reportAppError('OC-E1002', { source: 'property-field-key', fieldKey, error })
+    notifyAppError('OC-E1002', { source: 'property-field-key', fieldKey, error })
   }
 }
 

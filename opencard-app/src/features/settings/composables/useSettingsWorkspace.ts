@@ -11,8 +11,12 @@ import {
 import {
   APP_THEME_PRESETS,
   MAX_CUSTOM_BLOCK_MAX_DEPTH,
+  MAX_AUTO_SAVE_INTERVAL_SECONDS,
+  MAX_PHASE_IMAGE_SPEED,
   MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
   MIN_CUSTOM_BLOCK_MAX_DEPTH,
+  MIN_AUTO_SAVE_INTERVAL_SECONDS,
+  MIN_PHASE_IMAGE_SPEED,
   MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT,
   resolveThemePresetId,
   type AppSettingKey,
@@ -304,6 +308,16 @@ export function useSettingsWorkspace(
             step: 1,
             suffix: 'px',
           },
+          {
+            type: 'range',
+            key: 'appearance.phaseImageSpeed',
+            label: options.translate('settings.fields.phaseImageSpeed', 'Phase animation speed'),
+            value: settings.appearance.phaseImageSpeed,
+            min: MIN_PHASE_IMAGE_SPEED,
+            max: MAX_PHASE_IMAGE_SPEED,
+            step: 5,
+            suffix: '%',
+          },
           colorPanel('dark'),
           colorPanel('light'),
           {
@@ -331,9 +345,25 @@ export function useSettingsWorkspace(
     return {
       key: categoryKey,
       title: categoryLabels.value.workspace,
-      fields: [
-        {
-          type: 'range',
+        fields: [
+          {
+            type: 'switch',
+            key: 'workspace.autoSave',
+            label: options.translate('settings.fields.autoSave', 'Automatically save opened files'),
+            checked: settings.workspace.autoSave,
+          },
+          {
+            type: 'range',
+            key: 'workspace.autoSaveIntervalSeconds',
+            label: options.translate('settings.fields.autoSaveInterval', 'Auto-save interval'),
+            value: settings.workspace.autoSaveIntervalSeconds,
+            min: MIN_AUTO_SAVE_INTERVAL_SECONDS,
+            max: MAX_AUTO_SAVE_INTERVAL_SECONDS,
+            step: 1,
+            suffix: options.translate('settings.values.seconds', ' seconds'),
+          },
+          {
+            type: 'range',
           key: 'workspace.historyEntryLimit',
           label: options.translate('settings.fields.historyEntryLimit', 'History entries per editor'),
           value: settings.workspace.historyEntryLimit,

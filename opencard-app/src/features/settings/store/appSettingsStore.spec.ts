@@ -28,6 +28,7 @@ describe('appSettingsStore', () => {
     store.updateSetting('appearance.locale', 'zh-CN')
     store.updateSetting('appearance.glassIntensity', 75)
     store.updateSetting('appearance.baseFontSize', 14)
+    store.updateSetting('appearance.phaseImageSpeed', 250)
     store.updateThemeAngle('light', -72)
     store.updateThemeFont('light', 'serif')
     store.updateSetting('updates.suppressReleaseNotesAfterUpdate', true)
@@ -49,6 +50,7 @@ describe('appSettingsStore', () => {
         locale: 'zh-CN',
         glassIntensity: 75,
         baseFontSize: 14,
+        phaseImageSpeed: 250,
         accentNeighborAngles: { dark: -50, light: -72 },
         fontFamilies: { dark: 'system', light: 'serif' },
       },

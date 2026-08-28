@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   pickSavePath: vi.fn(),
   writeBinaryFile: vi.fn(),
   openWithDefaultApp: vi.fn(),
-  showMessage: vi.fn(),
+  notifyError: vi.fn(),
 }))
 
 vi.mock('./cardDataWorkbook', () => ({
@@ -25,7 +25,7 @@ vi.mock('../workspace/services/fileSystemService', () => ({
   },
 }))
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({ message: mocks.showMessage }))
+vi.mock('../notifications/titlebarNotices', () => ({ notifyError: mocks.notifyError }))
 
 function createWorkbookController(openAfterExport: boolean) {
   return useCdeDataTableWorkbook({
@@ -72,9 +72,6 @@ describe('useCdeDataTableWorkbook', () => {
     await createWorkbookController(true).exportWorkbook()
 
     expect(mocks.writeBinaryFile).toHaveBeenCalledOnce()
-    expect(mocks.showMessage).toHaveBeenCalledWith(
-      'cardDesigner.dataTable.openExportedWorkbookFailed',
-      expect.objectContaining({ kind: 'error' }),
-    )
+    expect(mocks.notifyError).toHaveBeenCalledWith('cardDesigner.dataTable.openExportedWorkbookFailed')
   })
 })

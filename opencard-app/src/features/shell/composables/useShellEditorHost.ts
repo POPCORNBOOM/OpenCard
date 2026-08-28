@@ -23,7 +23,7 @@ import type {
   SessionSaveResult,
 } from '../../workspace/store/editorSessionStore'
 import type { ProjectProfile } from '../../workspace/model/projectMetadata'
-import { reportAppError } from '../../logging/appErrorCatalog'
+import { notifyAppError, notifySuccess, notifyWarning } from '../../notifications/titlebarNotices'
 import { editorHistoryManager } from '../../editor-runtime/history/editorHistoryManager'
 import type { HistoryOperationMeta } from '../../editor-runtime/history/structuredHistory'
 import type { CardFaceKey } from '../../../entities/card/model'
@@ -65,6 +65,7 @@ type UseShellEditorHostOptions = {
   debugHideCdeOverlays?: Readonly<Ref<boolean>>
   debugTransparentCdeViewport?: Readonly<Ref<boolean>>
   debugPassiveCdeViewport?: Readonly<Ref<boolean>>
+  translate: (key: string, params?: Record<string, unknown>) => string
 }
 
 const AUTO_SAVE_REGISTRY_EDITOR_IDS = new Set(['font-registry', 'icon-registry'])
@@ -330,27 +331,42 @@ export function useShellEditorHost(options: UseShellEditorHostOptions) {
     if (session) options.sessionActions.setSessionDirtyState(session.id, modified)
   }
 
+  function notifySaveResult(result: SessionSaveResult, name: string): void {
+    if (result === 'saved') {
+      notifySuccess(options.translate('app.notifications.saved', { name }), 'action.save')
+      return
+    }
+    notifyWarning(options.translate(
+      result === 'cancelled' ? 'app.notifications.saveCancelled' : 'app.notifications.saveSkipped',
+      { name },
+    ))
+  }
+
   async function handleSaveEvent(): Promise<void> {
-    const sessionId = options.activeSession.value?.id
-    if (!sessionId) return
+    const session = options.activeSession.value
+    if (!session) return
     try {
-      await editorHistoryManager.flush(sessionId)
-      await options.sessionActions.saveActiveSession()
+      await editorHistoryManager.flush(session.id)
+      notifySaveResult(await options.sessionActions.saveActiveSession(), session.name)
     } catch (error) {
-      reportAppError('OC-E4002', error)
+      notifyAppError('OC-E4002', error)
     }
   }
 
   async function save(): Promise<void> {
     const session = options.activeSession.value
     if (!session) return
-    await editorHistoryManager.flush(session.id)
-    if (editorRegistry.getEditor(session.editorId)?.id !== 'monaco'
-      && editorRef.value?.save) {
-      await editorRef.value.save()
-      return
+    try {
+      await editorHistoryManager.flush(session.id)
+      if (editorRegistry.getEditor(session.editorId)?.id !== 'monaco'
+        && editorRef.value?.save) {
+        await editorRef.value.save()
+        return
+      }
+      notifySaveResult(await options.sessionActions.saveActiveSession(), session.name)
+    } catch (error) {
+      notifyAppError('OC-E4002', error)
     }
-    await options.sessionActions.saveActiveSession()
   }
 
   async function undo(): Promise<void> {

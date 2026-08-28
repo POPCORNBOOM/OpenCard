@@ -62,6 +62,8 @@ function readProductionSources(directory: string): string {
 afterEach(() => {
   document.documentElement.removeAttribute('style')
   delete document.documentElement.dataset.ocTheme
+  document.documentElement.classList.remove('oc-theme-transitioning')
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -186,6 +188,25 @@ describe('OC theme runtime', () => {
     expect(document.documentElement.style.getPropertyValue('--oc-text-lg')).toBe('15px')
     expect(document.documentElement.style.getPropertyValue('--oc-text-xl')).toBe('19px')
     expect(document.documentElement.style.getPropertyValue('--oc-font-preview-size')).toBe('56px')
+  })
+
+  it('only starts a transition after the resolved theme colors actually change', async () => {
+    vi.useFakeTimers()
+    vi.resetModules()
+    const { setOcTheme: setIsolatedTheme } = await import('./theme')
+    const root = document.documentElement
+
+    setIsolatedTheme('dark')
+    expect(root.classList.contains('oc-theme-transitioning')).toBe(false)
+
+    setIsolatedTheme('dark', {}, -50, { fontFamily: 'Inter', baseFontSize: 14 })
+    expect(root.classList.contains('oc-theme-transitioning')).toBe(false)
+
+    setIsolatedTheme('light')
+    expect(root.classList.contains('oc-theme-transitioning')).toBe(true)
+
+    vi.advanceTimersByTime(1200)
+    expect(root.classList.contains('oc-theme-transitioning')).toBe(false)
   })
 })
 

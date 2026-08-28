@@ -8,12 +8,20 @@ import { createCardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
 import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
 import { exportCardAsImage } from '../../../utils/exportCard'
 
+const notificationMocks = vi.hoisted(() => ({
+  notifyAppError: vi.fn(),
+  notifyError: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyWarning: vi.fn(),
+}))
+
 vi.mock('../../../utils/exportCard', () => ({
   exportCardAsImage: vi.fn(async () => 'data:image/png;base64,AQ=='),
 }))
 vi.mock('../../workspace/services/projectFontLoader', () => ({
   waitForProjectFonts: vi.fn(async () => undefined),
 }))
+vi.mock('../../notifications/titlebarNotices', () => notificationMocks)
 
 function content(width: string): string {
   return JSON.stringify({
@@ -143,6 +151,7 @@ describe('useProjectExport runtime diagnostics', () => {
 
     expect(await adapter.renderCardImages(render, ['front'], 1)).toBeNull()
     expect(exportCardAsImage).not.toHaveBeenCalled()
+    expect(notificationMocks.notifyAppError).toHaveBeenCalledWith('OC-E5006', expect.any(Error))
     vi.unstubAllGlobals()
   })
 })

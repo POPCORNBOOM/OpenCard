@@ -6,46 +6,148 @@
   color-scheme: light;
 }
 
+@property --oc-scrollbar-thumb { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-scrollbar-thumb-hover { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-base { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-surface { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-block { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-raised { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-hover { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-active { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-selected { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-input { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-accent-hover { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-accent-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-danger-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-warning-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-glass { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-modal-backdrop { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-border-default { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-border-muted { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-border-strong { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-border-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-diff-added-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-diff-removed-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-diff-changed-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-diff-moved-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-diff-divider { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-accent-neighbor { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-accent-glow { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-danger { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-inline-key-highlight { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-inline-key-lowlight { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-color-channel-handle-border-color { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-data-grid-bg-inherited { syntax: '<color>'; inherits: true; initial-value: transparent; }
+
+@property --oc-accent-fg { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-fg-default { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-fg-muted { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-fg-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-fg-disabled { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-fg-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
-@property --oc-accent-fg { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-success { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-warning { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-fg-danger { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-icon-default { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-icon-muted { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-icon-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-success { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-active { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-warning { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-danger { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-opencard { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-json { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-markdown { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-typescript { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-javascript { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-vue { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-html { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-css { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-image { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-file-config { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-folder { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-folder-open { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-text { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-markdown { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-image { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-qrcode { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-shape { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-simple-container { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-icon-block-flow-container { syntax: '<color>'; inherits: true; initial-value: transparent; }
 
-html.oc-theme-transitioning,
-html.oc-theme-transitioning *,
-html.oc-theme-transitioning *::before,
-html.oc-theme-transitioning *::after {
+html.oc-theme-transitioning {
   transition:
-    color 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
-    background-color var(--oc-duration-theme) var(--oc-ease),
-    border-color var(--oc-duration-theme) var(--oc-ease),
-    outline-color var(--oc-duration-theme) var(--oc-ease),
-    box-shadow var(--oc-duration-theme) var(--oc-ease),
-    fill var(--oc-duration-theme) var(--oc-ease),
-    stroke var(--oc-duration-theme) var(--oc-ease) !important;
-}
-
-html.oc-theme-transitioning .shell-sidebar-group-slide-forward-enter-active,
-html.oc-theme-transitioning .shell-sidebar-group-slide-forward-leave-active,
-html.oc-theme-transitioning .shell-sidebar-group-slide-backward-enter-active,
-html.oc-theme-transitioning .shell-sidebar-group-slide-backward-leave-active {
-  transition:
-    transform var(--oc-duration-normal) var(--oc-ease),
-    opacity var(--oc-duration-normal) var(--oc-ease) !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html.oc-theme-transitioning,
-  html.oc-theme-transitioning *,
-  html.oc-theme-transitioning *::before,
-  html.oc-theme-transitioning *::after {
-    transition: none;
-  }
+    --oc-scrollbar-thumb var(--oc-duration-theme) var(--oc-ease),
+    --oc-scrollbar-thumb-hover var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-base var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-surface var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-block var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-raised var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-hover var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-active var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-selected var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-input var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-accent var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-accent-hover var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-accent-subtle var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-danger-subtle var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-warning-subtle var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-glass var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-modal-backdrop var(--oc-duration-theme) var(--oc-ease),
+    --oc-border-default var(--oc-duration-theme) var(--oc-ease),
+    --oc-border-muted var(--oc-duration-theme) var(--oc-ease),
+    --oc-border-strong var(--oc-duration-theme) var(--oc-ease),
+    --oc-border-accent var(--oc-duration-theme) var(--oc-ease),
+    --oc-diff-added-border var(--oc-duration-theme) var(--oc-ease),
+    --oc-diff-removed-border var(--oc-duration-theme) var(--oc-ease),
+    --oc-diff-changed-border var(--oc-duration-theme) var(--oc-ease),
+    --oc-diff-moved-border var(--oc-duration-theme) var(--oc-ease),
+    --oc-diff-divider var(--oc-duration-theme) var(--oc-ease),
+    --oc-accent var(--oc-duration-theme) var(--oc-ease),
+    --oc-accent-neighbor var(--oc-duration-theme) var(--oc-ease),
+    --oc-accent-glow var(--oc-duration-theme) var(--oc-ease),
+    --oc-danger var(--oc-duration-theme) var(--oc-ease),
+    --oc-inline-key-highlight var(--oc-duration-theme) var(--oc-ease),
+    --oc-inline-key-lowlight var(--oc-duration-theme) var(--oc-ease),
+    --oc-color-channel-handle-border-color var(--oc-duration-theme) var(--oc-ease),
+    --oc-data-grid-bg-inherited var(--oc-duration-theme) var(--oc-ease),
+    --oc-accent-fg 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-default 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-muted 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-subtle 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-disabled 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-accent 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-success 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-warning 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-fg-danger 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-default 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-muted 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-accent 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-success 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-active 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-warning 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-danger 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-opencard 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-json 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-markdown 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-typescript 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-javascript 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-vue 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-html 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-css 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-image 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-file-config 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-folder 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-folder-open 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-text 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-markdown 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-image 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-qrcode 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-shape 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-simple-container 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
+    --oc-icon-block-flow-container 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2);
 }
 
 * {

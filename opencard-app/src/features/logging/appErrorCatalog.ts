@@ -195,7 +195,7 @@ export const APP_ERROR_CATALOG = {
   },
   'OC-E6001': {
     area: '更新与安装',
-    meaning: { 'zh-CN': '无法安装应用更新', 'en-US': 'Could not install the application update' },
+    meaning: { 'zh-CN': '无法完成应用更新操作', 'en-US': 'Could not complete the application update operation' },
     solution: '确认网络与磁盘空间正常，退出可能占用 OpenCard 文件的进程后重新检查更新。',
   },
 } as const satisfies Record<string, AppErrorDefinition>

@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef, type Ref } from 'vue'
-import { message as showMessage } from '@tauri-apps/plugin-dialog'
+import { notifyError } from '../notifications/titlebarNotices'
 import type { CardDocument } from '../../entities/card/model'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import {
@@ -61,11 +61,11 @@ export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions)
         try {
           await fileSystemService.openWithDefaultApp(path)
         } catch {
-          await notifyError(options.translate('cardDesigner.dataTable.openExportedWorkbookFailed'))
+          notifyWorkbookError(options.translate('cardDesigner.dataTable.openExportedWorkbookFailed'))
         }
       }
     } catch (error) {
-      await notifyError(errorMessage(error, options.translate('cardDesigner.dataTable.exportFailed')))
+      notifyWorkbookError(errorMessage(error, options.translate('cardDesigner.dataTable.exportFailed')))
     } finally {
       busy.value = false
     }
@@ -87,7 +87,7 @@ export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions)
       const bytes = await fileSystemService.readBinaryFile(path)
       pendingImport.value = await importCardDataWorkbook(bytes, document, options.faceGroups.value)
     } catch (error) {
-      await notifyError(errorMessage(error, options.translate('cardDesigner.dataTable.importFailed')))
+      notifyWorkbookError(errorMessage(error, options.translate('cardDesigner.dataTable.importFailed')))
     } finally {
       busy.value = false
     }
@@ -103,11 +103,8 @@ export function useCdeDataTableWorkbook(options: UseCdeDataTableWorkbookOptions)
     pendingImport.value = null
   }
 
-  async function notifyError(body: string): Promise<void> {
-    await showMessage(body, {
-      title: options.translate('cardDesigner.dataTable.workbookTitle'),
-      kind: 'error',
-    })
+  function notifyWorkbookError(body: string): void {
+    notifyError(body)
   }
 
   return {

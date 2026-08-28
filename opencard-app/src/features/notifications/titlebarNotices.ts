@@ -1,5 +1,6 @@
 import { readonly, ref } from 'vue'
 import type { IconResolvable, IconTone } from '../../shared/ui/icon/iconRegistry'
+import { getAppErrorMeaning, reportAppError, type AppErrorCode } from '../logging/appErrorCatalog'
 import {
   DEFAULT_APP_SETTINGS,
   MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
@@ -24,6 +25,25 @@ export function addTitleBarNotice(input: Omit<ShellTitleBarNotice, 'id'>): numbe
     : []
   notices.value = [...retained, notice]
   return notice.id
+}
+
+export function notifySuccess(message: string, icon: IconResolvable = 'action.check'): number {
+  return addTitleBarNotice({ message, tone: 'success', icon })
+}
+
+export function notifyWarning(message: string, icon: IconResolvable = 'status.warning'): number {
+  return addTitleBarNotice({ message, tone: 'warning', icon })
+}
+
+export function notifyError(message: string, icon: IconResolvable = 'status.error'): number {
+  return addTitleBarNotice({ message, tone: 'danger', icon })
+}
+
+export function notifyAppError(code: AppErrorCode, details?: unknown, locale?: string): number {
+  reportAppError(code, details)
+  const activeLocale = locale
+    ?? (typeof document === 'undefined' ? 'en-US' : document.documentElement.lang)
+  return notifyError(getAppErrorMeaning(code, activeLocale))
 }
 
 export function setTitleBarNoticeHistoryLimit(value: number): void {

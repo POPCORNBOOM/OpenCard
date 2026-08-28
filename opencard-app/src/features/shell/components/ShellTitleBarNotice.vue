@@ -1,17 +1,27 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
-import type { ShellTitleBarNotice } from '../titlebarNotices'
+import type { ShellTitleBarNotice } from '../../notifications/titlebarNotices'
 
-defineProps<{ notice: ShellTitleBarNotice }>()
+const props = defineProps<{ notice: ShellTitleBarNotice }>()
 
 const isFaded = ref(false)
 let fadeTimer: ReturnType<typeof setTimeout> | undefined
 
-onMounted(() => {
+function resetFadeTimer(): void {
+  if (fadeTimer) clearTimeout(fadeTimer)
+  isFaded.value = false
   fadeTimer = setTimeout(() => {
     isFaded.value = true
   }, 2200)
+}
+
+onMounted(() => {
+  resetFadeTimer()
+})
+
+watch(() => props.notice.id, () => {
+  resetFadeTimer()
 })
 
 onBeforeUnmount(() => {

@@ -7,7 +7,7 @@ import {
   parseCardDocument,
   stringifyCardDocument,
 } from '../../entities/card/storage'
-import { reportAppError } from '../logging/appErrorCatalog'
+import { notifyAppError } from '../notifications/titlebarNotices'
 import type { HistoryOperationMeta } from '../editor-runtime/history/structuredHistory'
 
 export type CdeDocumentChangeMode = 'typing' | 'action'
@@ -127,7 +127,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       if (saved) setSavedContent(content)
       else updateModifiedState(content)
     } catch (e) {
-      reportAppError('OC-E4003', e)
+      notifyAppError('OC-E4003', e)
       cardDoc.value = null
       rebuildParentLookup()
       if (saved) setSavedContent(content)
@@ -145,7 +145,7 @@ export function useCdeDocumentState(options: UseCdeDocumentStateOptions) {
       options.emitModelValueUpdate(content)
       options.emitSave()
     } catch (e) {
-      reportAppError('OC-E4004', e)
+      notifyAppError('OC-E4004', e)
     }
   }
 

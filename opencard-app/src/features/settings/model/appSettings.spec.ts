@@ -30,7 +30,7 @@ describe('appSettings', () => {
   it('normalizes fields and clamps sidebar width', () => {
     expect(normalizeAppSettings({
       version: APP_SETTINGS_VERSION,
-      appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 130 },
+      appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 130, phaseImageSpeed: 999 },
       shell: { sidebarWidth: 9999, sidebarCollapsed: true },
       workspace: { customBlockMaxDepth: 999 },
     })).toEqual({
@@ -41,15 +41,18 @@ describe('appSettings', () => {
         locale: 'zh-CN',
         glassIntensity: 100,
         baseFontSize: 12,
+        phaseImageSpeed: 400,
         themeOverrides: { dark: {}, light: {} },
         accentNeighborAngles: { dark: -50, light: -50 },
         fontFamilies: { dark: 'system', light: 'system' },
         userThemePresets: { dark: [], light: [] },
       },
-      shell: { sidebarWidth: 420, sidebarCollapsed: true },
+      shell: { sidebarWidth: 420, sidebarCollapsed: true, titleBarNoticeHistoryLimit: 128 },
       updates: { suppressReleaseNotesAfterUpdate: false },
       exporting: { openCdeWorkbookAfterExport: true },
       workspace: {
+        autoSave: true,
+        autoSaveIntervalSeconds: 30,
         historyEntryLimit: 100,
         structureTreeSelectionBehavior: 'expand-exclusive',
         structureTreeScrollToSelection: true,
@@ -118,6 +121,7 @@ describe('appSettings', () => {
     expect(settings.exporting).toEqual(createDefaultAppSettings().exporting)
     expect(settings.projectCreation).toEqual(createDefaultAppSettings().projectCreation)
     expect(settings.appearance.glassIntensity).toBe(60)
+    expect(settings.appearance.phaseImageSpeed).toBe(100)
     expect(settings.appearance.accentNeighborAngles).toEqual({ dark: -50, light: -50 })
   })
 

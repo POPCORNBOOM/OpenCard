@@ -29,6 +29,7 @@ import { fileSystemService } from '../../workspace/services/fileSystemService'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
 import { reportAppError } from '../../logging/appErrorCatalog'
+import { notifyAppError, notifyError, notifySuccess, notifyWarning } from '../../notifications/titlebarNotices'
 import { useShellProgressTasks } from './useShellProgressTasks'
 
 const PROJECT_EXPORT_PROGRESS_KEY = 'project-export'
@@ -227,14 +228,22 @@ export function useProjectExport(options: UseProjectExportOptions) {
   }
 
   function logResult(result: ExportRunResult): void {
-    console.info(options.translate('app.exportProgress.summary', {
+    const summary = options.translate('app.exportProgress.summary', {
       succeeded: result.succeeded,
       skipped: result.skipped,
       failed: result.failed,
       directory: result.outputDirectory,
-    }))
+    })
+    console.info(summary)
     for (const failure of result.failures) console.warn('[export]', failure)
-    if (result.status === 'failed') reportAppError('OC-E5006', result)
+    if (result.status === 'failed') {
+      reportAppError('OC-E5006', result)
+      notifyError(summary)
+    } else if (result.status === 'cancelled' || result.failed > 0 || result.skipped > 0) {
+      notifyWarning(summary)
+    } else {
+      notifySuccess(summary)
+    }
   }
 
   async function run(plan: ExportPlan): Promise<ExportRunResult | null> {
@@ -264,7 +273,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
       logResult(result)
       return result
     } catch (error) {
-      reportAppError('OC-E5006', error)
+      notifyAppError('OC-E5006', error)
       return null
     } finally {
       removeTask(PROJECT_EXPORT_PROGRESS_KEY)
@@ -294,7 +303,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
       }
       return result
     } catch (error) {
-      reportAppError('OC-E5006', error)
+      notifyAppError('OC-E5006', error)
       return null
     } finally {
       renderer.reset()

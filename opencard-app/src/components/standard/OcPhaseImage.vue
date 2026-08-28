@@ -66,6 +66,7 @@ let phase = 0
 let textureReady = false
 let brightnessReady = false
 let sourceAspectRatio = 1
+let speedMultiplier = 1
 let visible = true
 let documentVisible = true
 let reducedMotion = false
@@ -194,8 +195,13 @@ function createPalette(from: string, to: string): Uint8Array | null {
 
 function resolvePaletteColor(value: string, token: string, fallback: string): string {
   if (value) return value
-  const themed = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+  const themed = document.documentElement.style.getPropertyValue(token).trim()
   return themed || fallback
+}
+
+function updateSpeedMultiplier(): void {
+  const value = Number.parseFloat(document.documentElement.style.getPropertyValue('--oc-phase-image-speed'))
+  speedMultiplier = Number.isFinite(value) && value > 0 ? value : 1
 }
 
 function compileShader(context: WebGLRenderingContext, type: number, source: string): WebGLShader {
@@ -446,7 +452,7 @@ function draw(time: number): void {
   const elapsed = previousTime ? Math.min(50, time - previousTime) : 0
   previousTime = time
   if (shouldAnimate()) {
-    const duration = Math.max(1, props.durationMs)
+    const duration = Math.max(1, props.durationMs / speedMultiplier)
     const direction = props.direction === 'forward' ? 1 : -1
     phase = (phase + elapsed / duration * direction) % 1
   }
@@ -516,6 +522,7 @@ watch(() => [props.playing, props.durationMs, props.phaseSpan, props.direction, 
 
 onMounted(() => {
   documentVisible = !document.hidden
+  updateSpeedMultiplier()
   if (!initializeRenderer() || !uploadPalette()) {
     renderFailed.value = true
     return
@@ -525,6 +532,7 @@ onMounted(() => {
   motionQuery.addEventListener('change', handleMotionChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   themeObserver = new MutationObserver(() => {
+    updateSpeedMultiplier()
     if (uploadPalette()) requestDraw()
   })
   themeObserver.observe(document.documentElement, {

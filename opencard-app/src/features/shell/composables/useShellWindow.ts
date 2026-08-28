@@ -10,6 +10,7 @@ import {
 type ShellWindowOptions = {
   requestApplicationClose: () => Promise<void> | void
   handleExternalOpenPaths: (paths: readonly string[]) => Promise<void> | void
+  notifyWindowControlError?: () => void
 }
 
 export function useShellWindow(options: ShellWindowOptions) {
@@ -171,7 +172,7 @@ export function useShellWindow(options: ShellWindowOptions) {
         appWindow.onCloseRequested((event) => {
           if (!isActive(expectedGeneration)) return
           event.preventDefault()
-          void requestClose().catch(error => console.warn('关闭窗口失败:', error))
+          void requestClose().catch(() => options.notifyWindowControlError?.())
         }),
         expectedGeneration,
         unlisten => { unlistenWindowClose = unlisten },

@@ -173,7 +173,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { message as showMessage } from '@tauri-apps/plugin-dialog'
+import { notifyAppError, notifyError } from '../../features/notifications/titlebarNotices'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import { parseProjectDictionaryText, serializeProjectDictionary, type ProjectDictionary } from '../../features/workspace/model/projectDictionary'
@@ -198,7 +198,6 @@ import OcDataGridColumnResizeHandle from '../../shared/ui/data-grid/OcDataGridCo
 import { useDataGridCellMounting } from '../../shared/ui/data-grid/useDataGridCellMounting'
 import { useDataGridColumnSizing } from '../../shared/ui/data-grid/useDataGridColumnSizing'
 import '../../shared/ui/data-grid/dataGrid.css'
-import { reportAppError } from '../../features/logging/appErrorCatalog'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import {
   exportProjectDictionaryWorkbook,
@@ -434,7 +433,7 @@ async function copyDictionaryKey(key: string, kind: 'record' | 'language'): Prom
   try {
     await navigator.clipboard.writeText(key)
   } catch (error) {
-    reportAppError('OC-E1002', { source: `dictionary-${kind}-key`, key, error })
+    notifyAppError('OC-E1002', { source: `dictionary-${kind}-key`, key, error })
   }
 }
 
@@ -625,10 +624,7 @@ function dictionaryWorkbookFileName(): string {
 }
 
 async function notifyWorkbookError(error: unknown, fallbackKey: string): Promise<void> {
-  await showMessage(error instanceof Error && error.message ? error.message : t(fallbackKey), {
-    title: t('dictionaryEditor.workbook.title'),
-    kind: 'error',
-  })
+  notifyError(error instanceof Error && error.message ? error.message : t(fallbackKey))
 }
 
 function save() {

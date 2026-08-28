@@ -64,6 +64,14 @@ describe('useSettingsWorkspace', () => {
         suffix: 'px',
       }),
       expect.objectContaining({
+        type: 'range',
+        key: 'appearance.phaseImageSpeed',
+        value: 100,
+        min: 25,
+        max: 400,
+        suffix: '%',
+      }),
+      expect.objectContaining({
         type: 'theme-color-panel',
         key: 'appearance.darkThemeColors',
         themeId: 'dark',
@@ -108,6 +116,8 @@ describe('useSettingsWorkspace', () => {
 
     categoryKey.value = 'workspace'
     expect(activeCategory.value.fields.map((field) => field.key)).toEqual([
+      'workspace.autoSave',
+      'workspace.autoSaveIntervalSeconds',
       'workspace.historyEntryLimit',
       'workspace.customBlockMaxDepth',
       'workspace.structureTreeSelectionBehavior',
@@ -119,6 +129,14 @@ describe('useSettingsWorkspace', () => {
       'project-workspace.reset',
     ])
     expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'switch', key: 'workspace.autoSave', checked: true }),
+      expect.objectContaining({
+        type: 'range',
+        key: 'workspace.autoSaveIntervalSeconds',
+        value: 30,
+        min: 5,
+        max: 300,
+      }),
       expect.objectContaining({
         type: 'range',
         key: 'workspace.customBlockMaxDepth',

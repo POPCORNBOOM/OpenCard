@@ -154,7 +154,8 @@ import {
   type AppConsoleEntry,
   type AppConsoleSeverity,
 } from '../../logging/appConsole'
-import { getAppErrorMeaning, reportAppError } from '../../logging/appErrorCatalog'
+import { getAppErrorMeaning } from '../../logging/appErrorCatalog'
+import { notifyAppError } from '../../notifications/titlebarNotices'
 
 export type WorkspaceBottomTab = 'issues' | 'output'
 
@@ -299,7 +300,7 @@ async function copyOutputEntry(entry: AppConsoleEntry): Promise<void> {
       : entry.message
     await navigator.clipboard.writeText(content)
   } catch (error) {
-    reportAppError('OC-E1002', { source: 'output-entry', entryId: entry.id, error })
+    notifyAppError('OC-E1002', { source: 'output-entry', entryId: entry.id, error }, props.outputLocale)
   }
 }
 
@@ -358,7 +359,7 @@ async function copyIssue(key: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(JSON.stringify(issue, null, 2))
   } catch (error) {
-    reportAppError('OC-E1002', { source: 'issue-entry', issueId: issue.id, error })
+    notifyAppError('OC-E1002', { source: 'issue-entry', issueId: issue.id, error }, props.outputLocale)
   }
 }
 </script>
@@ -377,7 +378,7 @@ async function copyIssue(key: string): Promise<void> {
   bottom: var(--oc-space-3, 8px);
   left: auto;
   top: auto;
-  z-index: var(--oc-z-overlay-toolbar);
+  z-index: var(--oc-z-shell-floating-control);
   width: 24px;
   height: 24px;
   padding: 0;

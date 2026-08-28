@@ -274,8 +274,8 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { confirm as showConfirm, message as showMessage } from '@tauri-apps/plugin-dialog'
-import { addTitleBarNotice, setTitleBarNoticeHistoryLimit } from './titlebarNotices'
+import { confirm as showConfirm } from '@tauri-apps/plugin-dialog'
+import { notifyAppError, notifyError, notifySuccess, notifyWarning, addTitleBarNotice, setTitleBarNoticeHistoryLimit } from '../notifications/titlebarNotices'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { useProjectStore } from '../workspace/store/projectStore'
 import { projectFontSources } from '../workspace/model/projectFontRegistry'
@@ -580,6 +580,7 @@ const {
 } = useShellWindow({
   requestApplicationClose: () => requestApplicationClose(),
   handleExternalOpenPaths,
+  notifyWindowControlError: () => notifyError(t('app.notifications.windowControlFailed')),
 })
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
@@ -748,8 +749,35 @@ const {
   closeSessionsByPath,
   saveSession,
   saveActiveSession,
+  saveDirtySessions,
   remapSessionPaths,
 } = useEditorSessionStore()
+
+let autoSaveTimer: number | null = null
+function restartAutoSaveTimer(): void {
+  if (autoSaveTimer !== null) {
+    window.clearInterval(autoSaveTimer)
+    autoSaveTimer = null
+  }
+  const workspaceSettings = settingsStore.settings.value.workspace
+  if (!workspaceSettings.autoSave) return
+  autoSaveTimer = window.setInterval(() => {
+    void saveDirtySessions()
+      .then(names => names.forEach(name => notifySuccess(t('app.notifications.saved', { name }), 'action.save')))
+      .catch(error => notifyError(error instanceof Error ? error.message : '自动保存失败'))
+  }, workspaceSettings.autoSaveIntervalSeconds * 1000)
+}
+watch(
+  () => [
+    settingsStore.settings.value.workspace.autoSave,
+    settingsStore.settings.value.workspace.autoSaveIntervalSeconds,
+  ] as const,
+  restartAutoSaveTimer,
+  { immediate: true },
+)
+onUnmounted(() => {
+  if (autoSaveTimer !== null) window.clearInterval(autoSaveTimer)
+})
 
 const timelineFilePath = computed(() => {
   const session = activeSession.value
@@ -901,6 +929,7 @@ const {
   debugHideCdeOverlays,
   debugTransparentCdeViewport,
   debugPassiveCdeViewport,
+  translate: t,
   sessionActions: {
     updateDraftContent,
     setSessionDirtyState,
@@ -1021,6 +1050,9 @@ const visibleIssueCount = computed(() => isWorkbenchMode.value ? issueCount.valu
 const visibleIssueSeverity = computed(() => isWorkbenchMode.value ? highestIssueSeverity.value : null)
 
 watch(locale, clearAllSessionIssues, { flush: 'sync' })
+watch(locale, value => {
+  document.documentElement.lang = value
+}, { immediate: true })
 watch(projectPath, (nextPath, previousPath) => {
   if (nextPath !== previousPath) clearAllSessionIssues()
 })
@@ -1931,6 +1963,13 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
         shortcut: shellShortcutParts.save,
         disabled: !activeSession.value,
       },
+      {
+        key: 'toggle-auto-save',
+        title: settingsStore.settings.value.workspace.autoSave
+          ? t('app.menu.disableAutoSave')
+          : t('app.menu.enableAutoSave'),
+        icon: settingsStore.settings.value.workspace.autoSave ? 'action.save-off' : 'action.save',
+      },
       { type: 'divider', key: 'file-export-divider' },
       {
         key: BUILD_RESOURCE_PACKAGE_ACTION_KEY,
@@ -2191,7 +2230,7 @@ async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
   try {
     await readDirectoryEntries(entry.key)
   } catch (error) {
-    reportAppError('OC-E2001', { path: entry.key, error })
+    notifyAppError('OC-E2001', { path: entry.key, error }, locale.value)
   }
 }
 
@@ -2252,7 +2291,7 @@ async function revealRecentProject(path: string): Promise<void> {
   try {
     await fileSystemService.revealInFileManager(path)
   } catch (error) {
-    reportAppError('OC-E2004', { actionKey: RECENT_PROJECT_REVEAL_ACTION_KEY, path, error })
+    notifyAppError('OC-E2004', { actionKey: RECENT_PROJECT_REVEAL_ACTION_KEY, path, error }, locale.value)
   }
 }
 
@@ -2290,7 +2329,7 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       const sourcePath = await iconPackStore.pickUserIconPack(t('projectTemplates.dialogs.chooseIconPack'))
       if (sourcePath) await iconPackStore.importUserIconPack(sourcePath)
     } catch (error) {
-      reportAppError('OC-E3013', error)
+      notifyAppError('OC-E3013', error, locale.value)
     } finally {
       isImportingIconPack.value = false
     }
@@ -2360,10 +2399,7 @@ async function importThemeFile(themeId: 'dark' | 'light'): Promise<void> {
       || t('settings.values.importedTheme')
     settingsStore.importThemePreset(themeId, presetName, definition)
   } catch (cause) {
-    await showMessage(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'), {
-      title: t('settings.actions.importTheme'),
-      kind: 'error',
-    })
+    notifyError(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'))
   }
 }
 
@@ -2384,10 +2420,7 @@ async function exportThemeFile(themeId: 'dark' | 'light'): Promise<void> {
       appearance.fontFamilies[themeId],
     ))
   } catch (cause) {
-    await showMessage(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'), {
-      title: t('settings.actions.exportTheme'),
-      kind: 'error',
-    })
+    notifyError(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'))
   }
 }
 
@@ -2528,14 +2561,14 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'rename.commit') {
     const result = await renameEntry(intent.key, intent.name)
     if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
-    else console.warn('[workspace] Rename rejected:', result.reason)
+    else notifyWarning(t('app.notifications.renameRejected'))
     return
   }
 
   if (intent.type === 'move.request') {
     const result = await moveEntryByDrop(intent)
     if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
-    else console.warn('[workspace] Move rejected:', result.reason)
+    else notifyWarning(t('app.notifications.moveRejected'))
     return
   }
 
@@ -2558,20 +2591,28 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
         await revealEntryInFileManager(entry.key)
         console.debug('[workspace-action] reveal:success', { actionKey: intent.actionKey, path: entry.key })
       } catch (error) {
-        reportAppError('OC-E2004', {
+        notifyAppError('OC-E2004', {
           actionKey: intent.actionKey,
           path: entry.key,
           error,
-        })
+        }, locale.value)
       }
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY) {
-      await navigator.clipboard.writeText(getRelativeProjectPath(entry.key))
+      try {
+        await navigator.clipboard.writeText(getRelativeProjectPath(entry.key))
+      } catch (error) {
+        notifyAppError('OC-E1002', { source: 'project-relative-path', path: entry.key, error }, locale.value)
+      }
       return
     }
     if (intent.actionKey === PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY) {
-      await navigator.clipboard.writeText(entry.key)
+      try {
+        await navigator.clipboard.writeText(entry.key)
+      } catch (error) {
+        notifyAppError('OC-E1002', { source: 'project-absolute-path', path: entry.key, error }, locale.value)
+      }
     }
     return
   }
@@ -2636,7 +2677,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
     try {
       if (kind === 'resource-package') {
         if (!projectPath.value) {
-          await showMessage(t('resourcePackage.openProjectFirst'), { kind: 'error' })
+          notifyWarning(t('resourcePackage.openProjectFirst'))
           continue
         }
         const installed = await projectStore.installResourcePackageFile(normalizedPath, async (next, previous) => {
@@ -2645,9 +2686,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
             name: next.name, version: next.version, previousVersion: previous.version,
           }), { title: t('resourcePackage.title'), kind: 'warning' })
         })
-        await showMessage(t('resourcePackage.installed', { name: path.split('/').pop() ?? installed.manifest.name }), {
-          title: t('resourcePackage.title'), kind: 'info',
-        })
+        notifySuccess(t('resourcePackage.installed', { name: path.split('/').pop() ?? installed.manifest.name }))
         continue
       }
       if (kind === 'project-resource') {
@@ -2674,7 +2713,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
       }
     } catch (error) {
-      reportAppError('OC-E2002', { path: normalizedPath, error })
+      notifyAppError('OC-E2002', { path: normalizedPath, error }, locale.value)
     }
   }
 }
@@ -2845,6 +2884,11 @@ async function runShellCommand(actionKey: string) {
     return
   }
 
+  if (actionKey === 'toggle-auto-save') {
+    settingsStore.updateSetting('workspace.autoSave', !settingsStore.settings.value.workspace.autoSave)
+    return
+  }
+
   if (actionKey === 'undo-active-editor') {
     if (!isDiffMode.value) await triggerCurrentEditorUndo()
     return
@@ -2869,7 +2913,7 @@ async function runShellCommand(actionKey: string) {
     try {
       await toggleWindowFullscreen()
     } catch (error) {
-      console.warn('切换全屏失败:', error)
+      notifyError(t('app.notifications.fullscreenFailed'))
     }
     return
   }
@@ -3260,11 +3304,11 @@ async function handleWindowControl(actionKey: string) {
 
   } catch (error) {
     if (actionKey === 'close') {
-      console.warn('关闭窗口失败:', error)
+      notifyError(t('app.notifications.windowControlFailed'))
       return
     }
 
-    console.warn('窗口控制不可用:', error)
+    notifyError(t('app.notifications.windowControlFailed'))
   }
 }
 
@@ -3272,7 +3316,7 @@ async function handleOpenFile(path: string) {
   try {
     await openEditorSession(path)
   } catch (error) {
-    reportAppError('OC-E2003', { path, error })
+    notifyAppError('OC-E2003', { path, error }, locale.value)
   }
 }
 
@@ -3283,7 +3327,7 @@ async function handleGlobalKeydown(event: KeyboardEvent) {
       try {
         await toggleWindowFullscreen()
       } catch (error) {
-        console.warn('切换全屏失败:', error)
+        notifyError(t('app.notifications.fullscreenFailed'))
       }
     }
     return

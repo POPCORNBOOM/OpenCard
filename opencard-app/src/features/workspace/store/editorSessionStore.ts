@@ -659,6 +659,13 @@ export function useEditorSessionStore() {
     return await saveSession(activeSessionId.value)
   }
 
+  async function saveDirtySessions(): Promise<string[]> {
+    const dirtySessions = sessions.value
+      .filter(session => session.isDirty && Boolean(session.path) && session.resourceKind !== 'draft')
+    await Promise.all(dirtySessions.map(session => saveSession(session.id)))
+    return dirtySessions.map(session => session.name)
+  }
+
   async function refreshSessionFromDisk(sessionId: string) {
     const session = sessions.value.find((candidate) => candidate.id === sessionId)
     if (!session || !session.path) {
@@ -740,6 +747,7 @@ export function useEditorSessionStore() {
     closeSessionsByPath,
     saveSession,
     saveActiveSession,
+    saveDirtySessions,
     refreshSessionFromDisk,
     refreshActiveSessionFromDisk,
     remapSessionPaths,

@@ -106,6 +106,7 @@ export function createAppSettingsStore(
     else if (key === 'appearance.locale') candidate.appearance.locale = value as AppSettings['appearance']['locale']
     else if (key === 'appearance.glassIntensity') candidate.appearance.glassIntensity = value as number
     else if (key === 'appearance.baseFontSize') candidate.appearance.baseFontSize = value as number
+    else if (key === 'appearance.phaseImageSpeed') candidate.appearance.phaseImageSpeed = value as number
     else if (key === 'shell.titleBarNoticeHistoryLimit') candidate.shell.titleBarNoticeHistoryLimit = value as number
     else if (key === 'updates.suppressReleaseNotesAfterUpdate') {
       candidate.updates.suppressReleaseNotesAfterUpdate = value as boolean
@@ -127,6 +128,10 @@ export function createAppSettingsStore(
       candidate.workspace.historyEntryLimit = value as number
     } else if (key === 'workspace.customBlockMaxDepth') {
       candidate.workspace.customBlockMaxDepth = value as number
+    } else if (key === 'workspace.autoSave') {
+      candidate.workspace.autoSave = value as boolean
+    } else if (key === 'workspace.autoSaveIntervalSeconds') {
+      candidate.workspace.autoSaveIntervalSeconds = value as number
     }
   }
 

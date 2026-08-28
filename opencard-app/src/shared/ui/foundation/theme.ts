@@ -28,7 +28,20 @@ function resolveFontStack(fontFamily: string | undefined, fallback: string): str
 }
 
 let currentTheme: OcThemeId = DEFAULT_OC_THEME
+let currentThemeColorSignature: string | null = null
 let themeTransitionTimer: ReturnType<typeof setTimeout> | null = null
+
+function createThemeColorSignature(
+  themeId: OcThemeId,
+  overrides: OcThemeColorOverrides,
+  accentNeighborAngle: number,
+): string {
+  return JSON.stringify([
+    themeId,
+    accentNeighborAngle,
+    ...OC_EDITABLE_THEME_COLOR_KEYS.map(token => overrides[token] ?? null),
+  ])
+}
 
 export function resolveOcPixelToken(
   token: OcThemeTokenKey,
@@ -234,17 +247,21 @@ function applyTheme(
   accentNeighborAngle: number,
   typography: OcThemeTypography,
 ) {
+  const colorSignature = createThemeColorSignature(themeId, overrides, accentNeighborAngle)
   if (typeof document === 'undefined') {
     currentTheme = themeId
+    currentThemeColorSignature = colorSignature
     return
   }
 
   const root = document.documentElement
-  if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer)
+  const shouldTransitionColors = currentThemeColorSignature !== null
+    && currentThemeColorSignature !== colorSignature
   const prefersReducedMotion = typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!prefersReducedMotion) {
+  if (shouldTransitionColors && !prefersReducedMotion) {
+    if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer)
     root.classList.add('oc-theme-transitioning')
     const durationValue = getComputedStyle(root).getPropertyValue('--oc-duration-theme').trim()
     const durationMs = durationValue.endsWith('ms')
@@ -256,6 +273,10 @@ function applyTheme(
       root.classList.remove('oc-theme-transitioning')
       themeTransitionTimer = null
     }, Number.isFinite(durationMs) ? durationMs : 1200)
+  } else if (shouldTransitionColors) {
+    if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer)
+    themeTransitionTimer = null
+    root.classList.remove('oc-theme-transitioning')
   }
   const tokens = resolveOcThemeTokens(themeId, overrides, accentNeighborAngle, typography)
   for (const token of OC_THEME_TOKEN_KEYS) {
@@ -264,12 +285,13 @@ function applyTheme(
       console.warn(`[OpenCard/UI] Missing theme token "${token}" in theme "${themeId}".`)
       continue
     }
-    root.style.setProperty(token, value)
+    if (root.style.getPropertyValue(token) !== value) root.style.setProperty(token, value)
   }
 
   root.style.colorScheme = themeId
   root.dataset.ocTheme = themeId
   currentTheme = themeId
+  currentThemeColorSignature = colorSignature
 }
 
 export function setOcTheme(
@@ -294,6 +316,12 @@ export function setOcGlassIntensity(value: number): void {
   root.style.setProperty('--oc-blur-glass', `${blur}px`)
   root.style.setProperty('--oc-bg-glass-saturate', `${saturation}%`)
   root.dataset.ocGlassIntensity = String(intensity)
+}
+
+export function setOcPhaseImageSpeedMultiplier(value: number): void {
+  if (typeof document === 'undefined') return
+  const multiplier = Number.isFinite(value) ? Math.max(0.01, value) : 1
+  document.documentElement.style.setProperty('--oc-phase-image-speed', String(multiplier))
 }
 
 export function getOcTheme(): OcThemeId {

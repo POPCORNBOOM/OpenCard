@@ -6,6 +6,7 @@ export {
   resolveOcPixelToken,
   resolveOcThemeTokens,
   setOcGlassIntensity,
+  setOcPhaseImageSpeedMultiplier,
   setOcTheme,
 } from './theme'
 export { DEFAULT_OC_THEME, OC_THEME_REGISTRY } from './themes'

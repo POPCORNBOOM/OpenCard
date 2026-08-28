@@ -17,10 +17,14 @@ export const MAX_RECENT_PROJECTS = 8
 export const DEFAULT_ACCENT_NEIGHBOR_ANGLE = -50
 export const MIN_BASE_FONT_SIZE = 10
 export const MAX_BASE_FONT_SIZE = 16
+export const MIN_PHASE_IMAGE_SPEED = 25
+export const MAX_PHASE_IMAGE_SPEED = 400
 export const MIN_CUSTOM_BLOCK_MAX_DEPTH = 1
 export const MAX_CUSTOM_BLOCK_MAX_DEPTH = 64
 export const MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT = 1
 export const MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT = 512
+export const MIN_AUTO_SAVE_INTERVAL_SECONDS = 5
+export const MAX_AUTO_SAVE_INTERVAL_SECONDS = 300
 
 export type AppLocale = 'system' | 'zh-CN' | 'en-US'
 export type AppThemePreference = OcThemeId | 'system'
@@ -110,6 +114,7 @@ export type AppSettingKey =
   | 'appearance.locale'
   | 'appearance.glassIntensity'
   | 'appearance.baseFontSize'
+  | 'appearance.phaseImageSpeed'
   | 'shell.titleBarNoticeHistoryLimit'
   | 'updates.suppressReleaseNotesAfterUpdate'
   | 'exporting.openCdeWorkbookAfterExport'
@@ -121,6 +126,8 @@ export type AppSettingKey =
   | 'workspace.alignmentSnappingEnabledByDefault'
   | 'workspace.historyEntryLimit'
   | 'workspace.customBlockMaxDepth'
+  | 'workspace.autoSave'
+  | 'workspace.autoSaveIntervalSeconds'
 
 export interface AppSettings {
   version: typeof APP_SETTINGS_VERSION
@@ -132,6 +139,7 @@ export interface AppSettings {
     locale: AppLocale
     glassIntensity: number
     baseFontSize: number
+    phaseImageSpeed: number
     themeOverrides: Record<OcThemeId, OcThemeColorOverrides>
     accentNeighborAngles: Record<OcThemeId, number>
     fontFamilies: Record<OcThemeId, string>
@@ -149,6 +157,8 @@ export interface AppSettings {
     openCdeWorkbookAfterExport: boolean
   }
   workspace: {
+    autoSave: boolean
+    autoSaveIntervalSeconds: number
     structureTreeSelectionBehavior: StructureTreeSelectionBehavior
     structureTreeScrollToSelection: boolean
     hideDotFiles: boolean
@@ -209,6 +219,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     locale: 'system',
     glassIntensity: 60,
     baseFontSize: 12,
+    phaseImageSpeed: 100,
     themeOverrides: Object.freeze({ dark: Object.freeze({}), light: Object.freeze({}) }),
     accentNeighborAngles: Object.freeze({
       dark: DEFAULT_ACCENT_NEIGHBOR_ANGLE,
@@ -229,6 +240,8 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     openCdeWorkbookAfterExport: true,
   }),
   workspace: Object.freeze({
+    autoSave: true,
+    autoSaveIntervalSeconds: 30,
     structureTreeSelectionBehavior: 'expand-exclusive',
     structureTreeScrollToSelection: true,
     hideDotFiles: true,
@@ -281,6 +294,11 @@ function clampCustomBlockMaxDepth(value: unknown): number {
   return Math.min(MAX_CUSTOM_BLOCK_MAX_DEPTH, Math.max(MIN_CUSTOM_BLOCK_MAX_DEPTH, Math.round(value)))
 }
 
+function clampAutoSaveIntervalSeconds(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_APP_SETTINGS.workspace.autoSaveIntervalSeconds
+  return Math.min(MAX_AUTO_SAVE_INTERVAL_SECONDS, Math.max(MIN_AUTO_SAVE_INTERVAL_SECONDS, Math.round(value)))
+}
+
 function normalizeRecentProjects(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<string>()
@@ -302,6 +320,13 @@ function clampBaseFontSize(value: unknown): number {
     return DEFAULT_APP_SETTINGS.appearance.baseFontSize
   }
   return Math.min(MAX_BASE_FONT_SIZE, Math.max(MIN_BASE_FONT_SIZE, Math.round(value)))
+}
+
+function clampPhaseImageSpeed(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_APP_SETTINGS.appearance.phaseImageSpeed
+  }
+  return Math.min(MAX_PHASE_IMAGE_SPEED, Math.max(MIN_PHASE_IMAGE_SPEED, Math.round(value)))
 }
 
 function parseUiFontFamilies(value: unknown): string[] | null {
@@ -570,6 +595,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
         DEFAULT_APP_SETTINGS.appearance.glassIntensity,
       ),
       baseFontSize: clampBaseFontSize(appearance.baseFontSize),
+      phaseImageSpeed: clampPhaseImageSpeed(appearance.phaseImageSpeed),
       themeOverrides: {
         dark: normalizeThemeColorOverrides(isRecord(appearance.themeOverrides)
           ? appearance.themeOverrides.dark
@@ -619,6 +645,10 @@ export function normalizeAppSettings(value: unknown): AppSettings {
         : DEFAULT_APP_SETTINGS.exporting.openCdeWorkbookAfterExport,
     },
     workspace: {
+      autoSave: typeof workspace.autoSave === 'boolean'
+        ? workspace.autoSave
+        : DEFAULT_APP_SETTINGS.workspace.autoSave,
+      autoSaveIntervalSeconds: clampAutoSaveIntervalSeconds(workspace.autoSaveIntervalSeconds),
       structureTreeSelectionBehavior: workspace.structureTreeSelectionBehavior === 'none'
         || workspace.structureTreeSelectionBehavior === 'expand'
         || workspace.structureTreeSelectionBehavior === 'expand-exclusive'

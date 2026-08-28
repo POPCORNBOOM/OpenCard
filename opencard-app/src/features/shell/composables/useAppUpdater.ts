@@ -4,7 +4,7 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import packageMetadata from '../../../../package.json'
 import bundledReleaseNotes from '../../../../RELEASE_NOTES.md?raw'
-import { reportAppError } from '../../logging/appErrorCatalog'
+import { notifyAppError } from '../../notifications/titlebarNotices'
 import {
   createUpdateStatePersistence,
   type CurrentReleaseNotes,
@@ -182,7 +182,7 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
       availableUpdate.value = await check()
       await savePendingReleaseNotes(availableReleaseNotes.value)
     } catch (error) {
-      console.warn('检查更新失败:', error)
+      notifyAppError('OC-E6001', error)
     } finally {
       isChecking.value = false
     }
@@ -216,7 +216,7 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
       updateProgress(1, true)
       isDownloaded.value = true
     } catch (error) {
-      reportAppError('OC-E6001', error)
+      notifyAppError('OC-E6001', error)
       clearProgressTimer()
       downloadProgress.value = null
     } finally {
@@ -233,7 +233,7 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
       await update.install()
       await relaunch()
     } catch (error) {
-      reportAppError('OC-E6001', error)
+      notifyAppError('OC-E6001', error)
       isInstalling.value = false
       throw error
     }

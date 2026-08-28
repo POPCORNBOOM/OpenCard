@@ -242,6 +242,8 @@
   max-width: min(420px, calc(100vw - (var(--oc-space-3) * 2)));
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  translate: var(--oc-scrollbar-size) 0;
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-surface);
   box-shadow:

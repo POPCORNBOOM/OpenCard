@@ -4,7 +4,7 @@ import type { OpenedEditorItem, EditorSession } from '../../workspace/store/edit
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
 import type { IconToken } from '../../../shared/ui/icon/iconTokens'
-import { reportAppError } from '../../logging/appErrorCatalog'
+import { notifyAppError } from '../../notifications/titlebarNotices'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
   PROJECT_FONT_DIRECTORY,
@@ -300,7 +300,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       if (!isManagementRoot && projectManagementTreeData.value.children.has(selectedKey)) return
       await options.openPreviewFile(selectedKey)
     } catch (error) {
-      reportAppError('OC-E4001', { path: selectedKey, error })
+      notifyAppError('OC-E4001', { path: selectedKey, error })
     }
   }
 
@@ -338,7 +338,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     try {
       await options.openPreviewFile(selectedEntry.key)
     } catch (error) {
-      reportAppError('OC-E4001', { path: selectedEntry.key, error })
+      notifyAppError('OC-E4001', { path: selectedEntry.key, error })
     }
   }
 

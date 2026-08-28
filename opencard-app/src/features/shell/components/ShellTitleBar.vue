@@ -7,7 +7,7 @@ import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from '../../
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue';
 import AppearanceShaderPreview from '../../settings/components/AppearanceShaderPreview.vue';
 import ShellTitleBarNotice from './ShellTitleBarNotice.vue';
-import { titleBarNotices } from '../titlebarNotices';
+import { titleBarNotices } from '../../notifications/titlebarNotices';
 import type {
   ShellProgressTask,
   ShellTitleBarAppAction,

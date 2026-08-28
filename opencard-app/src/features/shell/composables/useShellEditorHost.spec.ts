@@ -9,9 +9,16 @@ import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { useShellEditorHost } from './useShellEditorHost'
 import { editorHistoryManager, resolveEditorHistoryKind } from '../../editor-runtime/history/editorHistoryManager'
 
+const notificationMocks = vi.hoisted(() => ({
+  notifyAppError: vi.fn(),
+  notifySuccess: vi.fn(),
+  notifyWarning: vi.fn(),
+}))
+
 vi.mock('../../../components/editors/MonacoEditor.vue', () => ({
   default: { name: 'MockMonacoEditor' },
 }))
+vi.mock('../../notifications/titlebarNotices', () => notificationMocks)
 
 function createSession(patch: Partial<EditorSession> = {}): EditorSession {
   return {
@@ -51,6 +58,7 @@ function createHost(session = createSession()) {
       remoteResources: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
     }),
     settings: ref(createDefaultAppSettings()),
+    translate: (key, params) => `${key}:${String(params?.name ?? '')}`,
     sessionActions: {
       updateDraftContent,
       setSessionDirtyState,
@@ -69,6 +77,7 @@ function createHost(session = createSession()) {
 }
 
 afterEach(() => {
+  vi.clearAllMocks()
   vi.useRealTimers()
   editorHistoryManager.release('session-a')
 })
@@ -384,6 +393,10 @@ describe('useShellEditorHost', () => {
     await host.save()
 
     expect(saveActiveSession).toHaveBeenCalledTimes(1)
+    expect(notificationMocks.notifySuccess).toHaveBeenCalledWith(
+      'app.notifications.saved:notes.txt',
+      'action.save',
+    )
     host.dispose()
   })
 })
