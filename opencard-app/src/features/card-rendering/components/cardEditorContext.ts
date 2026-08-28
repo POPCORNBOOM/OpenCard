@@ -1,19 +1,22 @@
 import { inject, type ComputedRef, type InjectionKey } from 'vue'
-import type { ProjectIconCatalog, ProjectIconCatalogEntry } from '../../workspace/services/projectIconCatalog'
-import type { CustomBlockRuntimeCatalog } from '../expandCustomBlocks'
+import type { CardResourceResolver } from '../cardRenderResources'
+import type { CardFaceKey } from '../../../entities/card/model'
+import type { ProjectInformation } from '../../workspace/model/projectMetadata'
+import type { CardRenderDiagnosticRegistry } from '../cardRenderDiagnosticRegistry'
 import type { PreparedRichTextCatalog } from '../prepareRichText'
 import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
 
 export interface CardEditorContext {
   transformDisabledBlockIds: ComputedRef<Set<string>>
   handleBlockClick: (blockId: string, event: MouseEvent) => void
-  resolveAssetSrc: (path: string, blockId?: string, fieldKey?: string) => string
-  resolveFontFamily: (value: string, blockId?: string, fieldKey?: string) => string
-  resolveIconReference: (source: string, blockId?: string, fieldKey?: string) => ProjectIconCatalogEntry | null
-  projectIconCatalog?: ComputedRef<ProjectIconCatalog>
-  customBlockCatalog?: ComputedRef<CustomBlockRuntimeCatalog>
+  resources: CardResourceResolver
   richText?: ComputedRef<PreparedRichTextCatalog>
   visualReadiness?: CardVisualReadinessRegistrar
+  documentId: string
+  faceKey: CardFaceKey
+  bindingProject?: ComputedRef<Readonly<ProjectInformation> | null | undefined>
+  bindingDictionary?: ComputedRef<Readonly<Record<string, string>> | null | undefined>
+  diagnostics: CardRenderDiagnosticRegistry
 }
 
 export const cardEditorContextKey: InjectionKey<CardEditorContext> = Symbol('card-editor-context')

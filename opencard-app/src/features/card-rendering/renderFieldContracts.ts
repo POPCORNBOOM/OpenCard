@@ -133,10 +133,6 @@ const contractsByType: Readonly<Record<string, Readonly<Record<string, RenderFie
     gap: { kind: 'css-length', defaultValue: '10px', required: true },
     children: { kind: 'array', defaultValue: [], required: true, itemShape: 'root-child' },
   },
-  'custom-block': {
-    ...baseBlockContracts('custom-block'),
-    customBlockKey: { kind: 'string', defaultValue: '', required: true },
-  },
   'simple-container-location': {
     id: { kind: 'string', defaultValue: '', required: true },
     type: {

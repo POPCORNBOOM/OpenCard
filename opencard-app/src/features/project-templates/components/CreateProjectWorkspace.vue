@@ -45,17 +45,6 @@
                 <span v-else>{{ t('projectTemplates.status.noIconPacksSelected') }}</span>
               </dd>
             </div>
-            <div>
-              <dt>{{ t('projectTemplates.fields.customBlocks') }}</dt>
-              <dd>
-                <ul v-if="selectedCustomBlocks.length" class="create-project__custom-block-list">
-                  <li v-for="block in selectedCustomBlocks" :key="block.key">
-                    {{ block.name }}
-                  </li>
-                </ul>
-                <span v-else>{{ t('projectTemplates.status.noCustomBlocksSelected') }}</span>
-              </dd>
-            </div>
           </dl>
           <div v-if="selectedTemplate.source === 'user'" class="create-project__details-actions">
             <div v-if="pendingDeleteKey === selectedTemplate.key" class="create-project__delete-confirm">
@@ -238,11 +227,6 @@ import {
 } from '../../workspace/model/projectIconPackCatalog'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { useProjectIconPackStore } from '../../workspace/store/projectIconPackStore'
-import type {
-  UserCustomBlockCatalogEntry,
-  UserCustomBlockCatalogKey,
-} from '../../workspace/model/userCustomBlockCatalog'
-import { useUserCustomBlockCatalogStore } from '../../workspace/store/userCustomBlockCatalogStore'
 import { useProjectTemplateStore } from '../store/projectTemplateStore'
 
 defineOptions({ name: 'CreateProjectWorkspace' })
@@ -250,12 +234,10 @@ defineOptions({ name: 'CreateProjectWorkspace' })
 const props = withDefaults(defineProps<{
   selectedKey: ProjectTemplateKey | null
   selectedIconPackKeys?: readonly string[]
-  selectedCustomBlockKeys?: readonly string[]
   activationError?: string
   externalBusy?: boolean
 }>(), {
   selectedIconPackKeys: () => [],
-  selectedCustomBlockKeys: () => [],
 })
 
 const emit = defineEmits<{
@@ -267,7 +249,6 @@ const emit = defineEmits<{
 const { t, locale } = useI18n()
 const store = useProjectTemplateStore()
 const iconPackStore = useProjectIconPackStore()
-const customBlockCatalogStore = useUserCustomBlockCatalogStore()
 const appSettingsStore = useAppSettingsStore()
 
 const projectName = ref(t('projectTemplates.defaults.projectName'))
@@ -293,9 +274,6 @@ const selectedTemplate = computed(() => props.selectedKey ? store.findTemplate(p
 const selectedIconPacks = computed(() => props.selectedIconPackKeys
   .map((key) => iconPackStore.findPack(key as ProjectIconPackCatalogKey))
   .filter((pack): pack is ProjectIconPackCatalogEntry => Boolean(pack)))
-const selectedCustomBlocks = computed(() => props.selectedCustomBlockKeys
-  .map(key => customBlockCatalogStore.findBlock(key as UserCustomBlockCatalogKey))
-  .filter((block): block is UserCustomBlockCatalogEntry => Boolean(block)))
 const selectedTemplateEntries = computed(() => (
   selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
 ))
@@ -385,7 +363,7 @@ watch(localBusy, (busy) => {
 
 onMounted(async () => {
   try {
-    await Promise.all([store.load(), iconPackStore.load(), customBlockCatalogStore.load()])
+    await Promise.all([store.load(), iconPackStore.load()])
   } catch (cause) {
     operationError.value = resolveErrorMessage(cause)
   }
@@ -515,7 +493,6 @@ async function createProject(): Promise<void> {
       projectName: projectName.value,
       entry: selectedEntry.value || undefined,
       iconPacks: selectedIconPacks.value,
-      customBlocks: selectedCustomBlocks.value,
     })
     emit('created', project)
   } catch (cause) {
@@ -546,7 +523,6 @@ function resolveErrorMessage(cause: unknown): string {
     'invalid-package': 'invalidPackage',
     'archive-failed': 'archiveFailed',
     'icon-pack-failed': 'iconPackFailed',
-    'custom-block-failed': 'customBlockFailed',
   }
   return t(`projectTemplates.errors.${keyByCode[cause.code]}`)
 }
@@ -728,8 +704,7 @@ function resolveErrorMessage(cause: unknown): string {
   font-size: var(--oc-text-sm);
 }
 
-.create-project__icon-pack-list,
-.create-project__custom-block-list {
+.create-project__icon-pack-list {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;

@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { createTextBlock } from '../../../entities/card/model'
 import TextBlockRenderer from './TextBlockRenderer.vue'
-import { parseRenderReadyBlockForTest, rendererTestGlobal, richTextRendererTestGlobal } from './renderTestUtils'
+import { createRendererTestResources, parseRenderReadyBlockForTest, rendererTestGlobal, richTextRendererTestGlobal } from './renderTestUtils'
 import CardBlockRenderer from './CardBlockRenderer.vue'
 import type { PreparedRichTextCatalog } from '../prepareRichText'
 import { cardEditorContextKey } from './cardEditorContext'
@@ -19,7 +19,7 @@ describe('TextBlockRenderer', () => {
     })
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: richTextRendererTestGlobal(block),
     })
 
@@ -34,7 +34,7 @@ describe('TextBlockRenderer', () => {
     }))
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: richTextRendererTestGlobal(block),
     })
     const content = wrapper.get('.text-block-content--richtext')
@@ -51,7 +51,7 @@ describe('TextBlockRenderer', () => {
     })
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: richTextRendererTestGlobal(block),
     })
     const content = wrapper.get('.text-block-content--richtext')
@@ -69,7 +69,7 @@ describe('TextBlockRenderer', () => {
     }))
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const style = wrapper.element.style
@@ -89,13 +89,16 @@ describe('TextBlockRenderer', () => {
     }))
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: {
         provide: {
           ...rendererTestGlobal.provide,
           [cardEditorContextKey as symbol]: {
             ...rendererTestGlobal.provide[cardEditorContextKey as symbol],
-            resolveFontFamily,
+            resources: {
+              ...rendererTestGlobal.provide[cardEditorContextKey as symbol].resources,
+              resolveFont: resolveFontFamily,
+            },
           },
         },
       },
@@ -116,7 +119,7 @@ describe('TextBlockRenderer', () => {
     })
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const content = wrapper.get('.text-block-content--richtext')
@@ -133,7 +136,7 @@ describe('TextBlockRenderer', () => {
     })
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: richTextRendererTestGlobal(block),
     })
     const binding = wrapper.get('[data-oc-binding]')
@@ -158,7 +161,7 @@ describe('TextBlockRenderer', () => {
     } as const
 
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: richTextRendererTestGlobal(block, catalog),
     })
     const icon = wrapper.get<HTMLElement>('.project-inline-icon').element
@@ -171,14 +174,11 @@ describe('TextBlockRenderer', () => {
   it('passes prepared embeds to the existing card block renderer without runtime preparation', () => {
     const block = parseRenderReadyBlockForTest({
       id: 'host', type: 'text-block',
-      content: '<p><oc-custom-block data-oc-id="badge" data-oc-package="alice/badge" data-oc-layout="inline"></oc-custom-block></p>',
+      content: '<p><oc-custom-block data-oc-id="badge" data-oc-custom-block-key="alice@block:badge" data-oc-layout="inline"></oc-custom-block></p>',
     })
-    const embedded = {
-      ...parseRenderReadyBlockForTest({ id: 'host::embed:badge', type: 'text-block', content: 'Ready' }),
-      type: 'custom-block' as const,
-      customBlockKey: 'alice@block:badge',
-      content: parseRenderReadyBlockForTest({ id: 'host::embed:badge', type: 'text-block', content: 'Ready' }),
-    }
+    const embedded = parseRenderReadyBlockForTest({
+      id: 'host::embed:badge', type: 'text-block', content: 'Ready',
+    })
     const parsed = parseRichTextHtml(block.content)
     const richText: PreparedRichTextCatalog = new Map([['host', {
       document: parsed.document,
@@ -190,15 +190,14 @@ describe('TextBlockRenderer', () => {
       'en-US': { cardDesigner: { customBlock: { unavailable: 'Unavailable' } } },
     } })
     const wrapper = mount(TextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: {
         plugins: [i18n],
         stubs: { CardBlockRenderer: true },
         provide: { [cardEditorContextKey as symbol]: {
           transformDisabledBlockIds: computed(() => new Set<string>()),
           handleBlockClick: () => undefined,
-          resolveAssetSrc: (path: string) => path,
-          resolveFontFamily: (value: string) => value,
+          resources: createRendererTestResources(),
           richText: computed(() => richText),
         } },
       },
@@ -206,6 +205,6 @@ describe('TextBlockRenderer', () => {
 
     expect(wrapper.get('.rich-text-custom-block--inline').element.tagName).toBe('DIV')
     expect(wrapper.getComponent(CardBlockRenderer).props('block')).toBe(embedded)
-    expect(wrapper.getComponent(CardBlockRenderer).props('layoutMode')).toBe('static')
+    expect(wrapper.getComponent(CardBlockRenderer).props('placement')).toEqual({ kind: 'root' })
   })
 })

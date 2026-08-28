@@ -1,11 +1,9 @@
-import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 import {
   compareProjectPackageManifest,
   normalizeProjectPackageManifest,
   type ProjectPackageDifference,
   type ProjectPackageManifest,
 } from '../model/projectPackageManifest'
-import { discoverProjectCustomBlockDefinitions, type ProjectCustomBlockDefinitionCatalogEntry } from './projectCustomBlockDefinition'
 import { parseResourceReferenceList } from './resourceReference'
 import type { ResourcePackageManifest, ResourcePackageManifestIssue } from '../model/resourcePackage'
 import { normalizeResourcePackageManifest } from '../model/resourcePackage'
@@ -54,8 +52,6 @@ export type ProjectResourceEnvironment = {
   readonly packageEnvironments?: ReadonlyMap<string, ProjectResourceEnvironment>
   readonly issues: readonly ProjectResourceEnvironmentIssue[]
   readonly accessPolicy?: ProjectResourceAccessPolicy
-  readonly customBlockCatalog?: CustomBlockRuntimeCatalog
-  readonly customBlockDefinitions?: ReadonlyMap<string, ProjectCustomBlockDefinitionCatalogEntry>
 }
 
 export type ProjectResourceEnvironmentIssue = {
@@ -250,12 +246,6 @@ export async function loadProjectResourceEnvironment(options: {
   const packageDifferences = packageManifest
     ? compareProjectPackageManifest(packageManifest, installedPackageVersions)
     : []
-  const customBlockDefinitions = root && options.fs.readDirectoryEntries
-    ? await discoverProjectCustomBlockDefinitions({
-      readDirectoryEntries: options.fs.readDirectoryEntries,
-      readFile: options.fs.readFile,
-    }, root)
-    : new Map<string, ProjectCustomBlockDefinitionCatalogEntry>()
   for (const [, pkg] of packages) {
     for (const issue of pkg.issues) {
       issues.push({ resource: 'packages', path: `${pkg.rootPath}/.opencard/manifest.json#${issue.path}`, message: issue.message })
@@ -290,7 +280,6 @@ export async function loadProjectResourceEnvironment(options: {
     packageManifest,
     packageDifferences,
     packageEnvironments,
-    customBlockDefinitions,
     issues,
   }
 }

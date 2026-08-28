@@ -29,6 +29,7 @@ export type RenderReadyBaseBlock = {
   rotation: number
   opacity: number
   customCss: string
+  [fieldKey: string]: unknown
 }
 
 type RenderReadyTextContentBlock = RenderReadyBaseBlock & {
@@ -118,12 +119,6 @@ export type RenderReadyFlowContainerBlock = RenderReadyBaseBlock & {
   children: RenderReadyFlowContainerChild[]
 }
 
-export type RenderReadyCustomBlock = RenderReadyBaseBlock & {
-  type: 'custom-block'
-  customBlockKey: string
-  content: RenderReadyCardBlock | null
-}
-
 export type RenderReadyCardBlock =
   | RenderReadyTextBlock
   | RenderReadyMarkdownTextBlock
@@ -132,7 +127,6 @@ export type RenderReadyCardBlock =
   | RenderReadyShapeBlock
   | RenderReadySimpleContainerBlock
   | RenderReadyFlowContainerBlock
-  | RenderReadyCustomBlock
 
 export type RenderReadyCardFace = {
   type: 'card-face'

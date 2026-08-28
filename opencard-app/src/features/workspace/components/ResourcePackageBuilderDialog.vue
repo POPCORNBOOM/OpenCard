@@ -66,7 +66,6 @@
             <div><dt>{{ t('resourcePackage.name') }}</dt><dd>{{ name.trim() || t('resourcePackage.unnamed') }}</dd></div>
             <div><dt>{{ t('resourcePackage.key') }}</dt><dd><code>{{ normalizedKey || '-' }}</code></dd></div>
             <div><dt>{{ t('resourcePackage.version') }}</dt><dd><code>{{ version.trim() || '-' }}</code></dd></div>
-            <div><dt>{{ t('resourcePackage.blocks') }}</dt><dd><code>{{ selectedBlockCount }}</code></dd></div>
             <div><dt>{{ t('resourcePackage.resources') }}</dt><dd><code>{{ selectedResourceCount }}</code></dd></div>
           </dl>
           <OcText v-if="errorText" class="resource-package-builder__error" tone="danger" role="alert">{{ errorText }}</OcText>
@@ -110,7 +109,7 @@ const selectedPaths = ref<Set<string>>(new Set())
 const busy = ref(false)
 const errorText = ref('')
 
-type ResourceKind = 'blocks' | 'fonts' | 'icons' | 'images'
+type ResourceKind = 'fonts' | 'icons' | 'images'
 type PackageCandidate = {
   id: string
   kind: ResourceKind
@@ -119,10 +118,10 @@ type PackageCandidate = {
   paths: readonly string[]
 }
 const categoryLabels: Record<ResourceKind, string> = {
-  blocks: 'resourcePackage.blocks', fonts: 'resourcePackage.fonts', icons: 'resourcePackage.icons', images: 'resourcePackage.images',
+  fonts: 'resourcePackage.fonts', icons: 'resourcePackage.icons', images: 'resourcePackage.images',
 }
-const categoryIcons: Record<ResourceKind, 'file.custom-block' | 'file.font' | 'file.project-icon' | 'file.image'> = {
-  blocks: 'file.custom-block', fonts: 'file.font', icons: 'file.project-icon', images: 'file.image',
+const categoryIcons: Record<ResourceKind, 'file.font' | 'file.project-icon' | 'file.image'> = {
+  fonts: 'file.font', icons: 'file.project-icon', images: 'file.image',
 }
 
 function relativePath(path: string): string {
@@ -139,15 +138,6 @@ function projectInternalPath(source: string): string {
 }
 
 const candidates = computed<readonly PackageCandidate[]>(() => [
-  ...(projectStore.projectCustomBlockRegistry.value.blocks ?? []).flatMap(registration => {
-    const key = registration.key.toLocaleLowerCase()
-    const descriptor = projectStore.projectCustomBlockDefinitionCatalog.value.get(key)
-    if (!descriptor || descriptor.unavailable) return []
-    return [{
-      id: `block:${key}`, kind: 'blocks' as const, label: registration.name,
-      detail: `block:${registration.key}`, paths: [descriptor.path],
-    }]
-  }),
   ...projectStore.projectFontFamilies.value.map(font => ({
     id: `font:${font.key}`, kind: 'fonts' as const, label: font.name, detail: font.key,
     paths: Object.values(font.files).flatMap(weight => Object.values(weight ?? {}))
@@ -172,11 +162,9 @@ const categories = computed(() => (Object.keys(categoryLabels) as ResourceKind[]
 const expandedKeys = computed(() => [...expandedKeySet.value])
 const expandedKeySet = ref<Set<string>>(new Set())
 const selectedCount = computed(() => selectedPaths.value.size)
-const selectedBlockCount = computed(() => [...selectedPaths.value]
-  .filter(id => candidates.value.find(candidate => candidate.id === id)?.kind === 'blocks').length)
-const selectedResourceCount = computed(() => selectedCount.value - selectedBlockCount.value)
+const selectedResourceCount = selectedCount
 const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || name.value.trim(), ''))
-const canBuild = computed(() => Boolean(name.value.trim() && normalizedKey.value && version.value.trim() && selectedBlockCount.value > 0))
+const canBuild = computed(() => Boolean(name.value.trim() && normalizedKey.value && version.value.trim() && selectedResourceCount.value > 0))
 
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
   ['select', { title: t('resourcePackage.select'), icon: 'action.checkbox-blank' }],
@@ -267,8 +255,7 @@ async function build(): Promise<void> {
     const result = await buildResourcePackageFromProject({
       fs: fileSystemService, projectRootPath: props.projectRootPath, key: normalizedKey.value,
       name: name.value.trim(), version: version.value.trim(),
-      blockPaths: selected.filter(candidate => candidate.kind === 'blocks').flatMap(candidate => candidate.paths),
-      resourcePaths: selected.filter(candidate => candidate.kind !== 'blocks').flatMap(candidate => candidate.paths), outputPath,
+      resourcePaths: selected.flatMap(candidate => candidate.paths), outputPath,
     })
     emit('built', result.outputPath ?? '')
     emit('close')

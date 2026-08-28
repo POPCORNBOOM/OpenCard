@@ -8,6 +8,7 @@ import { nextTick, readonly, ref, shallowRef, type Ref } from 'vue'
 import { parseCardDocument } from '../../../entities/card/storage'
 import { prepareExportTask } from '../../exporting/exportPlanner'
 import { runExportPlan } from '../../exporting/exportRunner'
+import { ExportRenderDiagnosticsError } from '../../exporting/exportRenderingError'
 import type {
   ExportDocumentSnapshot,
   ExportFaceRenderer,
@@ -29,12 +30,12 @@ import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { exportCardAsImage } from '../../../utils/exportCard'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import { useShellProgressTasks } from './useShellProgressTasks'
-import { visitCardBlockTree } from '../../../entities/card/tree'
 
 const PROJECT_EXPORT_PROGRESS_KEY = 'project-export'
 
 type ExportRendererInstance = {
   getCanvasElement?: () => HTMLElement | undefined
+  getRuntimeIssues?: () => readonly import('../../card-rendering/cardPipelineIssue').CardPipelineIssue[]
 }
 
 type UseProjectExportOptions = {
@@ -44,7 +45,6 @@ type UseProjectExportOptions = {
   readProjectFile: (relativePath: string) => Promise<string>
   resolveProjectPath: (relativePath: string) => string
   getRelativeProjectPath: (path: string) => string
-  ensureCustomBlocksLoaded?: (keys: Iterable<string>) => Promise<void>
   translate: (key: string, params?: Record<string, unknown>) => string
 }
 
@@ -161,19 +161,10 @@ export function useProjectExport(options: UseProjectExportOptions) {
 
   async function prepare(task: ProjectExportTask): Promise<ExportPreparationResult> {
     const snapshots = new Map<string, ExportDocumentSnapshot>()
-    const packageIds = new Set<string>()
     for (const path of task.documentPaths) {
       const snapshot = await loadDocumentSnapshot(path)
       snapshots.set(normalizePath(path).toLowerCase(), snapshot)
-      for (const face of Object.values(snapshot.document.faces)) {
-        for (const child of face.children) {
-          visitCardBlockTree(child.block, block => {
-            if (block.type === 'custom-block') packageIds.add(block.customBlockKey)
-          })
-        }
-      }
     }
-    await options.ensureCustomBlocksLoaded?.(packageIds)
     const environment = options.renderEnvironment.value
     return await prepareExportTask({
       task,
@@ -197,6 +188,8 @@ export function useProjectExport(options: UseProjectExportOptions) {
       await waitForExportAssets(canvas, request.render.resources.projectIconCatalog)
       await waitForProjectFonts()
       await waitForNextPaint()
+      const runtimeIssues = options.exportRendererRef.value?.getRuntimeIssues?.() ?? []
+      if (runtimeIssues.length > 0) throw new ExportRenderDiagnosticsError(runtimeIssues)
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError')
       const restoreProjectIcons = await inlineProjectIconAtlases(
         canvas,

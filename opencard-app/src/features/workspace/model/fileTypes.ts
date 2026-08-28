@@ -10,8 +10,6 @@ import { PROJECT_INTERNAL_DIRECTORY_NAME } from './projectStructure'
 
 export const CARD_DOCUMENT_EXTENSION = 'ocdocument'
 export const CARD_DOCUMENT_SUFFIX = `.${CARD_DOCUMENT_EXTENSION}`
-export const CUSTOM_BLOCK_EXTENSION = 'ocblock'
-export const CUSTOM_BLOCK_SUFFIX = `.${CUSTOM_BLOCK_EXTENSION}`
 
 export interface FileTypeDefinition {
   id: string
@@ -115,26 +113,6 @@ const fileTypes: FileTypeDefinition[] = [
     editorId: 'dictionary',
     previewable: true,
     projectTreePriority: 3,
-  },
-  {
-    id: 'opencard-custom-block-manager',
-    labelKey: 'fileTypes.opencardCustomBlockRegistry',
-    patterns: ['.opencard/blocks/blocks.json'],
-    icon: 'file.custom-block',
-    iconTone: iconTone.config,
-    editorId: 'custom-block-manager',
-    previewable: true,
-    projectTreePriority: 4,
-  },
-  {
-    id: 'opencard-custom-block',
-    labelKey: 'fileTypes.opencardCustomBlock',
-    extensions: ['ocblock'],
-    icon: 'file.custom-block',
-    iconTone: iconTone.opencard,
-    language: 'json',
-    editorId: 'custom-block',
-    previewable: true,
   },
   {
     id: 'opencard-project-package-manifest',

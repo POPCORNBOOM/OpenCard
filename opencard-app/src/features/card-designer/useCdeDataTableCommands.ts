@@ -2,7 +2,7 @@
  * Coordinates Data Table field-selection configuration with injected Block field commands.
  * Owns document-write transactions only; projection, UI, selection, and Cell caches stay outside.
  */
-import { computed, type DeepReadonly, type Ref } from 'vue'
+import { computed, type Ref } from 'vue'
 import {
   setCardFieldValue,
   getBlockProperty,
@@ -16,9 +16,6 @@ import {
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import { isBlockContainer } from '../../entities/card/tree'
 import type { CardDataWorkbookImportResult, CardDataWorkbookUpdate } from './cardDataWorkbook'
-import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
-
-type CustomBlockSchemaCatalog = ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>
 
 type CdeDataTableChangeMode = 'typing' | 'action'
 
@@ -42,7 +39,6 @@ type UseCdeDataTableCommandsOptions = {
   cardDoc: Readonly<Ref<CardDocument | null>>
   documentRevision: Readonly<Ref<number>>
   blueprintCardId: string
-  customBlockCatalog?: Readonly<Ref<CustomBlockSchemaCatalog>>
   refreshDocumentState: () => void
   markDocumentChanged: (mode?: CdeDataTableChangeMode, target?: string, structural?: boolean) => void
   updateBlockField: (
@@ -86,7 +82,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
 
   function includeField(blockId: string, fieldKey: string): boolean {
     if (!blockId || !fieldKey) return false
-    if (!isCustomBlockFieldAllowed(options.cardDoc.value, options.customBlockCatalog?.value, blockId, fieldKey)) return false
     const current = fieldSelection.value[blockId] ?? []
     if (current.includes(fieldKey)) return false
     return commitFieldSelection({
@@ -105,7 +100,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function updateCell(payload: BlockFieldTarget & { value: unknown }): boolean {
-    if (!isCustomBlockFieldAllowed(options.cardDoc.value, options.customBlockCatalog?.value, payload.blockId, payload.fieldKey)) return false
     return options.updateBlockField(payload, payload.value, 'typing')
   }
 
@@ -127,7 +121,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function resetCell(payload: BlockFieldTarget): boolean {
-    if (!isCustomBlockFieldAllowed(options.cardDoc.value, options.customBlockCatalog?.value, payload.blockId, payload.fieldKey)) return false
     return options.resetBlockField(payload)
   }
 
@@ -189,8 +182,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     for (const update of updates) {
       const block = blockLookup.get(update.blockId)
       if (!block) continue
-      if (block.type === 'custom-block'
-        && !isCustomBlockFieldAllowed(document, options.customBlockCatalog?.value, block.id, update.fieldKey)) continue
       if (update.cardId === options.blueprintCardId) {
         if (update.reset || update.value === undefined) continue
         const record = block as unknown as Record<string, unknown>
@@ -221,8 +212,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     payload: CdeDataTableFieldCreatePayload,
   ): AdditionalFieldKeyError | 'invalid-target' | null {
     const previous = fieldSelection.value
-    const block = options.cardDoc.value ? createBlockLookup(options.cardDoc.value).get(payload.blockId) : null
-    if (block?.type === 'custom-block') return 'invalid-target'
     if (payload.blockId && payload.fieldKey) {
       const current = previous[payload.blockId] ?? []
       writeFieldSelection({
@@ -244,8 +233,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
   }
 
   function deleteField(blockId: string, fieldKey: string): boolean {
-    const block = options.cardDoc.value ? createBlockLookup(options.cardDoc.value).get(blockId) : null
-    if (block?.type === 'custom-block') return false
     const previous = fieldSelection.value
     const current = previous[blockId]
     if (current?.includes(fieldKey)) {
@@ -301,24 +288,6 @@ export function useCdeDataTableCommands(options: UseCdeDataTableCommandsOptions)
     setInstanceExported,
     updateCell,
   }
-}
-
-function isCustomBlockFieldAllowed(
-  document: CardDocument | null,
-  catalog: CustomBlockSchemaCatalog | undefined,
-  blockId: string,
-  fieldKey: string,
-): boolean {
-  if (!document) return false
-  const block = createBlockLookup(document).get(blockId)
-  if (block?.type !== 'custom-block') return true
-  const identity = block.customBlockKey.toLocaleLowerCase()
-  const legacy = identity.includes('@block:')
-    ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + 7)}`
-    : identity
-  const entry = catalog?.get(identity) ?? catalog?.get(legacy)
-  return entry?.definition.publicFieldKeys
-    .some(key => key.toLowerCase() === fieldKey.toLowerCase()) === true
 }
 
 function createBlockLookup(document: CardDocument): Map<string, CardBlock> {

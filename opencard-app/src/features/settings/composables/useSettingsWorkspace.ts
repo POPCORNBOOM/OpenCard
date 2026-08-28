@@ -10,6 +10,8 @@ import {
 } from '../../../shared/ui/foundation'
 import {
   APP_THEME_PRESETS,
+  MAX_CUSTOM_BLOCK_MAX_DEPTH,
+  MIN_CUSTOM_BLOCK_MAX_DEPTH,
   resolveThemePresetId,
   type AppSettingKey,
   type AppSettings,
@@ -327,6 +329,16 @@ export function useSettingsWorkspace(
           max: 1000,
           step: 10,
           suffix: options.translate('settings.values.historyEntries', ' entries'),
+        },
+        {
+          type: 'range',
+          key: 'workspace.customBlockMaxDepth',
+          label: options.translate('settings.fields.customBlockMaxDepth', 'Maximum custom block recursion depth'),
+          value: settings.workspace.customBlockMaxDepth,
+          min: MIN_CUSTOM_BLOCK_MAX_DEPTH,
+          max: MAX_CUSTOM_BLOCK_MAX_DEPTH,
+          step: 1,
+          suffix: options.translate('settings.values.recursionLevels', ' levels'),
         },
         {
           type: 'options',

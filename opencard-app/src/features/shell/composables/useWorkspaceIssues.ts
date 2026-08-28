@@ -18,6 +18,7 @@ type SessionIssueScopes = ReadonlyMap<string, readonly EditorIssue[]>
 export type WorkspaceIssueProjection = {
   treeData: OcTreeData
   navigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
+  issueDetails: ReadonlyMap<string, EditorIssue>
   issueCount: number
   highestSeverity: EditorIssueSeverity | null
 }
@@ -48,18 +49,23 @@ function issueLabel(issue: EditorIssue): string {
 
 function issueTreeItem(issue: EditorIssue): OcTreeItem {
   if (issue.severity === 'error') {
-    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger' }
+    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger', actions: ['copy-issue'] }
   }
   if (issue.severity === 'warning') {
-    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning' }
+    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning', actions: ['copy-issue'] }
   }
-  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted' }
+  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted', actions: ['copy-issue'] }
 }
 
 function dedupeIssues(issues: readonly EditorIssue[]): readonly EditorIssue[] {
   const byId = new Map<string, EditorIssue>()
   for (const issue of issues) byId.set(issue.id, issue)
   return [...byId.values()]
+}
+
+function sameIssueLists(a: readonly EditorIssue[] | undefined, b: readonly EditorIssue[]): boolean {
+  if (!a || a.length !== b.length) return false
+  return a.every((issue, index) => JSON.stringify(issue) === JSON.stringify(b[index]))
 }
 
 function normalizeScopeOrder(snapshot: EditorIssueSnapshot): readonly string[] {
@@ -77,6 +83,7 @@ export function buildWorkspaceIssueProjection(
   const items = new Map<string, OcTreeItem>()
   const children = new Map<string, readonly string[]>()
   const navigationTargets = new Map<string, SessionIssueNavigationRequest>()
+  const issueDetails = new Map<string, EditorIssue>()
   let issueCount = 0
   let highestSeverity: EditorIssueSeverity | null = null
 
@@ -88,26 +95,33 @@ export function buildWorkspaceIssueProjection(
     for (const [scopeKey, issues] of scopes) {
       for (const issue of issues) {
         sessionIssues.push({ scopeKey, issue: { ...issue, sessionId: session.id } })
-        if (highestSeverity === null || ISSUE_SEVERITY_RANK[issue.severity] > ISSUE_SEVERITY_RANK[highestSeverity]) {
-          highestSeverity = issue.severity
-        }
       }
     }
     if (sessionIssues.length === 0) continue
 
     const rootKey = sessionNodeKey(session.id)
     const fileType = resolveFileTypeById(session.fileTypeId)
-    const issueKeys = sessionIssues.map(({ scopeKey, issue }) => {
-      const key = issueNodeKey(session.id, scopeKey, issue.id)
+    const addIssue = (scopeKey: string, issue: SessionIssue, path: readonly number[]): string => {
+      const key = `${issueNodeKey(session.id, scopeKey, issue.id)}:${path.join('.')}`
       items.set(key, issueTreeItem(issue))
+      issueDetails.set(key, issue)
       if (issue.navigationToken !== undefined) {
         navigationTargets.set(key, {
           sessionId: session.id,
           token: issue.navigationToken,
         })
       }
+      issueCount += 1
+      if (highestSeverity === null || ISSUE_SEVERITY_RANK[issue.severity] > ISSUE_SEVERITY_RANK[highestSeverity]) {
+        highestSeverity = issue.severity
+      }
+      const childKeys = (issue.children ?? []).map((child, index) =>
+        addIssue(scopeKey, { ...child, sessionId: session.id }, [...path, index]),
+      )
+      if (childKeys.length > 0) children.set(key, childKeys)
       return key
-    })
+    }
+    const issueKeys = sessionIssues.map(({ scopeKey, issue }, index) => addIssue(scopeKey, issue, [index]))
 
     rootKeys.push(rootKey)
     items.set(rootKey, {
@@ -116,12 +130,12 @@ export function buildWorkspaceIssueProjection(
       iconTone: fileType.iconTone,
     })
     children.set(rootKey, issueKeys)
-    issueCount += sessionIssues.length
   }
 
   return {
     treeData: { rootKeys, items, children },
     navigationTargets,
+    issueDetails,
     issueCount,
     highestSeverity,
   }
@@ -153,6 +167,11 @@ export function useWorkspaceIssues(options: {
       const cached = currentScopes.get(scopeKey)
       if (cached) nextScopes.set(scopeKey, cached)
     }
+
+    if (
+      currentScopes.size === nextScopes.size
+      && [...nextScopes].every(([scopeKey, issues]) => sameIssueLists(currentScopes.get(scopeKey), issues))
+    ) return
 
     nextBySession.set(sessionId, nextScopes)
     issuesBySession.value = nextBySession
@@ -194,6 +213,7 @@ export function useWorkspaceIssues(options: {
   return {
     issueTreeData: computed(() => projection.value.treeData),
     issueNavigationTargets: computed(() => projection.value.navigationTargets),
+    issueDetails: computed(() => projection.value.issueDetails),
     issueCount: computed(() => projection.value.issueCount),
     highestIssueSeverity: computed(() => projection.value.highestSeverity),
     expandedIssueKeys,

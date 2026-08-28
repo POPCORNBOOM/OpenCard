@@ -105,14 +105,12 @@ import { reportAppError } from '../../../features/logging/appErrorCatalog'
 import type {
   PropertyEditorBindingInterpreter,
   PropertyEditorCategoryDefinition,
-  PropertyEditorFieldDefinition,
   PropertyEditorFieldIntent,
   PropertyEditorInput,
   PropertyEditorMutation,
   PropertyEditorTailActionIntent,
   PropertyEditorSortMode,
 } from './propertyEditor.types'
-import { isArrayPropertyFieldType } from './propertyEditor.types'
 import {
   usePropertyEditorView,
   type PropertyEditorCategoryView,
@@ -297,11 +295,7 @@ function handleCategoryAction(payload: { key: string }, category: PropertyEditor
     return
   }
 
-  emit('add-property', {
-    key: category.inputKey,
-    fieldKey: field.key,
-    value: createDefaultValue(field.definition),
-  })
+  emit('add-property', { key: category.inputKey, fieldKey: field.key })
 }
 
 function openCategoryContextMenu(event: MouseEvent, category: PropertyEditorCategoryView): void {
@@ -333,11 +327,6 @@ function emitResetProperty(key: string, fieldKey: string): void {
 }
 
 // 字段默认值策略。
-function createDefaultValue(definition: PropertyEditorFieldDefinition): unknown {
-  if (isArrayPropertyFieldType(definition.fieldType)) return []
-  return structuredClone(definition.defaultValue)
-}
-
 function findFieldRow(inputKey: string, fieldKey: string): HTMLElement | null {
   const rows = propertyEditorRoot.value?.querySelectorAll<HTMLElement>(
     '.property-editor__row[data-input-key][data-field-key]',

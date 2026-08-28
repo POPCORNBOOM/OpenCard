@@ -800,6 +800,10 @@ describe('CardDesignEditor issue navigation', () => {
     }
     editor.selectViewportBlock('text-1')
     await nextTick()
+    const selectionUpdateCount = (wrapper.emitted('update-card-designer-view') ?? []).length
+    editor.selectViewportBlock('text-1')
+    await nextTick()
+    expect((wrapper.emitted('update-card-designer-view') ?? []).length).toBe(selectionUpdateCount)
     editor.toggleActiveFace()
     await nextTick()
     const updates = wrapper.emitted('update-card-designer-view') ?? []

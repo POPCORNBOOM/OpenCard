@@ -3,7 +3,6 @@ import { parseResourceReference } from '../../features/workspace/services/resour
 const allowedTags = new Set([
   'B', 'BR', 'COL', 'COLGROUP', 'EM', 'I', 'LI', 'MARK', 'OL', 'P', 'S', 'SPAN',
   'STRIKE', 'STRONG', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'U', 'UL',
-  'OC-CUSTOM-BLOCK', 'OC-PROP',
 ])
 
 const blockedTags = new Set(['IFRAME', 'OBJECT', 'SCRIPT', 'STYLE', 'TEMPLATE'])
@@ -12,9 +11,6 @@ const allowedStyleProperties = [
   '-webkit-text-stroke', '-webkit-text-stroke-color', '-webkit-text-stroke-width',
 ] as const
 const tableStyleProperties = ['min-width', 'width'] as const
-const keyPattern = /^[a-z0-9][a-z0-9._-]*$/i
-const packageIdPattern = /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i
-const embedIdPattern = /^[a-z0-9][a-z0-9._:-]*$/i
 const tableParents: Readonly<Record<string, ReadonlySet<string>>> = {
   COL: new Set(['COLGROUP']), COLGROUP: new Set(['TABLE']), THEAD: new Set(['TABLE']),
   TBODY: new Set(['TABLE']), TR: new Set(['THEAD', 'TBODY', 'TABLE']),
@@ -23,7 +19,6 @@ const tableParents: Readonly<Record<string, ReadonlySet<string>>> = {
 
 export type RichTextDiagnosticCode =
   | 'unsupported-tag' | 'invalid-structure'
-  | 'invalid-custom-block' | 'duplicate-embed-id'
 
 export type RichTextDiagnostic = {
   code: RichTextDiagnosticCode
@@ -39,18 +34,8 @@ export type RichTextElementNode = {
   children: readonly RichTextNode[]
 }
 export type RichTextIconNode = { type: 'icon', seriesKey: string, iconKey: string }
-export type RichTextCustomBlockNode = {
-  type: 'customBlock'
-  embedId: string
-  packageId: string
-  layout: 'inline' | 'block'
-  properties: Readonly<Record<string, string>>
-}
-export type RichTextNode = RichTextTextNode | RichTextElementNode | RichTextIconNode | RichTextCustomBlockNode
+export type RichTextNode = RichTextTextNode | RichTextElementNode | RichTextIconNode
 export type RichTextDocument = { html: string, children: readonly RichTextNode[] }
-export type RichTextParseContext = {
-  resolveCustomBlock?: (packageId: string) => { publicFieldKeys: readonly string[] } | null | undefined
-}
 export type RichTextParseResult = {
   document: RichTextDocument
   diagnostics: RichTextDiagnostic[]
@@ -73,10 +58,9 @@ function pushDiagnostic(diagnostics: RichTextDiagnostic[], element: Element, cod
   diagnostics.push({ code, path: elementPath(element), message })
 }
 
-export function parseRichTextHtml(source: string, context: RichTextParseContext = {}): RichTextParseResult {
+export function parseRichTextHtml(source: string): RichTextParseResult {
   const documentNode = new DOMParser().parseFromString(source, 'text/html')
   const diagnostics: RichTextDiagnostic[] = []
-  const embedIds = new Set<string>()
 
   for (const element of Array.from(documentNode.body.querySelectorAll('*'))) {
     if (element.tagName === 'SCRIPT') {
@@ -95,36 +79,11 @@ export function parseRichTextHtml(source: string, context: RichTextParseContext 
         if (value !== null && value !== '1') pushDiagnostic(diagnostics, element, 'invalid-structure', 'Merged table cells are not supported')
       }
     }
-    if (element.tagName === 'OC-CUSTOM-BLOCK') {
-      const id = element.getAttribute('data-oc-id')?.trim() ?? ''
-      const packageId = element.getAttribute('data-oc-package')?.trim() ?? ''
-      const layout = element.getAttribute('data-oc-layout')?.trim() ?? ''
-      if (!embedIdPattern.test(id) || !packageIdPattern.test(packageId) || (layout !== 'inline' && layout !== 'block')) {
-        pushDiagnostic(diagnostics, element, 'invalid-custom-block', 'Custom Block requires a valid ID, Package ID, and layout')
-      }
-      if (id && embedIds.has(id.toLowerCase())) pushDiagnostic(diagnostics, element, 'duplicate-embed-id', `Duplicate embed ID: ${id}`)
-      if (id) embedIds.add(id.toLowerCase())
-      const contract = packageId ? context.resolveCustomBlock?.(packageId) : undefined
-      const publicKeys = contract ? new Set(contract.publicFieldKeys.map(item => item.toLowerCase())) : null
-      for (const child of Array.from(element.children)) {
-        if (child.tagName !== 'OC-PROP') {
-          pushDiagnostic(diagnostics, child, 'invalid-custom-block', 'Custom Block may only contain property elements')
-          continue
-        }
-        const fieldKey = child.getAttribute('data-oc-key')?.trim() ?? ''
-        if (!keyPattern.test(fieldKey) || (publicKeys && !publicKeys.has(fieldKey.toLowerCase()))) {
-          pushDiagnostic(diagnostics, child, 'invalid-custom-block', `Unavailable public field: ${fieldKey}`)
-        }
-        if (child.children.length > 0) pushDiagnostic(diagnostics, child, 'invalid-custom-block', 'Custom Block property values must be text')
-      }
-    } else if (element.tagName === 'OC-PROP' && element.parentElement?.tagName !== 'OC-CUSTOM-BLOCK') {
-      pushDiagnostic(diagnostics, element, 'invalid-custom-block', 'Property element must belong to a Custom Block')
-    }
   }
 
   function toNode(node: Node): RichTextNode | null {
     if (node instanceof Text) return { type: 'text', value: node.data }
-    if (!(node instanceof Element) || !allowedTags.has(node.tagName) || node.tagName === 'OC-PROP') return null
+    if (!(node instanceof Element) || !allowedTags.has(node.tagName)) return null
     if (node.tagName === 'SPAN' && node.hasAttribute('data-oc-icon-path')) {
       const parsed = parseResourceReference(`icon:${node.getAttribute('data-oc-icon-path') ?? ''}`)
       const reference = parsed.reference?.kind === 'icon' ? {
@@ -135,16 +94,6 @@ export function parseRichTextHtml(source: string, context: RichTextParseContext 
         type: 'icon',
         seriesKey: reference?.seriesKey ?? '',
         iconKey: reference?.iconKey ?? '',
-      }
-    }
-    if (node.tagName === 'OC-CUSTOM-BLOCK') {
-      return {
-        type: 'customBlock',
-        embedId: node.getAttribute('data-oc-id') ?? '',
-        packageId: node.getAttribute('data-oc-package') ?? '',
-        layout: node.getAttribute('data-oc-layout') === 'block' ? 'block' : 'inline',
-        properties: Object.fromEntries(Array.from(node.children).flatMap(child => child.tagName === 'OC-PROP'
-          ? [[child.getAttribute('data-oc-key') ?? '', child.textContent ?? '']] : [])),
       }
     }
     const attributes: Record<string, string> = {}
@@ -213,12 +162,6 @@ export function sanitizeRichTextHtml(source: string): string {
     styleValues['font-family'] = normalizeProjectFontFamilyStyle(styleValues['font-family'])
     const bindingExpression = element.tagName === 'SPAN' ? sanitizeBindingExpression(element.getAttribute('data-oc-binding')) : null
     const iconPath = element.tagName === 'SPAN' ? sanitizeIconPath(element.getAttribute('data-oc-icon-path')) : null
-    const embed = element.tagName === 'OC-CUSTOM-BLOCK' ? {
-      id: sanitizeEmbedId(element.getAttribute('data-oc-id')),
-      packageId: sanitizePackageId(element.getAttribute('data-oc-package')),
-      layout: element.getAttribute('data-oc-layout') === 'block' ? 'block' : 'inline',
-    } : null
-    const propertyKey = element.tagName === 'OC-PROP' ? sanitizeKey(element.getAttribute('data-oc-key')) : null
     const columnWidth = element.tagName === 'COL' ? (element as HTMLElement).style.width : ''
     for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name)
     for (const property of allowedStyleProperties) {
@@ -231,12 +174,6 @@ export function sanitizeRichTextHtml(source: string): string {
       element.setAttribute('data-oc-icon-path', iconPath)
       element.replaceChildren()
     }
-    if (embed?.id && embed.packageId) {
-      element.setAttribute('data-oc-id', embed.id)
-      element.setAttribute('data-oc-package', embed.packageId)
-      element.setAttribute('data-oc-layout', embed.layout)
-    }
-    if (propertyKey) element.setAttribute('data-oc-key', propertyKey)
   }
   return documentNode.body.innerHTML
 }
@@ -260,10 +197,6 @@ function sanitizeIconPath(value: string | null): string | null {
   const parsed = parseResourceReference(`icon:${path}`)
   return parsed.reference?.kind === 'icon' || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path) ? path : null
 }
-function sanitizeKey(value: string | null): string | null { const key = value?.trim() ?? ''; return keyPattern.test(key) ? key : null }
-function sanitizePackageId(value: string | null): string | null { const id = value?.trim() ?? ''; return packageIdPattern.test(id) ? id.toLocaleLowerCase() : null }
-function sanitizeEmbedId(value: string | null): string | null { const id = value?.trim() ?? ''; return embedIdPattern.test(id) ? id : null }
-
 export function normalizeRichTextHtml(source: string): string {
   if (source === '') return '<p></p>'
   const sourceDocument = new DOMParser().parseFromString(source, 'text/html')

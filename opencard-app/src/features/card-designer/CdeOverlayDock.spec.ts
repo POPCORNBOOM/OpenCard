@@ -190,4 +190,19 @@ describe('CdeOverlayDock', () => {
     expect(wrapper.emitted('update:extent')).toContainEqual([0])
     expect(wrapper.find('[aria-label="Resize sidebar"]').exists()).toBe(true)
   })
+
+  it('does not echo an unchanged persisted top size from resize observation', () => {
+    const wrapper = mount(CdeOverlayDock, {
+      props,
+      slots: { top: '<section>top</section>', bottom: '<section>bottom</section>' },
+    })
+
+    const stack = wrapper.get('.cde-overlay-dock__stack').element as HTMLElement
+    const topPanel = wrapper.get('.cde-overlay-dock__panel--top').element as HTMLElement
+    stack.getBoundingClientRect = () => ({ height: 700 } as DOMRect)
+    topPanel.getBoundingClientRect = () => ({ height: 240 } as DOMRect)
+    resizeCallback?.([{ target: stack, contentRect: { height: 700 } as DOMRectReadOnly } as unknown as ResizeObserverEntry], {} as ResizeObserver)
+
+    expect(wrapper.emitted('update:top-size') ?? []).toHaveLength(0)
+  })
 })

@@ -43,8 +43,6 @@
                   :selected-parent-flow-direction="selectedParentFlowDirection" :selected-flow-align="selectedFlowAlign"
                   :viewport-insets="viewportInsets"
                   :selection-info="props.debugPassiveCdeViewport || workspaceMode !== 'design' ? null : selectionInfo"
-                  :width-locked="selectedCustomBlockResize.widthLocked"
-                  :height-locked="selectedCustomBlockResize.heightLocked"
                   :selection-action-labels="selectionActionLabels" :selection-command-actions="selectionCommandActions"
                   :layer-view-active="layerViewActive"
                   :layer-view-base-plane-label="t('cardDesigner.layerView.basePlane')"
@@ -64,6 +62,7 @@
                   @face-dimension-change="handleFaceDimensionChange"
                   @viewport-transform-change="handleViewportTransformChange"
                   @viewport-size-change="handleViewportSizeChange"
+                  @runtime-issues-change="handleRuntimeRenderIssuesChange"
                   @render-readiness-change="handleRenderReadinessChange">
                   <template #info>
                     <section class="card-design-editor__card-info" :aria-label="t('cardDesigner.info.title')">
@@ -219,30 +218,6 @@
       @close="closeAdditionalFieldDialog" @submit="submitAdditionalFieldDialog" />
     <DataTableWorkbookImportDialog :result="pendingDataTableWorkbookImport" @cancel="cancelDataTableWorkbookImport"
       @confirm="confirmDataTableWorkbookImport" />
-    <CustomBlockExportDialog :open="customBlockExportDialogOpen"
-      :dialog-title="t('cardDesigner.customBlock.exportTitle')" :document="cardDoc"
-      :root-block-id="customBlockExportBlock?.id ?? null" :fields="customBlockExportFields"
-      :default-name="getBlockProperty<string>(customBlockExportBlock, 'name') ?? ''"
-      :default-key="customBlockExportDefaultKey"
-      :project-root-path="props.resourceRootPath || projectStore.projectPath.value" :busy="customBlockExportBusy"
-      :error-text="customBlockExportErrorText" @close="closeCustomBlockExportDialog"
-      @submit="handleCustomBlockExport" />
-    <OcDialog :open="Boolean(pendingCustomBlockRegistrationPath)" :title="t('cardDesigner.customBlock.registerTitle')"
-      :description="t('cardDesigner.customBlock.registerDescription')" size="sm"
-      :dismissible="!customBlockRegistrationBusy" @request-close="closeCustomBlockRegistration">
-      <OcText v-if="customBlockRegistrationError" tone="danger" size="sm" role="alert">
-        {{ customBlockRegistrationError }}
-      </OcText>
-      <template #footer>
-        <OcButton type="button" :disabled="customBlockRegistrationBusy" @click="closeCustomBlockRegistration">
-          {{ t('cardDesigner.customBlock.skipRegistration') }}
-        </OcButton>
-        <OcButton type="button" variant="solid" :disabled="customBlockRegistrationBusy"
-          @click="confirmCustomBlockRegistration">
-          {{ t('cardDesigner.customBlock.register') }}
-        </OcButton>
-      </template>
-    </OcDialog>
   </div>
 </template>
 
@@ -302,19 +277,6 @@ import {
 import { useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
-import CustomBlockExportDialog from '../workspace/components/CustomBlockExportDialog.vue'
-import OcDialog from '../../components/standard/OcDialog.vue'
-import OcButton from '../../components/base/OcButton.vue'
-import OcText from '../../components/base/OcText.vue'
-import { toKeySlug } from '../../shared/model/keySlug'
-import { analyzeProjectCustomBlockExport, type CustomBlockFieldAnalysis } from '../workspace/services/projectCustomBlockExportAnalyzer'
-import { createProjectCustomBlockInstance } from '../workspace/services/createProjectCustomBlockInstance'
-import {
-  exportPreparedProjectCustomBlock,
-  type PreparedProjectCustomBlockExport,
-} from '../workspace/services/exportProjectCustomBlock'
-import type { ProjectCustomBlockResizePolicy } from '../workspace/model/projectCustomBlocks'
-import { resolvePropertyEditorSchema } from '../../entities/card/schema'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
 import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
@@ -410,7 +372,6 @@ const diffBeforeRender = computed<PreparedCardRender | null>(() => {
       project: snapshot.project ?? null,
       dictionary: snapshot.dictionary,
       projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
-      customBlockCatalog: snapshot.customBlockCatalog ?? new Map(),
       remoteResourcePolicy: snapshot.remoteResourcePolicy,
       resolveFontFamily: snapshot.resolveFontFamily,
     },
@@ -429,7 +390,6 @@ const diffAfterRender = computed<PreparedCardRender | null>(() => {
       project: snapshot.project ?? null,
       dictionary: snapshot.dictionary,
       projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
-      customBlockCatalog: snapshot.customBlockCatalog ?? new Map(),
       remoteResourcePolicy: snapshot.remoteResourcePolicy,
       resolveFontFamily: snapshot.resolveFontFamily,
     },
@@ -819,14 +779,7 @@ const nativeAddActionKeys = [
 
 // 结构树操作定义
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
-  const customBlockActions = [...projectStore.projectCustomBlockDefinitionCatalog.value.entries()].map(([key, entry]) => ([
-    `add-custom-block:${key}`,
-    { icon: 'entity.block-custom', title: entry.definition.name },
-  ] as const))
-  const addChildren = [
-    ...nativeAddActionKeys,
-    ...(customBlockActions.length ? ['add-custom-block-menu'] : []),
-  ]
+  const addChildren = [...nativeAddActionKeys]
   return new Map<string, OcTreeActionDefinition>([
     ['instance-more', {
       icon: 'nav.more',
@@ -836,17 +789,17 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
     ['block-more', {
       icon: 'nav.more',
       title: '更多操作',
-      children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'duplicate', 'delete']
+      children: ['copy-block', 'paste-block', 'rename', 'duplicate', 'delete']
     }],
     ['container-more', {
       icon: 'nav.more',
       title: '更多操作',
-      children: ['copy-block', 'paste-block', 'rename', 'export-custom-block', 'add', 'package', 'duplicate', 'delete']
+      children: ['copy-block', 'paste-block', 'rename', 'add', 'package', 'duplicate', 'delete']
     }],
     ['packaged-container-more', {
       icon: 'nav.more',
       title: '更多操作',
-      children: ['rename', 'export-custom-block', 'unpackage', 'duplicate', 'delete'],
+      children: ['rename', 'unpackage', 'duplicate', 'delete'],
     }],
     ['add-root', {
       icon: 'action.add',
@@ -894,7 +847,6 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
     }],
     ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
     ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
-    ['export-custom-block', { icon: 'action.download', title: t('cardDesigner.treeActions.exportCustomBlock') }],
     ['hide-block', { icon: 'status.eye', title: '隐藏' }],
     ['show-block', { icon: 'status.eye-off', title: '显示' }],
     ['duplicate-instance', {
@@ -907,15 +859,6 @@ const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => 
       title: '删除实例',
       shortcut: getCdeShortcutParts('instance.delete'),
     }],
-    ...(customBlockActions.length ? [[
-      'add-custom-block-menu',
-      {
-        icon: 'entity.block-custom',
-        title: t('cardDesigner.treeActions.addCustomBlock'),
-        children: customBlockActions.map(([key]) => key),
-      },
-    ] as const] : []),
-    ...customBlockActions,
   ])
 })
 const emptyTreeActions = new Map<string, OcTreeActionDefinition>()
@@ -950,9 +893,13 @@ const selectedBlockIdsByFace = ref<Record<CardFaceKey, string[]>>({
   front: [...(props.cardDesignerView?.selectedBlockIdsByFace?.front ?? [])],
   back: [...(props.cardDesignerView?.selectedBlockIdsByFace?.back ?? [])],
 })
+function sameBlockSelection(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index])
+}
 const selectedBlockKeys = computed<string[]>({
   get: () => selectedBlockIdsByFace.value[activeFaceKey.value],
   set: keys => {
+    if (sameBlockSelection(selectedBlockIdsByFace.value[activeFaceKey.value], keys)) return
     selectedBlockIdsByFace.value = {
       ...selectedBlockIdsByFace.value,
       [activeFaceKey.value]: [...keys],
@@ -1102,40 +1049,9 @@ const {
     selectedCardKeys.value = []
     selectedCardId.value = props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID
   },
-  resolveCustomBlockPublicFieldKeys: packageId => (
-    projectStore.projectCustomBlockDefinitionCatalog.value.get(packageId.toLowerCase())?.definition.publicFieldKeys
-  ),
 })
 
 const activeFace = computed(() => cardDoc.value?.faces[activeFaceKey.value] ?? null)
-
-const activeCustomBlockKeys = computed(() => {
-  documentRevision.value
-  const keys = new Set<string>()
-  const collectRichTextKeys = (content: unknown): void => {
-    if (typeof content !== 'string') return
-    const pattern = /<oc-custom-block\b[^>]*\bdata-oc-package\s*=\s*(["'])([^"']+)\1/gi
-    for (const match of content.matchAll(pattern)) {
-      const key = match[2]?.trim().toLowerCase()
-      if (key) keys.add(key)
-    }
-  }
-  const document = cardDoc.value
-  if (!document) return keys
-  for (const face of Object.values(document.faces)) {
-    for (const child of face.children) {
-      visitCardBlockTree(child.block, block => {
-        if (block.type === 'custom-block') keys.add(block.customBlockKey.toLowerCase())
-        if (block.type === 'text-block') collectRichTextKeys(block.content)
-      })
-    }
-  }
-  return keys
-})
-
-watch(activeCustomBlockKeys, keys => {
-  if (props.mode !== 'diff') projectStore.setActiveProjectCustomBlockKeys(keys)
-}, { immediate: true })
 
 const blockFieldCommands = useCdeBlockFieldCommands({
   cardDoc,
@@ -1161,7 +1077,6 @@ const {
   cardDoc,
   documentRevision,
   blueprintCardId: BLUEPRINT_CARD_ID,
-  customBlockCatalog: projectStore.projectCustomBlockCatalog,
   refreshDocumentState,
   markDocumentChanged,
   updateBlockField: blockFieldCommands.updateField,
@@ -1180,7 +1095,6 @@ const {
   fieldSelection: dataTableFields,
   exportInstanceIds: dataTableExportInstanceIds,
   blueprintCardId: BLUEPRINT_CARD_ID,
-  customBlockCatalog: projectStore.projectCustomBlockCatalog,
   blueprintTitle: () => t('cardDesigner.dataTable.blueprint'),
   faceTitle: faceKey => t(`cardDesigner.info.${faceKey}`),
   translate: messageKey => t(messageKey),
@@ -1396,7 +1310,6 @@ const {
   resolveVisibleBlockKey,
   clearSelection,
   getBlockById,
-  insertBlockAtRoot,
   exportSelectedBlockPayloads,
   pasteBlockPayloads,
 } = useCdeTreeOps({
@@ -1406,10 +1319,6 @@ const {
   parentLookup,
   selectedBlockKeys,
   getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
-  createCustomBlock: key => {
-    const entry = projectStore.projectCustomBlockCatalog.value.get(key.toLowerCase())
-    return entry ? createProjectCustomBlockInstance({ definition: { key: entry.definition.key, name: entry.definition.name } }) : null
-  },
   refreshDocumentState,
   markDocumentChanged,
 })
@@ -1438,27 +1347,6 @@ function clearEffectiveBlockSelection(): void {
 }
 
 const expandedBlockKeys = ref<string[]>([])
-const customBlockExportDialogOpen = ref(false)
-const customBlockExportBlock = ref<CardBlock | null>(null)
-const customBlockExportErrorText = ref('')
-const customBlockExportBusy = ref(false)
-const pendingCustomBlockRegistrationPath = ref<string | null>(null)
-const customBlockRegistrationBusy = ref(false)
-const customBlockRegistrationError = ref('')
-const customBlockExportAnalysis = computed(() => customBlockExportBlock.value
-  ? analyzeProjectCustomBlockExport(customBlockExportBlock.value)
-  : { fields: [] as readonly CustomBlockFieldAnalysis[] })
-const customBlockExportFields = computed(() => customBlockExportAnalysis.value.fields.map(field => ({
-  ...field,
-  title: field.title ?? (te(`propertyEditor.fields.${field.key}`)
-    ? t(`propertyEditor.fields.${field.key}`)
-    : field.key),
-})))
-const customBlockExportDefaultKey = computed(() => toKeySlug(
-  getBlockProperty<string>(customBlockExportBlock.value, 'name') ?? '',
-  'custom-block',
-))
-
 
 async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
   if (props.mode === 'diff') {
@@ -1521,83 +1409,12 @@ async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
     void structureTreeRef.value?.beginRename(intent.key)
     return
   }
-  if (intent.type === 'action.invoke' && intent.actionKey === 'export-custom-block') {
-    handleTreeIntent(intent)
-    customBlockExportBlock.value = getBlockById(intent.key)
-    customBlockExportErrorText.value = ''
-    customBlockExportDialogOpen.value = Boolean(customBlockExportBlock.value)
-    return
-  }
   if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-')) {
     const nextKeys = new Set(expandedBlockKeys.value)
     nextKeys.add(intent.key)
     expandedBlockKeys.value = [...nextKeys]
   }
-  if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-custom-block:')) {
-    const key = intent.actionKey.slice('add-custom-block:'.length)
-    await projectStore.ensureProjectCustomBlockLoaded(key)
-  }
   handleTreeIntent(intent)
-}
-
-async function handleCustomBlockExport(payload: {
-  name: string
-  blockKey: string
-  exposedFieldKeys: string[]
-  selectedResourceIds: Set<string>
-  prepared: PreparedProjectCustomBlockExport
-}): Promise<void> {
-  if (customBlockExportBusy.value) return
-  customBlockExportBusy.value = true
-  customBlockExportErrorText.value = ''
-  try {
-    const result = await exportPreparedProjectCustomBlock({
-      prepared: payload.prepared,
-      selectedResourceIds: payload.selectedResourceIds,
-      projectRootPath: props.resourceRootPath || projectStore.projectPath.value,
-      projectFonts: projectStore.projectFonts.value,
-      projectIconSeries: projectStore.projectIconSeries.value,
-      customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
-      fs: fileSystemService,
-    })
-    if (result.status === 'cancelled') return
-    if (result.status === 'blocked') {
-      customBlockExportErrorText.value = t('cardDesigner.customBlock.exportBindingError')
-      return
-    }
-    customBlockExportDialogOpen.value = false
-    customBlockRegistrationError.value = ''
-    pendingCustomBlockRegistrationPath.value = result.outputPath
-  } catch {
-    customBlockExportErrorText.value = t('cardDesigner.customBlock.exportFailed')
-  } finally {
-    customBlockExportBusy.value = false
-  }
-}
-
-function closeCustomBlockExportDialog(): void {
-  if (!customBlockExportBusy.value) customBlockExportDialogOpen.value = false
-}
-
-async function confirmCustomBlockRegistration(): Promise<void> {
-  const sourcePath = pendingCustomBlockRegistrationPath.value
-  if (!sourcePath || customBlockRegistrationBusy.value) return
-  customBlockRegistrationBusy.value = true
-  customBlockRegistrationError.value = ''
-  try {
-    await projectStore.installProjectCustomBlockFile(sourcePath)
-    pendingCustomBlockRegistrationPath.value = null
-  } catch (cause) {
-    customBlockRegistrationError.value = cause instanceof Error ? cause.message : String(cause)
-  } finally {
-    customBlockRegistrationBusy.value = false
-  }
-}
-
-function closeCustomBlockRegistration(): void {
-  if (customBlockRegistrationBusy.value) return
-  pendingCustomBlockRegistrationPath.value = null
-  customBlockRegistrationError.value = ''
 }
 
 const structureTreeCardActions = computed<OcCardAction[]>(() =>
@@ -1617,12 +1434,6 @@ const structureTreeCardActions = computed<OcCardAction[]>(() =>
 )
 
 async function handleStructureTreeCardAction(payload: { key: string }): Promise<void> {
-  if (payload.key.startsWith('add-custom-block:')) {
-    const key = payload.key.slice('add-custom-block:'.length).toLowerCase()
-    const entry = await projectStore.ensureProjectCustomBlockLoaded(key)
-    if (entry) insertBlockAtRoot(createProjectCustomBlockInstance({ definition: entry.definition }))
-    return
-  }
   if (payload.key === 'toggle-structure-tree-panel') {
     togglePanel('structure')
     return
@@ -1654,8 +1465,6 @@ const {
   selectedBlock,
   selectedCard,
   selectedCardId,
-  customBlockCatalog: projectStore.projectCustomBlockCatalog,
-  customBlockDefinitionCatalog: projectStore.projectCustomBlockDefinitionCatalog,
   documentRevision,
   blueprintCardId: BLUEPRINT_CARD_ID,
   refreshDocumentState,
@@ -1670,10 +1479,7 @@ const propertyProjectContext = computed(() => ({
   dictionary: projectStore.resolvedDictionary.value,
   iconSeries: projectStore.projectIconSeries.value,
   projectIconCatalog: projectStore.projectIconCatalog.value,
-  customBlockCatalog: projectStore.projectCustomBlockCatalog.value,
-  customBlockDefinitionCatalog: projectStore.projectCustomBlockDefinitionCatalog.value,
   resourceEnvironment: projectStore.projectResourceEnvironment.value,
-  ensureCustomBlockLoaded: projectStore.ensureProjectCustomBlockLoaded,
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
   const rootPath = props.resourceRootPath
@@ -2009,22 +1815,6 @@ const transformDisabledBlockIds = computed(() => {
   }
   return ids
 })
-function resolveCustomBlockResizePolicy(block: CardBlock): ProjectCustomBlockResizePolicy {
-  if (block.type !== 'custom-block') return { widthLocked: false, heightLocked: false }
-  const entry = projectStore.projectCustomBlockCatalog.value.get(block.customBlockKey.toLowerCase())
-  if (!entry) return { widthLocked: false, heightLocked: false }
-  const fields = resolvePropertyEditorSchema(entry.definition.root as Readonly<Record<string, unknown>>).fields
-  return {
-    widthLocked: fields.width?.isReadonly === true,
-    heightLocked: fields.height?.isReadonly === true,
-  }
-}
-
-const selectedCustomBlockResize = computed(() => {
-  const block = selectedBlock.value
-  return block ? resolveCustomBlockResizePolicy(block) : { widthLocked: false, heightLocked: false }
-})
-
 const renderTargetInstance = computed(() => (
   selectedCardId.value === BLUEPRINT_CARD_ID ? null : selectedCard.value ?? null
 ))
@@ -2032,6 +1822,16 @@ const renderTargetInstance = computed(() => (
 const renderEnvironment = computed(() => ({
   ...projectStore.renderEnvironment.value,
 }))
+const runtimeRenderIssues = ref<readonly import('../card-rendering/cardPipelineIssue').CardPipelineIssue[]>([])
+function handleRuntimeRenderIssuesChange(
+  issues: readonly import('../card-rendering/cardPipelineIssue').CardPipelineIssue[],
+): void {
+  if (
+    runtimeRenderIssues.value.length === issues.length
+    && runtimeRenderIssues.value.every((issue, index) => issue.id === issues[index]?.id)
+  ) return
+  runtimeRenderIssues.value = issues
+}
 const renderResourceRootPath = computed(() => props.resourceRootPath ?? null)
 const {
   findViewBlock,
@@ -2108,12 +1908,6 @@ const {
   availableLayerZIndices,
   refreshDocumentState,
   markDocumentChanged,
-  isResizeAxisLocked: (blockId: string, axis: 'width' | 'height') => {
-    const block = getBlockById(blockId)
-    if (!block || block.type !== 'custom-block') return false
-    const policy = resolveCustomBlockResizePolicy(block)
-    return axis === 'width' ? policy.widthLocked : policy.heightLocked
-  },
 })
 
 const interactionSelectedBlockId = computed(() => selectedBlock.value?.id ?? null)
@@ -2305,8 +2099,8 @@ const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   return {
     icon: presentation.icon,
     iconTone: presentation.iconTone,
-    name: renderedBlock?.name.trim() || getBlockProperty<string>(block, 'name')?.trim() || block.id,
-    notes: renderedBlock?.notes.trim() || '',
+    name: (typeof renderedBlock?.name === 'string' ? renderedBlock.name.trim() : '') || getBlockProperty<string>(block, 'name')?.trim() || block.id,
+    notes: typeof renderedBlock?.notes === 'string' ? renderedBlock.notes.trim() : '',
   }
 })
 
@@ -2426,7 +2220,7 @@ watch(viewportCardDimensions, (dimensions) => {
 const propertyFieldWarnings = computed<ReadonlyMap<string, string>>(() => {
   const warnings = new Map<string, string>()
   const message = t('propertyEditor.currentValueRenderWarning')
-  for (const issue of renderPipelineResult.value?.issues ?? []) {
+  for (const issue of [...(renderPipelineResult.value?.issues ?? []), ...runtimeRenderIssues.value]) {
     const inputIds = new Set([issue.location.owner.id, issue.location.blockId].filter((id): id is string => Boolean(id)))
     for (const inputId of inputIds) warnings.set(`${inputId}\u0000${issue.location.fieldKey}`, message)
   }
@@ -2435,7 +2229,10 @@ const propertyFieldWarnings = computed<ReadonlyMap<string, string>>(() => {
 const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   document: cardDoc.value,
   instance: renderTargetInstance.value,
-  result: renderPipelineResult.value,
+  result: renderPipelineResult.value ? {
+    ...renderPipelineResult.value,
+    issues: [...renderPipelineResult.value.issues, ...runtimeRenderIssues.value],
+  } : null,
   translate: (key, parameters) => t(key, parameters ?? {}),
   resolveFieldLabel: (fieldKey) => {
     const messageKey = `propertyEditor.fields.${fieldKey}`
@@ -2443,7 +2240,22 @@ const editorIssueSnapshot = computed(() => createCardDesignerIssueSnapshot({
   },
 }))
 
+let lastEditorIssueSnapshotSignature: string | null = null
 watch(editorIssueSnapshot, (snapshot) => {
+  const signature = JSON.stringify({
+    scopeKey: snapshot.scopeKey,
+    scopeOrder: snapshot.scopeOrder,
+    issues: snapshot.issues.map(issue => ({
+      id: issue.id,
+      type: issue.type,
+      severity: issue.severity,
+      locationText: issue.locationText,
+      description: issue.description,
+      children: issue.children?.map(child => child.id),
+    })),
+  })
+  if (signature === lastEditorIssueSnapshotSignature) return
+  lastEditorIssueSnapshotSignature = signature
   emit('issue-snapshot', snapshot)
 })
 async function saveFile() {
@@ -2568,9 +2380,16 @@ watch(
       activeFaceKey.value = nextFace
       forceStructureTreeReveal.value = false
     }
-    selectedBlockIdsByFace.value = {
-      front: [...(view?.selectedBlockIdsByFace?.front ?? [])],
-      back: [...(view?.selectedBlockIdsByFace?.back ?? [])],
+    const nextFrontSelection = view?.selectedBlockIdsByFace?.front ?? []
+    const nextBackSelection = view?.selectedBlockIdsByFace?.back ?? []
+    if (
+      !sameBlockSelection(selectedBlockIdsByFace.value.front, nextFrontSelection)
+      || !sameBlockSelection(selectedBlockIdsByFace.value.back, nextBackSelection)
+    ) {
+      selectedBlockIdsByFace.value = {
+        front: [...nextFrontSelection],
+        back: [...nextBackSelection],
+      }
     }
     clipToFace.value = view?.clipToFace ?? false
     alignmentSnappingEnabled.value = view?.alignmentSnappingEnabled

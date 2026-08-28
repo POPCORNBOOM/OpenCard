@@ -251,7 +251,10 @@ onMounted(() => {
   if (typeof ResizeObserver === 'undefined' || !stackRef.value) return
   resizeObserver = new ResizeObserver(entries => {
     measureTopSize()
-    if (props.topSize !== null) emit('update:top-size', clamp(props.topSize, props.topMinHeight, splitMaximum.value))
+    if (props.topSize !== null) {
+      const nextTopSize = clamp(props.topSize, props.topMinHeight, splitMaximum.value)
+      if (nextTopSize !== props.topSize) emit('update:top-size', nextTopSize)
+    }
     const stage = dockRef.value?.parentElement
     const stageEntry = entries.find(entry => entry.target === stage)
     const stageWidth = stageEntry?.contentRect.width ?? 0

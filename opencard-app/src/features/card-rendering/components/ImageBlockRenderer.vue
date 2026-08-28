@@ -1,7 +1,7 @@
 <!--
   使用说明：
   - 输入 `block` 提供图片块结构与样式字段
-  - `layoutMode` 决定走绝对定位还是静态布局样式
+  - `placement` 描述 renderer 根节点在宿主中的位置
 
   职责边界：
   - 负责图片块渲染与样式投影
@@ -39,17 +39,15 @@
 </template>
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyImageBlock } from '../render.types'
+import { getBlockRenderPlacementStyles, type BlockRenderPlacement } from './blockRenderPlacement'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
     block: RenderReadyImageBlock
-    layoutMode?: 'absolute' | 'static'
-}>(), {
-    layoutMode: 'absolute',
-})
+    placement: BlockRenderPlacement
+}>()
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
@@ -60,9 +58,7 @@ let readinessTicket: ReturnType<NonNullable<typeof readinessSlot>['begin']> | nu
 let expectedImageSrc = ''
 
 const wrapStyle = computed(() => {
-    const style = props.layoutMode === 'absolute'
-        ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
-        : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
+    const style = getBlockRenderPlacementStyles(props.block, props.placement, isTransformDisabled.value)
     return `${style}; overflow: hidden`
 })
 
@@ -73,7 +69,7 @@ const imgStyle = computed(() => {
 
 const imageSrc = computed(() => {
     const imagePath = props.block.image
-    return editorContext.resolveAssetSrc(imagePath, props.block.id, 'image')
+    return editorContext.resources.resolveAsset(imagePath, props.block.id, 'image')
 })
 
 watch(imageSrc, (src) => {

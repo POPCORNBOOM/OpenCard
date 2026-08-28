@@ -62,6 +62,7 @@
             v-if="filteredIssueTreeData.rootKeys.length > 0"
             :data="filteredIssueTreeData"
             :expanded-keys="expandedIssueKeys"
+            :actions="issueTreeActions"
             activation-mode="double-click"
             selection-mode="none"
             fill
@@ -143,7 +144,7 @@ import OcButton from '../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
-import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
+import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
 import type {
   EditorIssueSeverity,
   SessionIssueNavigationRequest,
@@ -164,12 +165,14 @@ const props = defineProps<{
   issueSeverity: EditorIssueSeverity | null
   issueTreeData: OcTreeData
   issueNavigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
+  issueDetails?: ReadonlyMap<string, import('../../editor-runtime/model/editorIssue').EditorIssue>
   expandedIssueKeys: readonly string[]
   outputEntries: readonly AppConsoleEntry[]
   issuesLabel: string
   outputLabel: string
   issueEmptyLabel: string
   issueFilterLabel: string
+  issueCopyLabel?: string
   outputEmptyLabel: string
   outputFilterEmptyLabel: string
   outputClearLabel: string
@@ -197,19 +200,21 @@ const toggleRef = ref<HTMLButtonElement | null>(null)
 const isToggleHovered = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
 const issueFilter = ref('')
+const issueTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
+  ['copy-issue', { title: props.issueCopyLabel ?? 'Copy error information', icon: 'action.copy', iconTone: 'muted' }],
+]))
 const filteredIssueTreeData = computed<OcTreeData>(() => {
   const query = issueFilter.value.trim().toLocaleLowerCase()
   if (!query) return props.issueTreeData
   const items = new Map(props.issueTreeData.items)
   const children = new Map<string, readonly string[]>()
-  const rootKeys = props.issueTreeData.rootKeys.filter((rootKey) => {
-    const root = items.get(rootKey)
-    const matchingChildren = (props.issueTreeData.children.get(rootKey) ?? []).filter((childKey) =>
-      items.get(childKey)?.label.toLocaleLowerCase().includes(query),
-    )
-    if (matchingChildren.length) children.set(rootKey, matchingChildren)
-    return Boolean(root?.label.toLocaleLowerCase().includes(query) || matchingChildren.length)
-  })
+  const matches = (key: string): boolean => {
+    const item = items.get(key)
+    const matchingChildren = (props.issueTreeData.children.get(key) ?? []).filter(matches)
+    if (matchingChildren.length) children.set(key, matchingChildren)
+    return Boolean(item?.label.toLocaleLowerCase().includes(query) || matchingChildren.length)
+  }
+  const rootKeys = props.issueTreeData.rootKeys.filter(matches)
   return { rootKeys, items, children }
 })
 const outputScrollRef = ref<HTMLElement | null>(null)
@@ -337,10 +342,24 @@ function handleIssueTreeIntent(intent: OcTreeIntent): void {
     emit('issue-expansion-change', intent.key, intent.expanded)
     return
   }
+  if (intent.type === 'action.invoke' && intent.actionKey === 'copy-issue') {
+    void copyIssue(intent.key)
+    return
+  }
   if (intent.type !== 'node.activate') return
 
   const target = props.issueNavigationTargets.get(intent.key)
   if (target) emit('issue-navigate', target)
+}
+
+async function copyIssue(key: string): Promise<void> {
+  const issue = props.issueDetails?.get(key)
+  if (!issue) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(issue, null, 2))
+  } catch (error) {
+    reportAppError('OC-E1002', { source: 'issue-entry', issueId: issue.id, error })
+  }
 }
 </script>
 

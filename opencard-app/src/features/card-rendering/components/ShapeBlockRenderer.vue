@@ -25,25 +25,20 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import type { CSSProperties } from 'vue'
-import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyShapeBlock } from '../render.types'
+import { getBlockRenderPlacementStyles, type BlockRenderPlacement } from './blockRenderPlacement'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   block: RenderReadyShapeBlock
-  layoutMode?: 'absolute' | 'static'
-}>(), {
-  layoutMode: 'absolute',
-})
+  placement: BlockRenderPlacement
+}>()
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 
 const blockStyle = computed(() => {
-  const style = props.layoutMode === 'absolute'
-    ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
-    : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
-  return props.layoutMode === 'absolute' ? style : `${style}; position: relative`
+  return getBlockRenderPlacementStyles(props.block, props.placement, isTransformDisabled.value)
 })
 
 const definitionId = useId().replace(/:/g, '')

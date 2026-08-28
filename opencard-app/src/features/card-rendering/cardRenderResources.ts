@@ -3,7 +3,7 @@ import {
   EMPTY_PROJECT_ICON_CATALOG,
   type ProjectIconCatalog,
 } from '../workspace/services/projectIconCatalog'
-import type { CustomBlockRuntimeCatalog, CustomBlockRuntimeEntry } from './expandCustomBlocks'
+import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { PreparedRichTextCatalog } from './prepareRichText'
 import {
   createProjectResourceNamespace,
@@ -19,16 +19,58 @@ import {
   type ResourceReferenceResolutionOptions,
 } from '../workspace/services/resourceReference'
 import type { ProjectFontRegistryEntry } from '../workspace/model/projectFontRegistry'
+import { toCssFontFamily } from '../workspace/model/projectFonts'
 
 export type CardRenderResourceContext = {
   readonly hostEnvironment: ProjectResourceEnvironment
   readonly remoteResourcePolicy?: ProjectRemoteResourcePolicy
-  readonly customBlockCatalog: CustomBlockRuntimeCatalog
   readonly projectIconCatalog: ProjectIconCatalog
   readonly resourceScopes: ProjectResourceScopeMap
   readonly packageEnvironments: ReadonlyMap<string, ProjectResourceEnvironment>
   readonly richText?: PreparedRichTextCatalog
   readonly resolveFontFamily?: (references: string) => string
+  readonly bindingProject?: Readonly<ProjectInformation> | null
+  readonly bindingDictionary?: Readonly<Record<string, string>> | null
+}
+
+export type CardRenderResourceContextSource = CardRenderResourceContext | (() => CardRenderResourceContext)
+export type CardRenderResourceScopeSource = ProjectResourceScopeMap | (() => ProjectResourceScopeMap)
+
+export interface CardResourceResolver {
+  readonly hostEnvironment: ProjectResourceEnvironment
+  resolveAsset: (source: string, blockId?: string, fieldKey?: string) => string
+  resolveFont: (value: string, blockId?: string, fieldKey?: string) => string
+  resolveIcon: (source: string, blockId?: string, fieldKey?: string) => ProjectIconCatalog['entries'][number] | null
+  withScopes: (scopes: CardRenderResourceScopeSource) => CardResourceResolver
+}
+
+function readSource<T>(source: T | (() => T)): T {
+  return typeof source === 'function' ? (source as () => T)() : source
+}
+
+export function createCardResourceResolver(
+  contextSource: CardRenderResourceContextSource,
+  scopeSources: readonly CardRenderResourceScopeSource[] = [],
+): CardResourceResolver {
+  function context(): CardRenderResourceContext {
+    const base = readSource(contextSource)
+    if (scopeSources.length === 0) return base
+    return {
+      ...base,
+      resourceScopes: new Map([
+        ...base.resourceScopes,
+        ...scopeSources.flatMap(source => [...readSource(source)]),
+      ]),
+    }
+  }
+
+  return {
+    get hostEnvironment() { return context().hostEnvironment },
+    resolveAsset: (source, blockId, fieldKey) => resolveCardAssetSrc(source, context(), blockId, fieldKey),
+    resolveFont: (value, blockId, fieldKey) => resolveCardFontFamily(value, context(), blockId, fieldKey),
+    resolveIcon: (source, blockId, fieldKey) => resolveCardIconReference(source, context(), blockId, fieldKey),
+    withScopes: scopes => createCardResourceResolver(contextSource, [...scopeSources, scopes]),
+  }
 }
 
 function fallbackEnvironment(
@@ -53,12 +95,13 @@ export function createCardRenderResourceContext(options: {
   resourceRootPath?: string | null
   hostEnvironment?: ProjectResourceEnvironment
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
-  customBlockCatalog?: CustomBlockRuntimeCatalog
   projectIconCatalog?: ProjectIconCatalog
   resourceScopes?: ProjectResourceScopeMap
   packageEnvironments?: ReadonlyMap<string, ProjectResourceEnvironment>
   richText?: PreparedRichTextCatalog
   resolveFontFamily?: (references: string) => string
+  bindingProject?: Readonly<ProjectInformation> | null
+  bindingDictionary?: Readonly<Record<string, string>> | null
 }): CardRenderResourceContext {
   const projectIconCatalog = options.projectIconCatalog ?? options.hostEnvironment?.iconCatalog
     ?? EMPTY_PROJECT_ICON_CATALOG
@@ -66,12 +109,13 @@ export function createCardRenderResourceContext(options: {
     hostEnvironment: options.hostEnvironment
       ?? fallbackEnvironment(options.resourceRootPath ?? null, projectIconCatalog),
     remoteResourcePolicy: options.remoteResourcePolicy,
-    customBlockCatalog: options.customBlockCatalog ?? new Map(),
     projectIconCatalog,
     resourceScopes: options.resourceScopes ?? new Map(),
     packageEnvironments: options.packageEnvironments ?? new Map(),
     richText: options.richText ?? new Map(),
     resolveFontFamily: options.resolveFontFamily,
+    bindingProject: options.bindingProject,
+    bindingDictionary: options.bindingDictionary,
   }
 }
 
@@ -106,14 +150,16 @@ export function resolveCardFontFamily(
   blockId?: string,
   fieldKey = 'fontFamily',
   ): string {
-  const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
-  const fallback = context.resolveFontFamily ?? (references => references)
+  const scopeKey = blockId && fieldKey ? projectResourceScopeIdentity(blockId, fieldKey) : null
+  const scopedEnvironment = scopeKey ? context.resourceScopes.get(scopeKey) : undefined
+  const environment = scopedEnvironment ?? context.hostEnvironment
+  const fallback = context.resolveFontFamily ?? toCssFontFamily
   const options: ResourceReferenceResolutionOptions = {
     environment,
     hostEnvironment: context.hostEnvironment,
     packageEnvironments: context.packageEnvironments,
   }
-  return parseResourceReferenceList(value, 'font').map(token => {
+  const result = parseResourceReferenceList(value, 'font').map(token => {
     if (token.diagnostics.length > 0) return ''
     if (!token.reference) return token.source
     const resolved = resolveResourceReferenceText<ProjectFontRegistryEntry>(token.source, options)
@@ -126,6 +172,23 @@ export function resolveCardFontFamily(
     }
     return fallback(`font:${key}`)
   }).filter(Boolean).join(', ')
+
+  if (import.meta.env.DEV && blockId && blockId.includes('::') && fieldKey === 'fontFamily') {
+    console.debug('[OpenCard][font-resolution]', {
+      blockId,
+      source: value || '(empty)',
+      scopeKey,
+      scopeMatched: Boolean(scopedEnvironment),
+      environmentKind: environment.kind,
+      environmentNamespace: environment.namespace,
+      environmentRootPath: environment.rootPath,
+      availableFontKeys: Object.keys(environment.fonts),
+      result,
+      resolver: context.resolveFontFamily ? 'project-resolver' : 'default-css-resolver',
+    })
+  }
+
+  return result
 }
 
 export function resolveCardIconCatalog(
@@ -144,19 +207,6 @@ export function resolveCardIconReference(
   ): ProjectIconCatalog['entries'][number] | null {
   const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
   return resolveResourceReferenceText<ProjectIconCatalog['entries'][number]>(source, {
-    environment,
-    hostEnvironment: context.hostEnvironment,
-  }).value
-}
-
-export function resolveCardBlockReference(
-  source: string,
-  context: CardRenderResourceContext,
-  blockId?: string,
-  fieldKey = 'content',
-  ): CustomBlockRuntimeEntry | null {
-  const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
-  return resolveResourceReferenceText<CustomBlockRuntimeEntry>(source, {
     environment,
     hostEnvironment: context.hostEnvironment,
   }).value

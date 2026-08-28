@@ -68,6 +68,17 @@ describe('appConsole', () => {
     expect(nativeLog).toHaveBeenCalledTimes(1)
   })
 
+  it('does not publish consecutive duplicate entries back into reactive shell state', () => {
+    const nativeWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    installAppConsoleCapture()
+
+    console.warn('[Vue warn]: Unhandled error during execution of component update')
+    console.warn('[Vue warn]: Unhandled error during execution of component update')
+
+    expect(appConsoleEntries.value).toHaveLength(1)
+    expect(nativeWarn).toHaveBeenCalledTimes(2)
+  })
+
   it('formats circular values and keeps only the newest bounded history', () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     installAppConsoleCapture()

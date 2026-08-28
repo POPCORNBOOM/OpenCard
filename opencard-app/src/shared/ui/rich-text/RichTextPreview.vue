@@ -27,9 +27,6 @@ function renderNode(node: RichTextNode): VNodeChild {
         })
       : h('span', { class: 'rich-text-preview__missing' }, '[icon]')
   }
-  if (node.type === 'customBlock') {
-    return h('span', { class: 'rich-text-preview__custom-block' }, `[${node.packageId}]`)
-  }
   return h(node.tag, node.attributes, node.children.map(renderNode))
 }
 
@@ -54,8 +51,7 @@ const rendered = computed(() => document.value.children.map(renderNode))
   background-repeat: no-repeat;
 }
 
-.rich-text-preview__missing,
-.rich-text-preview__custom-block {
+.rich-text-preview__missing {
   color: var(--oc-fg-muted);
 }
 

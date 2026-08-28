@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { createImageBlock } from '../../../entities/card/model'
 import ImageBlockRenderer from './ImageBlockRenderer.vue'
-import { parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
+import { createRendererTestResources, parseRenderReadyBlockForTest, rendererTestGlobal } from './renderTestUtils'
 import type { RenderReadyImageBlock } from '../render.types'
 import { cardEditorContextKey } from './cardEditorContext'
 
@@ -20,7 +20,7 @@ function createBlock(image: string, fit: 'cover' | 'contain' | 'fill' = 'contain
 describe('ImageBlockRenderer', () => {
   it.each(['cover', 'contain', 'fill'] as const)('projects the %s fit mode onto the image', (fit) => {
     const wrapper = mount(ImageBlockRenderer, {
-      props: { block: createBlock('/image.png', fit), layoutMode: 'static' },
+      props: { block: createBlock('/image.png', fit), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
@@ -31,13 +31,13 @@ describe('ImageBlockRenderer', () => {
     const settle = vi.fn()
     const begin = vi.fn(() => ({ settle }))
     const wrapper = mount(ImageBlockRenderer, {
-      props: { block: createBlock('/image.png'), layoutMode: 'static' },
+      props: { block: createBlock('/image.png'), placement: { kind: 'root' } },
       global: {
         provide: {
           [cardEditorContextKey as symbol]: {
             transformDisabledBlockIds: computed(() => new Set<string>()),
             handleBlockClick: () => undefined,
-            resolveAssetSrc: (path: string) => `asset://${path}`,
+            resources: createRendererTestResources(),
             visualReadiness: { createSlot: () => ({ begin, dispose: vi.fn() }) },
           },
         },
@@ -51,7 +51,7 @@ describe('ImageBlockRenderer', () => {
 
   it('replaces the native broken-image state and retries when the source changes', async () => {
     const wrapper = mount(ImageBlockRenderer, {
-      props: { block: createBlock('/missing.png'), layoutMode: 'static' },
+      props: { block: createBlock('/missing.png'), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 

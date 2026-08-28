@@ -16,17 +16,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import QRCode from 'qrcode'
-import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyQrCodeBlock } from '../render.types'
+import { getBlockRenderPlacementStyles, type BlockRenderPlacement } from './blockRenderPlacement'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   block: RenderReadyQrCodeBlock
-  layoutMode?: 'absolute' | 'static'
-}>(), {
-  layoutMode: 'absolute',
-})
+  placement: BlockRenderPlacement
+}>()
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
@@ -36,9 +34,7 @@ let renderRevision = 0
 const readinessSlot = editorContext.visualReadiness?.createSlot()
 
 const blockStyle = computed(() => {
-  const style = props.layoutMode === 'absolute'
-    ? getPositionStyles(props.block, { disableTransform: isTransformDisabled.value })
-    : getBlockBoxStyles(props.block, { disableTransform: isTransformDisabled.value })
+  const style = getBlockRenderPlacementStyles(props.block, props.placement, isTransformDisabled.value)
   return `${style}; overflow: hidden`
 })
 

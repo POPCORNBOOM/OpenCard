@@ -102,6 +102,7 @@ describe('useSettingsWorkspace', () => {
     categoryKey.value = 'workspace'
     expect(activeCategory.value.fields.map((field) => field.key)).toEqual([
       'workspace.historyEntryLimit',
+      'workspace.customBlockMaxDepth',
       'workspace.structureTreeSelectionBehavior',
       'workspace.structureTreeScrollToSelection',
       'workspace.hideDotFiles',
@@ -111,6 +112,13 @@ describe('useSettingsWorkspace', () => {
       'project-workspace.reset',
     ])
     expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'range',
+        key: 'workspace.customBlockMaxDepth',
+        value: 16,
+        min: 1,
+        max: 64,
+      }),
       expect.objectContaining({
         type: 'options',
         key: 'workspace.structureTreeSelectionBehavior',

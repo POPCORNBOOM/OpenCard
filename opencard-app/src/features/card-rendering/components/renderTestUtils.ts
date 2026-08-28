@@ -25,15 +25,34 @@ import type {
 import { parseRichTextHtml } from '../../../shared/rich-text/richTextHtml'
 import type { PreparedRichTextCatalog } from '../prepareRichText'
 import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
+import {
+  createCardRenderResourceContext,
+  type CardResourceResolver,
+} from '../cardRenderResources'
+
+export function createRendererTestResources(projectIconCatalog: ProjectIconCatalog = EMPTY_PROJECT_ICON_CATALOG): CardResourceResolver {
+  const resourceContext = createCardRenderResourceContext({ projectIconCatalog })
+  const resolver: CardResourceResolver = {
+    hostEnvironment: resourceContext.hostEnvironment,
+    resolveAsset: path => `asset://${path}`,
+    resolveFont: value => value,
+    resolveIcon: source => {
+      const [, path] = source.split(':', 2)
+      const [seriesKey, iconKey] = path?.split('/') ?? []
+      return projectIconCatalog.entries.find(entry => entry.seriesKey.toLowerCase() === seriesKey?.toLowerCase()
+        && entry.iconKey.toLowerCase() === iconKey?.toLowerCase()) ?? null
+    },
+    withScopes: () => resolver,
+  }
+  return resolver
+}
 
 export const rendererTestGlobal = {
   provide: {
     [cardEditorContextKey as symbol]: {
       transformDisabledBlockIds: computed(() => new Set<string>()),
       handleBlockClick: () => undefined,
-      resolveAssetSrc: (path: string) => `asset://${path}`,
-      resolveFontFamily: (value: string) => value,
-      resolveIconReference: () => null,
+      resources: createRendererTestResources(),
     },
   },
 }
@@ -51,17 +70,10 @@ export function richTextRendererTestGlobal(block: RenderReadyTextBlock, projectI
       [cardEditorContextKey as symbol]: {
         transformDisabledBlockIds: computed(() => new Set<string>()),
         handleBlockClick: () => undefined,
-        resolveAssetSrc: (path: string) => `asset://${path}`,
-        resolveFontFamily: (value: string) => value,
-        resolveIconReference: (source: string) => {
-          const catalog = (projectIconCatalog as ProjectIconCatalog | undefined) ?? EMPTY_PROJECT_ICON_CATALOG
-          const [, path] = source.split(':', 2)
-          const [seriesKey, iconKey] = path?.split('/') ?? []
-          return catalog.entries.find(entry => entry.seriesKey.toLowerCase() === seriesKey?.toLowerCase()
-            && entry.iconKey.toLowerCase() === iconKey?.toLowerCase()) ?? null
-        },
+        resources: createRendererTestResources(
+          (projectIconCatalog as ProjectIconCatalog | undefined) ?? EMPTY_PROJECT_ICON_CATALOG,
+        ),
         richText: computed(() => prepared),
-        ...(projectIconCatalog ? { projectIconCatalog: computed(() => projectIconCatalog) } : {}),
       },
     },
   }

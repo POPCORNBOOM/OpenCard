@@ -137,4 +137,21 @@ describe('workspace issue projection', () => {
     expect(issues.highestIssueSeverity.value).toBeNull()
     expect(issues.issueTreeData.value.rootKeys).toEqual([])
   })
+
+  it('does not republish an unchanged issue snapshot', () => {
+    const session = createSession('a', 'Card A')
+    const sessions = ref<EditorSession[]>([session])
+    const issues = useWorkspaceIssues({ sessions })
+    const snapshot = {
+      scopeKey: 'blueprint',
+      scopeOrder: ['blueprint'],
+      issues: [createIssue('same')],
+    }
+
+    issues.reportSessionIssueSnapshot(session.id, snapshot)
+    const projection = issues.issueTreeData.value
+    issues.reportSessionIssueSnapshot(session.id, snapshot)
+
+    expect(issues.issueTreeData.value).toBe(projection)
+  })
 })

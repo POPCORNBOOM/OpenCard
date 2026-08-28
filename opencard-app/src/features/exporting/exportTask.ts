@@ -1,5 +1,6 @@
 import type { CardDocument, CardFaceKey, CardInstanceRecord } from '../../entities/card/model'
 import type { CardRenderEnvironment, PreparedCardRender } from '../card-rendering/renderPipeline'
+import type { CardPipelineIssue } from '../card-rendering/cardPipelineIssue'
 import type { ProjectExportTask } from '../workspace/model/projectMetadata'
 
 export type ExportTaskValidationCode =
@@ -49,6 +50,7 @@ export type ExportFailure = {
   outputPath: string
   stage: 'rendering' | 'writing'
   message: string
+  runtimeIssues?: readonly CardPipelineIssue[]
 }
 
 export type ExportProgressCounts = {

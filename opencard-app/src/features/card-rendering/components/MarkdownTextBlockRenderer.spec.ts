@@ -12,7 +12,7 @@ describe('MarkdownTextBlockRenderer', () => {
     })
 
     const wrapper = mount(MarkdownTextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const content = wrapper.get('.markdown-text-block-content')
@@ -30,7 +30,7 @@ describe('MarkdownTextBlockRenderer', () => {
     })
 
     const wrapper = mount(MarkdownTextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const content = wrapper.get('.markdown-text-block-content')
@@ -57,7 +57,7 @@ describe('MarkdownTextBlockRenderer', () => {
     })
 
     const wrapper = mount(MarkdownTextBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const content = wrapper.get('.markdown-text-block-content')

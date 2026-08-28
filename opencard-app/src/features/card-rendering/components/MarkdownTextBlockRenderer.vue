@@ -11,25 +11,24 @@ import type { RenderReadyMarkdownTextBlock } from '../render.types'
 import { renderMarkdown } from '../markdown/renderMarkdown'
 import { useCardEditorContext } from './cardEditorContext'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
+import type { BlockRenderPlacement } from './blockRenderPlacement'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   block: RenderReadyMarkdownTextBlock
-  layoutMode?: 'absolute' | 'static'
-}>(), {
-  layoutMode: 'absolute',
-})
+  placement: BlockRenderPlacement
+}>()
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
-  resolveImageSrc: source => editorContext.resolveAssetSrc(source, props.block.id, 'content'),
-  resolveIconReference: source => editorContext.resolveIconReference(source, props.block.id, 'content'),
+  resolveImageSrc: source => editorContext.resources.resolveAsset(source, props.block.id, 'content'),
+  resolveIconReference: source => editorContext.resources.resolveIcon(source, props.block.id, 'content'),
 }))
 const blockStyle = computed(() => getTextContentBlockStyle(
   props.block,
-  props.layoutMode,
+  props.placement,
   isTransformDisabled.value,
-  value => editorContext.resolveFontFamily(value, props.block.id, 'fontFamily'),
+  value => editorContext.resources.resolveFont(value, props.block.id, 'fontFamily'),
 ))
 
 function handleClick(event: MouseEvent): void {

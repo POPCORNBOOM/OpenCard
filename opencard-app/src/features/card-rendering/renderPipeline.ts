@@ -1,38 +1,14 @@
 import { applyInstance } from '../../entities/card/instance'
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
+import type { ProjectInformation, ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
+import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import type { ProjectResourceEnvironment, ProjectResourceScopeMap } from '../workspace/services/projectResourceEnvironment'
+import { createCardRenderResourceContext, type CardRenderResourceContext } from './cardRenderResources'
 import type { CardPipelineIssue } from './cardPipelineIssue'
+import { prepareRichText, type PreparedRichTextCatalog } from './prepareRichText'
 import { parseRenderDocument } from './renderParser'
 import type { RenderReadyCardDocument } from './render.types'
 import { resolveReferences } from './resolveCardBindings'
-import type { ProjectInformation } from '../workspace/model/projectMetadata'
-import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
-import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
-import type { ProjectResourceEnvironment, ProjectResourceScopeMap } from '../workspace/services/projectResourceEnvironment'
-import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
-import { createCardPipelineIssue } from './cardPipelineIssue'
-import {
-  createCardRenderResourceContext,
-  type CardRenderResourceContext,
-} from './cardRenderResources'
-import { prepareRichText, type PreparedRichTextCatalog } from './prepareRichText'
-
-function findCustomBlockHostId(
-  issue: CardPipelineIssue,
-  hosts: ReadonlyMap<string, unknown>,
-): string | null {
-  const candidateIds = [issue.location.blockId, issue.location.owner.id].filter(
-    (value): value is string => Boolean(value),
-  )
-  for (const id of candidateIds) {
-    if (hosts.has(id)) return id
-    const separator = id.indexOf('::')
-    if (separator > 0) {
-      const hostId = id.slice(0, separator)
-      if (hosts.has(hostId)) return hostId
-    }
-  }
-  return null
-}
 
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
@@ -44,7 +20,6 @@ export type RenderPipelineResult = {
 export type RenderPipelineContext = {
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
-  customBlockCatalog?: CustomBlockRuntimeCatalog
   projectResourceEnvironment?: ProjectResourceEnvironment
 }
 
@@ -61,12 +36,31 @@ export type CardRenderRequest = {
   environment: Readonly<CardRenderEnvironment>
 }
 
-export type PreparedCardRender = RenderPipelineResult & {
-  resources: CardRenderResourceContext
-}
+export type PreparedCardRender = RenderPipelineResult & { resources: CardRenderResourceContext }
 
 export function prepareCardRender(request: CardRenderRequest): PreparedCardRender {
-  const result = runRenderPipeline(request.document, request.instance, request.environment)
+  const projected = applyInstance(request.document, request.instance)
+  const resolved = resolveReferences(projected, {
+    currentCard: request.instance,
+    project: request.environment.project,
+    dictionary: request.environment.dictionary,
+  })
+  const resourceScopes: ProjectResourceScopeMap = new Map()
+  const richText = prepareRichText({
+    document: resolved.document,
+    currentCard: request.instance,
+    project: request.environment.project,
+    dictionary: request.environment.dictionary,
+    hostEnvironment: request.environment.projectResourceEnvironment,
+    resourceScopes,
+  })
+  const parsed = parseRenderDocument(resolved.document, { instanceId: request.instance?.id ?? null })
+  const result: RenderPipelineResult = {
+    document: parsed.document,
+    issues: [...resolved.issues, ...parsed.issues, ...richText.issues],
+    richText: richText.catalog,
+    resourceScopes,
+  }
   return {
     ...result,
     resources: createCardRenderResourceContext({
@@ -74,103 +68,12 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
       hostEnvironment: request.environment.projectResourceEnvironment,
       packageEnvironments: request.environment.projectResourceEnvironment?.packageEnvironments,
       remoteResourcePolicy: request.environment.remoteResourcePolicy,
-      customBlockCatalog: request.environment.customBlockCatalog,
       projectIconCatalog: request.environment.projectIconCatalog,
-      resourceScopes: result.resourceScopes ?? new Map(),
+      resourceScopes,
+      richText: richText.catalog,
       resolveFontFamily: request.environment.resolveFontFamily,
-      richText: result.richText,
+      bindingProject: request.environment.project,
+      bindingDictionary: request.environment.dictionary,
     }),
-  }
-}
-
-function runRenderPipeline(
-  document: CardDocument,
-  instance: CardInstanceRecord | null,
-  context: RenderPipelineContext = {},
-): RenderPipelineResult {
-  const projected = applyInstance(document, instance)
-  const expanded = expandCustomBlocks(
-    projected,
-    context.customBlockCatalog,
-    context.projectResourceEnvironment,
-  )
-  const resolved = resolveReferences(expanded.document, {
-    currentCard: instance,
-    project: context.project,
-    dictionary: context.dictionary,
-  })
-  const richText = prepareRichText({
-    document: resolved.document,
-    currentCard: instance,
-    project: context.project,
-    dictionary: context.dictionary,
-    customBlockCatalog: context.customBlockCatalog,
-    hostEnvironment: context.projectResourceEnvironment,
-    resourceScopes: expanded.resourceScopes,
-  })
-  const parsed = parseRenderDocument(resolved.document, {
-    instanceId: instance?.id ?? null,
-  })
-
-  const expansionIssues = expanded.issues.map(issue => createCardPipelineIssue({
-    type: 'card-designer.custom-block.unavailable',
-    location: {
-      documentId: projected.id,
-      instanceId: instance?.id ?? null,
-      faceKey: issue.faceKey,
-      owner: { kind: 'block', id: issue.blockId },
-      blockId: issue.blockId,
-      fieldKey: 'source',
-    },
-  }))
-  const unavailableHosts = new Map(expanded.issues.map(issue => [issue.blockId, true]))
-  const visibleIssues: CardPipelineIssue[] = []
-  const internalHosts = new Map<string, CardPipelineIssue>()
-  for (const issue of [...resolved.issues, ...parsed.issues, ...richText.issues]) {
-    if (findCustomBlockHostId(issue, unavailableHosts)) continue
-    const hostId = findCustomBlockHostId(issue, expanded.hosts)
-    if (!hostId) {
-      visibleIssues.push(issue)
-      continue
-    }
-    const key = `${issue.location.faceKey ?? ''}\u0000${hostId}`
-    if (internalHosts.has(key)) continue
-    internalHosts.set(key, createCardPipelineIssue({
-      type: 'card-designer.custom-block.content-error',
-      location: {
-        documentId: projected.id,
-        instanceId: instance?.id ?? null,
-        faceKey: issue.location.faceKey,
-        owner: { kind: 'block', id: hostId },
-        blockId: hostId,
-        fieldKey: 'content',
-      },
-    }))
-  }
-
-  const pipelineIssues = [
-    ...expansionIssues,
-    ...visibleIssues,
-    ...internalHosts.values(),
-    ...[...expanded.hosts.entries()].flatMap(([hostId, host]) => host.hasResourceErrors
-      ? [createCardPipelineIssue({
-        type: 'card-designer.custom-block.resource-error',
-        location: {
-          documentId: projected.id,
-          instanceId: instance?.id ?? null,
-          faceKey: host.faceKey,
-          owner: { kind: 'block', id: hostId },
-          blockId: hostId,
-          fieldKey: 'source',
-        },
-      })]
-      : []),
-  ]
-
-  return {
-    document: wrapExpandedCustomBlocks(parsed.document, expanded.hosts),
-    issues: pipelineIssues,
-    richText: richText.catalog,
-    resourceScopes: expanded.resourceScopes,
   }
 }

@@ -66,16 +66,15 @@ describe('usePropertyEditorView', () => {
       .toEqual(['name', 'id'])
   })
 
-  it('warns and skips a record key without a prepared definition', () => {
+  it('silently hides a record key without a prepared definition', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const { displaySources } = createView([{
       key: 'text',
       record: { unknown: 'value' },
       fields: {},
     }])
-
     expect(displaySources.value).toEqual([])
-    expect(warn).toHaveBeenCalledWith('[PropertyEditor] Missing field definition for text.unknown')
+    expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 })

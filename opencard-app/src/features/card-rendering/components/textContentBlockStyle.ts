@@ -1,6 +1,6 @@
-import { getBlockBoxStyles, getPositionStyles } from '../../../utils/blockStyle'
 import { toCssFontFamily } from '../../workspace/model/projectFonts'
 import type { RenderReadyMarkdownTextBlock, RenderReadyTextBlock } from '../render.types'
+import { getBlockRenderPlacementStyles, type BlockRenderPlacement } from './blockRenderPlacement'
 
 type RenderReadyTextContentBlock = RenderReadyTextBlock | RenderReadyMarkdownTextBlock
 
@@ -13,13 +13,11 @@ const fontWeightMap: Record<string, number> = { light: 300, normal: 400, bold: 7
 
 export function getTextContentBlockStyle(
   block: RenderReadyTextContentBlock,
-  layoutMode: 'absolute' | 'static',
+  placement: BlockRenderPlacement,
   disableTransform: boolean,
   resolveFontFamily: (value: string) => string = toCssFontFamily,
 ): string {
-  let style = layoutMode === 'absolute'
-    ? getPositionStyles(block, { disableTransform })
-    : getBlockBoxStyles(block, { disableTransform })
+  let style = getBlockRenderPlacementStyles(block, placement, disableTransform)
   style += '; display: flex; flex-direction: column'
   style += `; justify-content: ${verticalJustifyMap[block.verticalAlign]}`
   style += `; font-size: ${block.fontSize}`

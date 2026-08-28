@@ -133,8 +133,12 @@ export function useCdeOverlayLayout(options: UseCdeOverlayLayoutOptions) {
   }
 
   function updateDockTopSize(side: CdeOverlaySide, value: number | null): void {
-    if (side === 'left') leftSidebarTopHeight.value = normalizeStoredTopHeight(value, options.topMinHeight)
-    else rightSidebarTopHeight.value = normalizeStoredTopHeight(value, options.topMinHeight)
+    const next = normalizeStoredTopHeight(value, options.topMinHeight)
+    if (side === 'left') {
+      if (leftSidebarTopHeight.value !== next) leftSidebarTopHeight.value = next
+    } else if (rightSidebarTopHeight.value !== next) {
+      rightSidebarTopHeight.value = next
+    }
   }
 
   function togglePanel(panel: OverlayPanel): void {

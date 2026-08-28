@@ -17,6 +17,8 @@ export const MAX_RECENT_PROJECTS = 8
 export const DEFAULT_ACCENT_NEIGHBOR_ANGLE = -50
 export const MIN_BASE_FONT_SIZE = 10
 export const MAX_BASE_FONT_SIZE = 16
+export const MIN_CUSTOM_BLOCK_MAX_DEPTH = 1
+export const MAX_CUSTOM_BLOCK_MAX_DEPTH = 64
 
 export type AppLocale = 'system' | 'zh-CN' | 'en-US'
 export type AppThemePreference = OcThemeId | 'system'
@@ -115,6 +117,7 @@ export type AppSettingKey =
   | 'workspace.showSelectionSizeOnResize'
   | 'workspace.alignmentSnappingEnabledByDefault'
   | 'workspace.historyEntryLimit'
+  | 'workspace.customBlockMaxDepth'
 
 export interface AppSettings {
   version: typeof APP_SETTINGS_VERSION
@@ -149,6 +152,7 @@ export interface AppSettings {
     showSelectionSizeOnResize: boolean
     alignmentSnappingEnabledByDefault: boolean
     historyEntryLimit: number
+    customBlockMaxDepth: number
   }
   projectCreation: {
     lastParentPath: string
@@ -227,6 +231,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     showSelectionSizeOnResize: true,
     alignmentSnappingEnabledByDefault: true,
     historyEntryLimit: 100,
+    customBlockMaxDepth: 16,
   }),
   projectCreation: Object.freeze({
     lastParentPath: '',
@@ -254,6 +259,11 @@ function clampPercentage(value: unknown, fallback: number): number {
 function clampHistoryEntryLimit(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_APP_SETTINGS.workspace.historyEntryLimit
   return Math.min(1000, Math.max(10, Math.round(value / 10) * 10))
+}
+
+function clampCustomBlockMaxDepth(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_APP_SETTINGS.workspace.customBlockMaxDepth
+  return Math.min(MAX_CUSTOM_BLOCK_MAX_DEPTH, Math.max(MIN_CUSTOM_BLOCK_MAX_DEPTH, Math.round(value)))
 }
 
 function normalizeRecentProjects(value: unknown): string[] {
@@ -614,6 +624,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
         ? workspace.alignmentSnappingEnabledByDefault
         : DEFAULT_APP_SETTINGS.workspace.alignmentSnappingEnabledByDefault,
       historyEntryLimit: clampHistoryEntryLimit(workspace.historyEntryLimit),
+      customBlockMaxDepth: clampCustomBlockMaxDepth(workspace.customBlockMaxDepth),
     },
     projectCreation: {
       lastParentPath: typeof projectCreation.lastParentPath === 'string'

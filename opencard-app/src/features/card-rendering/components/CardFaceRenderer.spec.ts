@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { parseRichTextHtml } from '../../../shared/rich-text/richTextHtml'
 import { createBlock } from '../../../entities/card/model'
 import { createCardRenderResourceContext } from '../cardRenderResources'
@@ -11,8 +11,45 @@ import {
 import type { RenderReadyCardFace } from '../render.types'
 import CardFaceRenderer from './CardFaceRenderer.vue'
 import { parseRenderReadyBlockForTest } from './renderTestUtils'
+import { setProjectFonts } from '../../workspace/model/projectFonts'
+
+afterEach(() => setProjectFonts([]))
 
 describe('CardFaceRenderer resources', () => {
+  it('renders the project font for text blocks', () => {
+    const font = { key: 'brand', name: 'Brand', files: { normal: { upright: 'fonts/Brand.ttf' } } }
+    setProjectFonts([font])
+    const environment: ProjectResourceEnvironment = {
+      kind: 'project', namespace: 'project-root', rootPath: '/project',
+      fontDocument: {}, fonts: { brand: { kind: 'family', name: 'Brand', family: font } },
+      iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+    }
+    const native = parseRenderReadyBlockForTest(createBlock('text-block', {
+      id: 'native-text', content: '<p>Native</p>', fontFamily: 'font:brand',
+    }))
+    const nativeRichText = parseRichTextHtml('<p>Native</p>')
+    const face: RenderReadyCardFace = {
+      type: 'card-face', id: 'front', faceKey: 'front', width: 100, height: 100, background: '#fff',
+      children: [native].map((block, index) => ({
+        block,
+        location: {
+          id: `location-${index}`, type: 'simple-container-location', anchor: 'lt', x: '0px', y: '0px',
+        },
+      })),
+    }
+    const resourceContext = createCardRenderResourceContext({
+      hostEnvironment: environment,
+      richText: new Map([['native-text', {
+        document: nativeRichText.document, embeddedBlocks: new Map(), diagnostics: [], valid: true,
+      }]]),
+    })
+
+    const wrapper = mount(CardFaceRenderer, { props: { face, resourceContext } })
+
+    expect(wrapper.get<HTMLElement>('[data-block-id="native-text"]').element.style.fontFamily)
+      .toBe('"OpenCardProjectFont-brand"')
+  })
+
   it('does not expose a package-local path to an ordinary native block', () => {
     const image = parseRenderReadyBlockForTest(createBlock('image-block', {
       id: 'picture',

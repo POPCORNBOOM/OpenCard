@@ -2,7 +2,7 @@
 <template>
     <div ref="cardCanvasRef" class="card-canvas" :class="{ 'card-canvas--clipped': props.clipToFace }"
         :style="canvasStyle">
-        <CardBlockRenderer :block="rootContainerBlock" layout-mode="static" />
+        <CardBlockRenderer :block="rootContainerBlock" :placement="{ kind: 'root' }" />
     </div>
 </template>
 
@@ -12,17 +12,17 @@ import CardBlockRenderer from './CardBlockRenderer.vue'
 import { cardEditorContextKey } from './cardEditorContext'
 import type { RenderReadyCardFace, RenderReadySimpleContainerBlock } from '../render.types'
 import {
-    resolveCardAssetSrc,
-    resolveCardFontFamily,
-    resolveCardIconReference,
+    createCardResourceResolver,
     type CardRenderResourceContext,
 } from '../cardRenderResources'
 import type { CardVisualReadinessRegistrar } from './cardRenderReadiness'
-import { toCssFontFamily } from '../../workspace/model/projectFonts'
+import { createCardRenderDiagnosticRegistry } from '../cardRenderDiagnosticRegistry'
+import type { CardPipelineIssue } from '../cardPipelineIssue'
 
 const emit = defineEmits<{
     /** 块点击事件：上抛被点击 blockId 与原始鼠标事件。 */
     (e: 'block-click', blockId: string, event: MouseEvent): void
+    (e: 'runtime-issues-change', issues: readonly CardPipelineIssue[]): void
 }>()
 
 const props = withDefaults(defineProps<{
@@ -46,6 +46,8 @@ const props = withDefaults(defineProps<{
 })
 
 const cardCanvasRef = ref<HTMLElement>()
+const diagnostics = createCardRenderDiagnosticRegistry()
+watch(diagnostics.issues, issues => emit('runtime-issues-change', issues), { immediate: true, flush: 'post' })
 async function applyDiffHighlights(highlights: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]) {
   await nextTick()
   const root = cardCanvasRef.value
@@ -61,6 +63,7 @@ onMounted(() => { void applyDiffHighlights(props.diffHighlights) })
 
 const normalizedTransformDisabledBlockIds = computed(() => new Set(props.transformDisabledBlockIds))
 const normalizedVisibleRootBlockIds = computed(() => new Set(props.visibleRootBlockIds))
+const resources = createCardResourceResolver(() => props.resourceContext)
 
 const canvasStyle = computed((): Record<string, string> => ({
     position: 'relative',
@@ -111,21 +114,20 @@ provide(cardEditorContextKey, {
     handleBlockClick: (blockId, event) => {
         emit('block-click', blockId, event)
     },
-    resolveAssetSrc: (path, blockId, fieldKey) => resolveCardAssetSrc(path, props.resourceContext, blockId, fieldKey),
-    resolveFontFamily: (value, blockId, fieldKey) => resolveCardFontFamily(value, {
-        ...props.resourceContext,
-        resolveFontFamily: props.resourceContext.resolveFontFamily ?? toCssFontFamily,
-    }, blockId, fieldKey),
-    resolveIconReference: (source, blockId, fieldKey) => resolveCardIconReference(source, props.resourceContext, blockId, fieldKey),
-    projectIconCatalog: computed(() => props.resourceContext.projectIconCatalog),
-    customBlockCatalog: computed(() => props.resourceContext.customBlockCatalog),
-	    richText: computed(() => props.resourceContext.richText ?? new Map()),
-    visualReadiness: props.visualReadiness,
-})
+	    resources,
+		    richText: computed(() => props.resourceContext.richText ?? new Map()),
+	    visualReadiness: props.visualReadiness,
+	    documentId: props.face.id,
+    faceKey: props.face.faceKey,
+    bindingProject: computed(() => props.resourceContext.bindingProject),
+    bindingDictionary: computed(() => props.resourceContext.bindingDictionary),
+    diagnostics,
+	})
 
 defineExpose({
-    getCanvasElement: () => cardCanvasRef.value,
-})
+	    getCanvasElement: () => cardCanvasRef.value,
+    getRuntimeIssues: () => diagnostics.snapshot(),
+	})
 </script>
 
 <style scoped>

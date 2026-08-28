@@ -12,9 +12,6 @@ import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjec
 import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
 import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText, projectFontFileEntries, projectFontWeightValues } from '../workspace/model/projectFontRegistry'
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG, loadProjectImageDimensions } from '../workspace/services/projectIconCatalog'
-import { discoverProjectCustomBlockDefinitions } from '../workspace/services/projectCustomBlockDefinition'
-import { loadProjectCustomBlockDefinitionRuntime } from '../workspace/services/projectCustomBlockAssetLoader'
-import { createProjectCustomBlockFontSession } from '../workspace/services/projectCustomBlockFontLoader'
 import { resolveProjectInternalRelativePath } from '../workspace/model/projectStructure'
 
 export interface OcdocumentDiffSessionOptions {
@@ -39,7 +36,7 @@ export function isResourceSnapshotDiffPath(path: string): boolean {
   return Boolean(extension && DIFF_RESOURCE_SNAPSHOT_EXTENSIONS.has(extension))
 }
 
-const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>>>()
+const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'resolveFontFamily'>>>()
 const SNAPSHOT_RESOURCE_LOAD_TIMEOUT_MS = 2_000
 
 async function loadSnapshotImageDimensions(src: string): Promise<{ width: number; height: number }> {
@@ -77,7 +74,7 @@ function createSnapshotFontResolver(root: string, fontDocument: NonNullable<Retu
   }).filter(Boolean).join(', ')
 }
 
-async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'customBlockCatalog' | 'resolveFontFamily'>> {
+async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'resolveFontFamily'>> {
   const readOptional = async (relativePath: string): Promise<string | null> => {
     const path = resolveProjectFile(root, relativePath)
     return await fileSystemService.fileExists(path) ? await fileSystemService.readFile(path) : null
@@ -85,7 +82,6 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
   let project: DiffSnapshot['project'] = null
   let dictionary: DiffSnapshot['dictionary']
   let projectIconCatalog = EMPTY_PROJECT_ICON_CATALOG
-  let customBlockCatalog: DiffSnapshot['customBlockCatalog'] = new Map()
   let resolveFontFamily: DiffSnapshot['resolveFontFamily']
   const profileText = await readOptional(PROJECT_PROFILE_FILE_NAME)
   if (profileText) {
@@ -115,24 +111,7 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
       )
     }
   }
-  const customBlockDescriptors = await discoverProjectCustomBlockDefinitions(fileSystemService, root)
-  if (customBlockDescriptors.size > 0) {
-    const catalog = new Map()
-    const environments = []
-    for (const descriptor of customBlockDescriptors.values()) {
-      const loaded = await loadProjectCustomBlockDefinitionRuntime({
-        fs: fileSystemService,
-        entry: descriptor,
-        environment: { kind: 'project', namespace: root, rootPath: root, fontDocument: {}, fonts: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [] },
-        loadDimensions: loadSnapshotImageDimensions,
-      })
-      catalog.set(`block:${descriptor.definition.key}`.toLocaleLowerCase(), loaded.runtimeEntry)
-      environments.push(...loaded.environments)
-    }
-    await createProjectCustomBlockFontSession(environments)
-    customBlockCatalog = catalog
-  }
-  return { project, dictionary, projectIconCatalog, customBlockCatalog, resolveFontFamily }
+  return { project, dictionary, projectIconCatalog, resolveFontFamily }
 }
 
 export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) {

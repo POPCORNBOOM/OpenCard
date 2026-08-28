@@ -38,7 +38,6 @@ function normalizePublicResources(
 ): ResourcePackagePublicResources {
   const values = publicResources ?? {}
   return {
-    blocks: [...(values.blocks ?? [])],
     fonts: [...(values.fonts ?? [])],
     iconSeries: [...(values.iconSeries ?? [])],
     assets: [...(values.assets ?? [])],

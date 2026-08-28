@@ -78,7 +78,6 @@
               :external-busy="isActivatingProject"
               :selected-key="selectedTemplateKey"
               :selected-icon-pack-keys="selectedIconPackKeys"
-              :selected-custom-block-keys="selectedCustomBlockKeys"
               @created="handleProjectCreated"
               @update:busy="isCreateProjectOperationBusy = $event"
               @update:selected-key="selectedTemplateKey = $event"
@@ -139,12 +138,14 @@
             :issue-severity="visibleIssueSeverity"
             :issue-tree-data="visibleIssueTreeData"
             :issue-navigation-targets="issueNavigationTargets"
+            :issue-details="visibleIssueDetails"
             :expanded-issue-keys="expandedIssueKeys"
             :output-entries="appConsoleEntries"
             :issues-label="t('app.problems.tab')"
             :output-label="t('app.problems.outputTab')"
             :issue-empty-label="t('app.problems.empty')"
             :issue-filter-label="t('app.problems.filter')"
+            :issue-copy-label="t('app.problems.copyIssue')"
             :output-empty-label="t('app.problems.outputEmpty')"
             :output-filter-empty-label="t('app.problems.outputFilterEmpty')"
             :output-clear-label="t('app.problems.clearOutput')"
@@ -324,11 +325,6 @@ import {
   type ProjectIconPackCatalogKey,
 } from '../workspace/model/projectIconPackCatalog'
 import { useProjectIconPackStore } from '../workspace/store/projectIconPackStore'
-import type {
-  UserCustomBlockCatalogEntry,
-  UserCustomBlockCatalogKey,
-} from '../workspace/model/userCustomBlockCatalog'
-import { useUserCustomBlockCatalogStore } from '../workspace/store/userCustomBlockCatalogStore'
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import {
@@ -367,8 +363,6 @@ import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
-  PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY,
-  PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY,
   PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
@@ -421,17 +415,13 @@ const DIFF_AFTER_ACTION_KEY = 'diff.after'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const TEMPLATES_LIST_KEY = 'templates'
 const ICON_PACKS_LIST_KEY = 'icon-packs'
-const CUSTOM_BLOCKS_LIST_KEY = 'custom-blocks'
 const USER_TEMPLATES_GROUP_KEY = 'template-group:user'
 const TEMPLATE_ENTRIES_LIST_KEY = 'template-entries'
 const TEMPLATE_COVERS_LIST_KEY = 'template-covers'
 const IMPORT_TEMPLATE_ACTION_KEY = 'import-template'
 const IMPORT_ICON_PACK_ACTION_KEY = 'import-icon-pack'
-const IMPORT_CUSTOM_BLOCK_ACTION_KEY = 'import-custom-block'
 const REGISTER_ICON_PACK_ACTION_KEY = 'register-icon-pack'
 const REGISTERED_ICON_PACK_ACTION_KEY = 'registered-icon-pack'
-const REGISTER_CUSTOM_BLOCK_ACTION_KEY = 'register-custom-block'
-const REGISTERED_CUSTOM_BLOCK_ACTION_KEY = 'registered-custom-block'
 const RECENT_PROJECT_OPEN_ACTION_KEY = 'recent-project.open'
 const BUILD_RESOURCE_PACKAGE_ACTION_KEY = 'file.build-package'
 const RECENT_PROJECT_REVEAL_ACTION_KEY = 'recent-project.reveal'
@@ -496,7 +486,6 @@ watch(
 )
 const templateStore = useProjectTemplateStore()
 const iconPackStore = useProjectIconPackStore()
-const customBlockCatalogStore = useUserCustomBlockCatalogStore()
 const shellPage = ref<ShellPage>({ type: 'welcome' })
 const isSettingsMode = computed(() => shellPage.value.type === 'settings')
 const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
@@ -518,7 +507,6 @@ function showPrimaryShellPage(page: PrimaryShellPage): void {
 }
 const selectedTemplateKey = ref<ProjectTemplateKey | null>(null)
 const selectedIconPackKeys = ref<ProjectIconPackCatalogKey[]>([])
-const selectedCustomBlockKeys = ref<UserCustomBlockCatalogKey[]>([])
 const createProjectWorkspaceRef = ref<InstanceType<typeof CreateProjectWorkspace> | null>(null)
 const exportTemplateWorkspaceRef = ref<InstanceType<typeof ExportTemplateWorkspace> | null>(null)
 const exportTemplateSelection = ref<TemplateExportSelection>({
@@ -529,7 +517,6 @@ const exportTemplateSelection = ref<TemplateExportSelection>({
 })
 const isCreateProjectOperationBusy = ref(false)
 const isImportingIconPack = ref(false)
-const isImportingCustomBlock = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
 const isExportPreparing = ref(false)
@@ -590,7 +577,6 @@ const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value
   || isCreateProjectOperationBusy.value
   || isImportingIconPack.value
-  || isImportingCustomBlock.value
 ))
 const settingsCategoryKey = computed<SettingsCategoryKey>(() =>
   shellPage.value.type === 'settings' ? shellPage.value.categoryKey : 'general'
@@ -1012,6 +998,7 @@ function getPathDirectory(path: string): string {
 const {
   issueTreeData,
   issueNavigationTargets,
+  issueDetails,
   issueCount,
   highestIssueSeverity,
   expandedIssueKeys,
@@ -1020,6 +1007,7 @@ const {
   setIssueNodeExpanded,
 } = useWorkspaceIssues({ sessions })
 const visibleIssueTreeData = computed(() => isWorkbenchMode.value ? issueTreeData.value : EMPTY_TREE_DATA)
+const visibleIssueDetails = computed(() => isWorkbenchMode.value ? issueDetails.value : new Map())
 const visibleIssueCount = computed(() => isWorkbenchMode.value ? issueCount.value : 0)
 const visibleIssueSeverity = computed(() => isWorkbenchMode.value ? highestIssueSeverity.value : null)
 
@@ -1044,7 +1032,6 @@ const {
   readProjectFile,
   resolveProjectPath,
   getRelativeProjectPath,
-  ensureCustomBlocksLoaded: projectStore.ensureProjectCustomBlocksLoaded,
   translate: t,
 })
 
@@ -1076,8 +1063,6 @@ const {
   registeredFontSources: computed(() => fontRegistryReady.value
     ? projectFontFamilies.value.flatMap(projectFontSources)
     : null),
-  customBlockDefinitions: projectStore.projectCustomBlockDefinitionCatalog,
-  customBlockRegistry: projectStore.projectCustomBlockRegistry,
 })
 
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {
@@ -1142,7 +1127,6 @@ const templateTreeData = computed<OcTreeData>(() => {
   }
 })
 const iconPackTreeData = computed<OcTreeData>(() => createIconPackTreeData(iconPackStore.packs.value))
-const customBlockTreeData = computed<OcTreeData>(() => createCustomBlockTreeData(customBlockCatalogStore.blocks.value))
 const recentProjectAvailability = ref<ReadonlyMap<string, boolean>>(new Map())
 const recentProjectTreeData = computed(() => (
   createRecentProjectTreeData(
@@ -1183,16 +1167,6 @@ watch(
   },
   { immediate: true },
 )
-watch(
-  () => customBlockCatalogStore.blocks.value,
-  (blocks) => {
-    selectedCustomBlockKeys.value = selectedCustomBlockKeys.value.filter((key) => (
-      blocks.some(block => block.key === key)
-    ))
-  },
-  { immediate: true },
-)
-
 const projectName = computed(() => {
   if (!projectPath.value) return ''
   return projectInformation.value?.name || projectPath.value.split(/[/\\]/).pop() || ''
@@ -1228,18 +1202,6 @@ const iconPackActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(()
   }],
   [REGISTERED_ICON_PACK_ACTION_KEY, {
     title: t('projectTemplates.status.iconPackRegistered'),
-    icon: 'action.check',
-    iconTone: 'success',
-  }],
-]))
-
-const customBlockActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [REGISTER_CUSTOM_BLOCK_ACTION_KEY, {
-    title: t('projectTemplates.actions.registerCustomBlock'),
-    icon: 'action.add',
-  }],
-  [REGISTERED_CUSTOM_BLOCK_ACTION_KEY, {
-    title: t('projectTemplates.status.customBlockRegistered'),
     icon: 'action.check',
     iconTone: 'success',
   }],
@@ -1372,7 +1334,6 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
       'locale.json',
       'fonts/fonts.json',
       'icons/icons.json',
-      'blocks/blocks.json',
       'packages/packages.json',
     ].includes(relativePath)
     const isRuntimeCache = relativePath === '.opencard-cache' || relativePath.startsWith('.opencard-cache/')
@@ -1465,17 +1426,7 @@ const updateOperationTask = computed<{
   return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
 
-const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY, {
-    title: t('projectTemplates.actions.registerCustomBlock'),
-    icon: 'action.check',
-  }],
-  [PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY, {
-    title: t('sidebar.fileActions.delete'),
-    icon: 'action.close',
-    iconTone: 'danger',
-  }],
-]))
+const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map())
 const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
 watch([updateOperationTask, locale], ([task]) => {
@@ -1648,30 +1599,6 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
           selectionMode: 'none',
           activationMode: 'none',
           onIntent: handleIconPackTreeIntent,
-        },
-      },
-      {
-        key: CUSTOM_BLOCKS_LIST_KEY,
-        title: t('projectTemplates.sections.customBlocks'),
-        placeholder: customBlockCatalogStore.isLoading.value
-          ? t('projectTemplates.status.loadingCustomBlocks')
-          : customBlockCatalogStore.error.value
-            ? t('projectTemplates.errors.invalidCustomBlockCatalog')
-            : t('projectTemplates.status.noCustomBlocks'),
-        actions: [{
-          key: IMPORT_CUSTOM_BLOCK_ACTION_KEY,
-          icon: 'action.import',
-          hoverTip: t('projectTemplates.actions.importCustomBlock'),
-          disabled: isProjectTemplateBusy.value || customBlockCatalogStore.isLoading.value,
-        }],
-        content: {
-          type: 'tree',
-          data: customBlockTreeData.value,
-          actions: customBlockActions.value,
-          role: 'listbox',
-          selectionMode: 'none',
-          activationMode: 'none',
-          onIntent: handleCustomBlockTreeIntent,
         },
       },
     ]
@@ -2273,13 +2200,6 @@ function handleIconPackTreeIntent(intent: OcTreeIntent): void {
   selectedIconPackKeys.value = [...selectedIconPackKeys.value, key]
 }
 
-function handleCustomBlockTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type !== 'action.invoke' || intent.actionKey !== REGISTER_CUSTOM_BLOCK_ACTION_KEY) return
-  const key = intent.key as UserCustomBlockCatalogKey
-  if (!customBlockCatalogStore.findBlock(key) || selectedCustomBlockKeys.value.includes(key)) return
-  selectedCustomBlockKeys.value = [...selectedCustomBlockKeys.value, key]
-}
-
 function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'selection.change') {
     selectedRecentProjectKeys.value = intent.selectedKeys
@@ -2361,20 +2281,6 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
       isImportingIconPack.value = false
     }
     return
-  }
-  if (listKey === CUSTOM_BLOCKS_LIST_KEY && actionKey === IMPORT_CUSTOM_BLOCK_ACTION_KEY
-    && !customBlockCatalogStore.isLoading.value) {
-    isImportingCustomBlock.value = true
-    try {
-      const sourcePath = await customBlockCatalogStore.pickUserCustomBlock(
-        t('projectTemplates.dialogs.chooseCustomBlock'),
-      )
-      if (sourcePath) await customBlockCatalogStore.importUserCustomBlock(sourcePath)
-    } catch (error) {
-      reportAppError('OC-E3015', error)
-    } finally {
-      isImportingCustomBlock.value = false
-    }
   }
 }
 
@@ -2587,21 +2493,6 @@ async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
     setProjectManagementEntryExpanded(intent.key, intent.expanded)
     return
   }
-  if (intent.type === 'action.invoke' && intent.actionKey === PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY) {
-    try {
-      await projectStore.installProjectCustomBlockFile(intent.key)
-    } catch (error) {
-      reportAppError('OC-E3011', { path: intent.key, error })
-    }
-    return
-  }
-  if (intent.type === 'action.invoke' && intent.actionKey === PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY) {
-    try {
-      await projectStore.deleteUnregisteredProjectCustomBlockFile(intent.key)
-    } catch (error) {
-      reportAppError('OC-E3011', { path: intent.key, error })
-    }
-  }
 }
 
 async function handleProjectTreeIntent(intent: OcTreeIntent) {
@@ -2752,7 +2643,7 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         await openEditorSession(normalizedPath)
         continue
       }
-      if (kind === 'card' || kind === 'custom-block') {
+      if (kind === 'card') {
         await openEditorSession(normalizedPath)
         showPrimaryShellPage('workbench')
         continue
@@ -3109,29 +3000,6 @@ function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): 
   }
   return {
     rootKeys: packs.map((pack) => pack.key),
-    items,
-    children: new Map(),
-  }
-}
-
-function createCustomBlockTreeData(blocks: readonly UserCustomBlockCatalogEntry[]): OcTreeData {
-  const items = new Map<string, OcTreeItem>()
-  for (const block of blocks) {
-    const isRegistered = selectedCustomBlockKeys.value.includes(block.key)
-    items.set(block.key, {
-      label: block.name,
-      icon: 'file.custom-block',
-      actions: [isRegistered ? REGISTERED_CUSTOM_BLOCK_ACTION_KEY : REGISTER_CUSTOM_BLOCK_ACTION_KEY],
-      ...(isRegistered ? {
-        disabledActions: new Map([[
-          REGISTERED_CUSTOM_BLOCK_ACTION_KEY,
-          t('projectTemplates.status.customBlockRegistered'),
-        ]]),
-      } : {}),
-    })
-  }
-  return {
-    rootKeys: blocks.map(block => block.key),
     items,
     children: new Map(),
   }

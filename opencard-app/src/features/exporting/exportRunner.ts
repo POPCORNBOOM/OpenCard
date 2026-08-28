@@ -8,6 +8,7 @@ import {
   type ExportRunResult,
   resolveExportErrorPolicy,
 } from './exportTask'
+import { ExportRenderDiagnosticsError } from './exportRenderingError'
 
 export type RunExportPlanOptions = {
   plan: ExportPlan
@@ -84,7 +85,12 @@ export async function runExportPlan(options: RunExportPlanOptions): Promise<Expo
         }
         counts.failed += 1
         completedUnits += 2
-        failures.push({ ...current, stage: 'rendering', message: errorMessage(error) })
+        failures.push({
+          ...current,
+          stage: 'rendering',
+          message: errorMessage(error),
+          ...(error instanceof ExportRenderDiagnosticsError ? { runtimeIssues: error.issues } : {}),
+        })
         report('failed', current)
         if (resolveExportErrorPolicy(options.plan.task) === 'stop') {
           stoppedByFailure = true

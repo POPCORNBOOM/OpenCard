@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 import {
   projectResourceScopeIdentity,
   type ProjectResourceEnvironment,
 } from '../workspace/services/projectResourceEnvironment'
-import { createCardRenderResourceContext, resolveCardAssetSrc, resolveCardFontFamily } from './cardRenderResources'
+import { createCardRenderResourceContext, createCardResourceResolver, resolveCardAssetSrc, resolveCardFontFamily } from './cardRenderResources'
+import { setProjectFonts } from '../workspace/model/projectFonts'
 
 const { convertFileSrc } = vi.hoisted(() => ({
   convertFileSrc: vi.fn((path: string) => `asset://${path}`),
@@ -14,6 +15,50 @@ vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc }))
 
 describe('cardRenderResources', () => {
   beforeEach(() => convertFileSrc.mockClear())
+  afterEach(() => setProjectFonts([]))
+
+  it('keeps project font conversion identical after field scopes are derived', () => {
+    const font = { key: 'brand', name: 'Brand', files: { normal: { upright: 'fonts/Brand.ttf' } } }
+    setProjectFonts([font])
+    const environment: ProjectResourceEnvironment = {
+      kind: 'project', namespace: 'project-root', rootPath: '/project',
+      fontDocument: {}, fonts: { brand: { kind: 'family', name: 'Brand', family: font } },
+      iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+    }
+    const root = createCardResourceResolver(createCardRenderResourceContext({ hostEnvironment: environment }))
+    const derived = root.withScopes(new Map([[
+      projectResourceScopeIdentity('custom-text', 'fontFamily'),
+      environment,
+    ]]))
+
+    expect(root.resolveFont('font:brand', 'native-text', 'fontFamily'))
+      .toBe('"OpenCardProjectFont-brand"')
+    expect(derived.resolveFont('font:brand', 'custom-text', 'fontFamily'))
+      .toBe('"OpenCardProjectFont-brand"')
+  })
+
+  it('keeps assets, icons, and missing-resource behavior identical after scopes are derived', () => {
+    const icon = {
+      seriesKey: 'status', iconKey: 'warning', name: 'Warning', source: 'icons.png', src: 'asset://icons.png',
+      x: 0, y: 0, width: 16, height: 16, imageWidth: 16, imageHeight: 16,
+    }
+    const environment: ProjectResourceEnvironment = {
+      kind: 'project', namespace: 'project-root', rootPath: '/project', fontDocument: {}, fonts: {},
+      iconDocument: {}, iconCatalog: { series: [], entries: [icon], errors: [] }, issues: [],
+    }
+    const root = createCardResourceResolver(createCardRenderResourceContext({ hostEnvironment: environment }))
+    const derived = root.withScopes(new Map([
+      [projectResourceScopeIdentity('custom-image', 'image'), environment],
+      [projectResourceScopeIdentity('custom-text', 'content'), environment],
+    ]))
+
+    expect(derived.resolveAsset('assets/a.png', 'custom-image', 'image'))
+      .toBe(root.resolveAsset('assets/a.png', 'native-image', 'image'))
+    expect(derived.resolveIcon('icon:status/warning', 'custom-text', 'content'))
+      .toBe(root.resolveIcon('icon:status/warning', 'native-text', 'content'))
+    expect(derived.resolveIcon('icon:status/missing', 'custom-text', 'content')).toBeNull()
+    expect(root.resolveIcon('icon:status/missing', 'native-text', 'content')).toBeNull()
+  })
 
   it('resolves package-local paths only through an explicit field scope', () => {
     const packageEnvironment: ProjectResourceEnvironment = {

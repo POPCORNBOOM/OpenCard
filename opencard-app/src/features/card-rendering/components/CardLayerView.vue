@@ -306,7 +306,8 @@ function getPlaneZIndex(entry: PlaneEntry): number {
 }
 
 function getPlaneName(entry: PlaneEntry): string {
-  return layers.value[entry.layerIndex]?.blocks[entry.blockIndex]?.block.name || entry.id
+  const name = layers.value[entry.layerIndex]?.blocks[entry.blockIndex]?.block.name
+  return typeof name === 'string' && name ? name : entry.id
 }
 
 function isLayerStart(index: number): boolean {
@@ -437,7 +438,7 @@ function rebuildSnapshots(): void {
     const rect = source.getBoundingClientRect()
     nextSnapshots.set(id, {
       id,
-      name: block.name || id,
+      name: typeof block.name === 'string' && block.name ? block.name : id,
       html: clone.outerHTML,
       width: Math.max(1, rect.width * coordinateScaleX || source.offsetWidth),
       height: Math.max(1, rect.height * coordinateScaleY || source.offsetHeight),

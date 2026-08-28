@@ -304,7 +304,7 @@ describe('card additional fields and bindings', () => {
     }))
   })
 
-  it('rejects incompatible and explicitly hidden references', () => {
+  it('reports explicitly hidden references without binding type diagnostics', () => {
     const block = createTextBlock({ id: 'text', content: '{{self:type}}' })
     block.additionalFieldDefinition = { label: { fieldType: 'string' } }
     ;(block as unknown as Record<string, unknown>).label = 'not-a-number'
@@ -312,13 +312,10 @@ describe('card additional fields and bindings', () => {
 
     const result = resolveReferences(createDocument(block))
 
-    expect(result.issues.map((issue) => issue.type)).toEqual(expect.arrayContaining([
-      'card-designer.binding.field-not-allowed',
-      'card-designer.binding.type-mismatch',
-    ]))
+    expect(result.issues.map((issue) => issue.type)).toEqual(['card-designer.binding.field-not-allowed'])
   })
 
-  it('rejects mixed interpolation for non-string targets and detects additional-field cycles', () => {
+  it('passes mixed interpolation through and detects additional-field cycles', () => {
     const block = createTextBlock({ id: 'text', content: '{{self:first}}' })
     block.additionalFieldDefinition = {
       first: { fieldType: 'string' },
@@ -332,10 +329,19 @@ describe('card additional fields and bindings', () => {
 
     const result = resolveReferences(createDocument(block))
 
-    expect(result.issues.map((issue) => issue.type)).toEqual(expect.arrayContaining([
-      'card-designer.binding.type-mismatch',
-      'card-designer.binding.cycle',
-    ]))
+    expect(result.issues.map((issue) => issue.type)).toEqual(['card-designer.binding.cycle'])
+  })
+
+  it('passes ordinary boolean and number literals without binding diagnostics', () => {
+    const block = createTextBlock({ id: 'text', visible: 'true', scaleX: '1.25' })
+
+    const result = resolveReferences(createDocument(block))
+
+    expect(result.issues).toEqual([])
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({
+      visible: 'true',
+      scaleX: '1.25',
+    })
   })
 
   it('allows schema-external scalar fields by default', () => {

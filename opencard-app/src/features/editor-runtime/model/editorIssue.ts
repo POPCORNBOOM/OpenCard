@@ -16,6 +16,8 @@ export interface EditorIssue {
   locationText: string
   description: string
   navigationToken?: SessionNavigationToken
+  details?: Readonly<Record<string, unknown>>
+  children?: readonly EditorIssue[]
 }
 
 export interface EditorIssueSnapshot {

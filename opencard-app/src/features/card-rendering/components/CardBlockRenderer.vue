@@ -1,17 +1,14 @@
 <template>
-  <CustomBlockRenderer v-if="block.type === 'custom-block'" :block="block" :layout-mode="layoutMode" />
-  <NativeBlockRenderer v-else :block="block" :layout-mode="layoutMode" />
+  <NativeBlockRenderer :block="block" :placement="placement" />
 </template>
 
 <script setup lang="ts">
 import type { RenderReadyCardBlock } from '../render.types'
-import CustomBlockRenderer from './CustomBlockRenderer.vue'
 import NativeBlockRenderer from './NativeBlockRenderer.vue'
+import type { BlockRenderPlacement } from './blockRenderPlacement'
 
-withDefaults(defineProps<{
+defineProps<{
   block: RenderReadyCardBlock
-  layoutMode?: 'absolute' | 'static'
-}>(), {
-  layoutMode: 'absolute',
-})
+  placement: BlockRenderPlacement
+}>()
 </script>

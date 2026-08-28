@@ -65,12 +65,16 @@ function formatValue(value: unknown): string {
 
 function appendEntry(severity: AppConsoleSeverity, args: readonly unknown[]): void {
   const errorReport = severity === 'error' && isAppErrorReport(args[0]) ? args[0] : null
+  const message = errorReport ? formatErrorReport(errorReport) : args.map(formatValue).join(' ')
+  const errorCode = severity === 'error' ? errorReport?.code ?? 'OC-E1001' : undefined
+  const previous = state.entries.value[state.entries.value.length - 1]
+  if (previous?.severity === severity && previous.message === message && previous.errorCode === errorCode) return
   const entry: AppConsoleEntry = {
     id: state.nextEntryId++,
     severity,
     timestamp: Date.now(),
-    message: errorReport ? formatErrorReport(errorReport) : args.map(formatValue).join(' '),
-    ...(severity === 'error' ? { errorCode: errorReport?.code ?? 'OC-E1001' } : {}),
+    message,
+    ...(errorCode ? { errorCode } : {}),
   }
   const nextEntries = [...state.entries.value, entry]
   state.entries.value = nextEntries.length > MAX_ENTRY_COUNT

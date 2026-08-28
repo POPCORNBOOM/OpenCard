@@ -39,7 +39,6 @@ type UseCdeTreeOpsOptions = {
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
   getDefaultBlockName: (type: CardBlock['type']) => string
-  createCustomBlock?: (key: string) => CardBlock | null
   refreshDocumentState: (structural?: boolean) => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
 }
@@ -94,7 +93,6 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
           'rename',
           'duplicate',
           { type: 'divider', key: 'block-structure-divider' },
-          'export-custom-block',
           ...(isBlockContainer(block) ? (packaged ? ['unpackage'] : ['add', 'package']) : []),
           { type: 'divider', key: 'block-delete-divider' },
           'delete',
@@ -126,8 +124,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
   }
 
   function resolveVisibleBlockKey(blockId: string): string | null {
-    const customHostId = blockId.includes('::block:') ? blockId.slice(0, blockId.indexOf('::block:')) : blockId
-    let current = blockIndex.value.get(customHostId)?.block ?? null
+    let current = blockIndex.value.get(blockId)?.block ?? null
     if (!current) return null
 
     let visibleKey = current.id
@@ -223,11 +220,6 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     const targetContainer: BlockContainer | null = target && isBlockContainer(target) && !isBlockPackaged(target)
       ? target
       : target ? null : options.activeFace.value
-    if (actionKey.startsWith('add-custom-block:')) {
-      const block = options.createCustomBlock?.(actionKey.slice('add-custom-block:'.length)) ?? null
-      if (targetContainer && block) insertBlockAt(targetContainer, block)
-      return
-    }
     switch (actionKey) {
       case 'add-text-block':
         if (targetContainer) createBlockAt(targetContainer, 'text-block')
@@ -415,7 +407,6 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
 
   function createBlockAt(container: BlockContainer, type: CardBlock['type']): void {
     if (isBlockPackaged(container)) return
-    if (type === 'custom-block') return
     const name = options.getDefaultBlockName(type).trim() || undefined
     let block: CardBlock
     switch (type) {

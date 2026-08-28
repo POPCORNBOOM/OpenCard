@@ -20,9 +20,10 @@ import {
 import {
   buildParentLookup,
   isBlockContainer,
+  visitCardBlockTree,
   type ParentLookup,
 } from '../../entities/card/tree'
-import { isBindingCompatible, type BindingValueKind } from '../editor-runtime/model/binding'
+import type { BindingValueKind } from '../editor-runtime/model/binding'
 import {
   isBindingStartEscaped,
   parseFieldReference,
@@ -88,12 +89,19 @@ export type ResolveReferencesResult = {
   issues: CardPipelineIssue[]
 }
 
+export type ResolveBlockReferencesResult = {
+  block: CardBlock
+  issues: CardPipelineIssue[]
+}
+
 export type ResolveReferencesOptions = {
   currentCard?: CardInstanceRecord | null
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
   preserveReference?: (context: PreserveReferenceContext) => boolean
   shouldResolveOwner?: (owner: ResolveReferenceOwner) => boolean
+  rootOwnerSource?: Readonly<Record<string, unknown>>
+  externalParent?: Readonly<CardBlock> | null
 }
 
 export type ResolveReferenceOwner = {
@@ -115,6 +123,7 @@ type ReferenceOwner = {
   id: string
   typeName: string
   source: Record<string, unknown>
+  referenceSource?: Record<string, unknown>
   target: Record<string, unknown>
   anchorBlockId: string | null
   faceKey: CardFaceKey | null
@@ -144,21 +153,34 @@ function cloneAdditionalFieldDefinitions(
   )
 }
 
-function valueMatchesBindingKind(value: unknown, kind: BindingValueKind): boolean {
-  if (kind === 'string') return typeof value === 'string'
-  if (kind === 'number') {
-    if (typeof value !== 'string' || value.trim() === '') return false
-    return Number.isFinite(Number(value))
-  }
-  if (kind === 'boolean') return value === 'true' || value === 'false'
-  return !!value && typeof value === 'object'
-}
-
 export function resolveReferences(
   document: CardDocument,
   options: ResolveReferencesOptions = {},
 ): ResolveReferencesResult {
-  const sourceDocument = document
+  const resolved = resolveReferenceGraph({ document }, options)
+  return { document: resolved.document!, issues: resolved.issues }
+}
+
+export function resolveBlockReferences(
+  block: CardBlock,
+  options: ResolveReferencesOptions & { documentId: string; faceKey?: CardFaceKey },
+): ResolveBlockReferencesResult {
+  const resolved = resolveReferenceGraph({
+    block,
+    documentId: options.documentId,
+    faceKey: options.faceKey ?? 'front',
+  }, options)
+  return { block: resolved.block!, issues: resolved.issues }
+}
+
+type ResolveReferenceGraphInput =
+  | { document: CardDocument }
+  | { block: CardBlock; documentId: string; faceKey: CardFaceKey }
+
+function resolveReferenceGraph(
+  input: ResolveReferenceGraphInput,
+  options: ResolveReferencesOptions,
+): { document: CardDocument | null; block: CardBlock | null; issues: CardPipelineIssue[] } {
   const cloneBlockTree = (block: CardBlock): CardBlock => {
     if (block.type === 'simple-container-block') {
       return {
@@ -188,21 +210,31 @@ export function resolveReferences(
     }
   }
 
-  const targetDocument: CardDocument = {
-    ...document,
-    faces: Object.fromEntries(Object.entries(document.faces).map(([faceKey, face]) => [faceKey, {
+  const sourceDocument = 'document' in input ? input.document : null
+  const sourceBlock = 'block' in input ? input.block : null
+  const standaloneRootId = sourceBlock?.id ?? null
+  const documentId = sourceDocument?.id ?? ('documentId' in input ? input.documentId : '')
+  const targetDocument: CardDocument | null = sourceDocument ? {
+    ...sourceDocument,
+    faces: Object.fromEntries(Object.entries(sourceDocument.faces).map(([faceKey, face]) => [faceKey, {
       ...face,
       children: face.children.map((child) => ({
         block: cloneBlockTree(child.block),
         location: { ...child.location },
       })),
     }])) as Record<CardFaceKey, CardFace>,
-    instances: document.instances?.map((instance) => ({
+    instances: sourceDocument.instances?.map((instance) => ({
       ...instance,
       data: { ...instance.data },
     })),
-  }
-  const parentLookup = buildParentLookup(sourceDocument)
+  } : null
+  const targetBlock = sourceBlock ? cloneBlockTree(sourceBlock) : null
+  const parentLookup = sourceDocument ? buildParentLookup(sourceDocument) : new Map()
+  if (sourceBlock) visitCardBlockTree(sourceBlock, block => {
+    if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') return
+    for (const child of block.children) parentLookup.set(child.block.id, block)
+  })
+  if (sourceBlock && options.externalParent) parentLookup.set(sourceBlock.id, options.externalParent as CardBlock)
   const issues: CardPipelineIssue[] = []
   const valueMemo = new Map<string, unknown>()
   const stateMemo = new Map<string, ResolveMemoState>()
@@ -211,15 +243,15 @@ export function resolveReferences(
   const targetOwnersById = new Map<string, ReferenceOwner>()
   const documentOwner: ReferenceOwner = {
     kind: 'document',
-    key: `doc:${sourceDocument.id}`,
-    id: sourceDocument.id,
-    typeName: sourceDocument.type,
-    source: sourceDocument as unknown as Record<string, unknown>,
-    target: targetDocument as unknown as Record<string, unknown>,
+    key: `doc:${documentId}`,
+    id: documentId,
+    typeName: 'card-document',
+    source: (sourceDocument ?? { type: 'card-document', id: documentId }) as unknown as Record<string, unknown>,
+    target: (targetDocument ?? { type: 'card-document', id: documentId }) as unknown as Record<string, unknown>,
     anchorBlockId: null,
     faceKey: null,
   }
-  owners.push(documentOwner)
+  if (sourceDocument) owners.push(documentOwner)
   targetOwnersById.set(documentOwner.id, documentOwner)
 
   const sourceCurrentCard = options.currentCard
@@ -276,6 +308,9 @@ export function resolveReferences(
         id: sourceBlock.id,
         typeName: sourceBlock.type,
         source: sourceBlock as unknown as Record<string, unknown>,
+        ...(sourceBlock.id === standaloneRootId && options.rootOwnerSource
+          ? { referenceSource: { ...options.rootOwnerSource } }
+          : {}),
         target: targetBlock as unknown as Record<string, unknown>,
         anchorBlockId: sourceBlock.id,
         faceKey,
@@ -313,7 +348,7 @@ export function resolveReferences(
   }
 
   const faceOwners = {} as Record<CardFaceKey, ReferenceOwner>
-  for (const faceKey of Object.keys(sourceDocument.faces) as CardFaceKey[]) {
+  if (sourceDocument && targetDocument) for (const faceKey of Object.keys(sourceDocument.faces) as CardFaceKey[]) {
     const sourceFace = sourceDocument.faces[faceKey]
     const targetFace = targetDocument.faces[faceKey]
     const faceOwner: ReferenceOwner = {
@@ -336,6 +371,38 @@ export function resolveReferences(
       faceKey,
     )
   }
+  if (sourceBlock && targetBlock && 'faceKey' in input) {
+    const faceKey = input.faceKey
+    if (options.externalParent) {
+      const externalParent = options.externalParent as CardBlock
+      const externalOwner: ReferenceOwner = {
+        kind: 'block', key: `external:${externalParent.id}`, id: externalParent.id,
+        typeName: externalParent.type,
+        source: externalParent as unknown as Record<string, unknown>,
+        target: { ...(externalParent as unknown as Record<string, unknown>) },
+        anchorBlockId: externalParent.id, faceKey,
+      }
+      owners.push(externalOwner)
+      targetOwnersById.set(externalOwner.id, externalOwner)
+    }
+    for (const candidate of ['front', 'back'] as CardFaceKey[]) {
+      const record = { type: 'card-face', id: `${documentId}::${candidate}` }
+      faceOwners[candidate] = {
+        kind: 'face', key: `face:${candidate}:${record.id}`, id: record.id,
+        typeName: 'card-face', source: record, target: { ...record },
+        anchorBlockId: null, faceKey: candidate,
+      }
+    }
+    const rootLocation: SimpleContainerLocationInfo = {
+      type: 'simple-container-location', id: `${sourceBlock.id}::root-location`, anchor: 'lt', x: '0px', y: '0px',
+    }
+    visitChildren(
+      [{ block: sourceBlock, location: rootLocation }],
+      [{ block: targetBlock, location: { ...rootLocation } }],
+      '',
+      faceKey,
+    )
+  }
 
   function buildMemoKey(owner: ReferenceOwner, fieldKey: string): string {
     return `${owner.key}:${fieldKey}`
@@ -353,7 +420,7 @@ export function resolveReferences(
     issues.push(createCardPipelineIssue({
       type,
       location: {
-        documentId: sourceDocument.id,
+        documentId,
         instanceId: options.currentCard?.id ?? null,
         faceKey: owner.faceKey,
         owner: { kind: ownerKind, id: owner.id },
@@ -402,6 +469,10 @@ export function resolveReferences(
     }
 
     function resolveTargetField(targetOwner: ReferenceOwner, targetFieldKey: string): ResolveTokenResult {
+      if (targetOwner.referenceSource && Object.prototype.hasOwnProperty.call(targetOwner.referenceSource, targetFieldKey)) {
+        const value = targetOwner.referenceSource[targetFieldKey]
+        return { ok: true, value, valueKind: typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string' }
+      }
       if (!exposesCardFieldReference(targetOwner.source, targetFieldKey)) {
         pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.field-not-allowed', {
           ownerType: targetOwner.typeName,
@@ -494,7 +565,6 @@ export function resolveReferences(
           fieldKey,
           dictionary[dictionaryKey],
           recursionDepth + 1,
-          'string',
         )
         return resolved.ok
           ? { ok: true, value: resolved.value, valueKind: 'string' }
@@ -547,7 +617,6 @@ export function resolveReferences(
     fieldKey: string,
     sourceValue: string,
     recursionDepth: number,
-    targetKind = getCardFieldValueKind(owner.source, fieldKey),
     locateToken?: (rawToken: string) => number,
   ): ResolveFieldResult {
     if (!sourceValue.includes('{{')) {
@@ -585,24 +654,7 @@ export function resolveReferences(
       if ('preserved' in tokenResult) {
         return { ok: true, value: sourceValue }
       }
-      if (!isBindingCompatible(targetKind, tokenResult.valueKind)
-        || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
-        pushIssue(owner, fieldKey, rawToken, 'card-designer.binding.type-mismatch', {
-          sourceType: tokenResult.valueKind,
-          targetType: targetKind,
-        }, issueOffset)
-        return { ok: false, value: sourceValue }
-      }
-      return { ok: true, value: String(tokenResult.value) }
-    }
-
-    if (targetKind !== 'string') {
-      const characterOffset = sourceValue.indexOf('{{')
-      pushIssue(owner, fieldKey, sourceValue, 'card-designer.binding.type-mismatch', {
-        sourceType: 'interpolated-string',
-        targetType: targetKind,
-      }, characterOffset >= 0 ? toCharacterOffset(sourceValue, characterOffset) : undefined)
-      return { ok: false, value: sourceValue }
+      return { ok: true, value: tokenResult.value }
     }
 
     let hasToken = false
@@ -641,15 +693,6 @@ export function resolveReferences(
         resolvedValue += matched[0]
         cursor = matched.index + matched[0].length
         continue
-      }
-
-      if (!isBindingCompatible('string', tokenResult.valueKind)
-        || !valueMatchesBindingKind(tokenResult.value, tokenResult.valueKind)) {
-        pushIssue(owner, fieldKey, matched[0], 'card-designer.binding.type-mismatch', {
-          sourceType: tokenResult.valueKind,
-          targetType: 'string',
-        }, issueOffset)
-        return { ok: false, value: sourceValue }
       }
 
       resolvedValue += String(tokenResult.value)
@@ -702,20 +745,6 @@ export function resolveReferences(
     const sourceValue = getCardFieldValue(owner.source, fieldKey)
     if (typeof sourceValue !== 'string') {
       const stableValue = getCardFieldValue(owner.target, fieldKey)
-      if (getCardFieldValueKind(owner.source, fieldKey) !== 'object') {
-        pushIssue(
-          owner,
-          fieldKey,
-          String(sourceValue),
-          'card-designer.binding.type-mismatch',
-          {
-            sourceType: Array.isArray(sourceValue) ? 'array' : typeof sourceValue,
-            targetType: getCardFieldValueKind(owner.source, fieldKey),
-          },
-        )
-        stateMemo.set(memoKey, 'failed')
-        return { ok: false, value: stableValue }
-      }
       valueMemo.set(memoKey, stableValue)
       stateMemo.set(memoKey, 'done')
       return { ok: true, value: stableValue }
@@ -746,7 +775,7 @@ export function resolveReferences(
     }
   }
 
-  return { document: targetDocument, issues }
+  return { document: targetDocument, block: targetBlock, issues }
 }
 
 function joinBlockPath(parentPath: string, blockName: string): string {

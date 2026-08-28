@@ -3,10 +3,11 @@ import type {
   RenderReadyCardBlock,
   RenderReadyCardFace,
   RenderReadySimpleContainerBlock,
+  RenderReadyTextBlock,
 } from '../render.types'
 import { buildCardLayerGroups } from './cardLayerModel'
 
-function block(id: string, zIndex: number, visible = true): RenderReadyCardBlock {
+function block(id: string, zIndex: number, visible = true): RenderReadyTextBlock {
   return {
     type: 'text-block',
     id,

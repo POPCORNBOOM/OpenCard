@@ -11,18 +11,12 @@ import type {
   TemplateProjectInspection,
 } from '../model/projectTemplate'
 import type { ProjectTemplateStore } from '../store/projectTemplateStore'
-import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
 import CreateProjectWorkspace from './CreateProjectWorkspace.vue'
 
 let store: ProjectTemplateStore
 let appSettingsStore: {
   settings: Ref<{ projectCreation: { lastParentPath: string } }>
   updateProjectCreation: ReturnType<typeof vi.fn>
-}
-let customBlockStore: {
-  blocks: Ref<readonly UserCustomBlockCatalogEntry[]>
-  load: ReturnType<typeof vi.fn>
-  findBlock: ReturnType<typeof vi.fn>
 }
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -37,9 +31,6 @@ vi.mock('../store/projectTemplateStore', () => ({
   useProjectTemplateStore: () => store,
 }))
 
-vi.mock('../../workspace/store/userCustomBlockCatalogStore', () => ({
-  useUserCustomBlockCatalogStore: () => customBlockStore,
-}))
 
 const messages = {
   projectTemplates: {
@@ -69,7 +60,6 @@ const messages = {
       noBuiltinIconPacks: 'No built-in icon packs',
       noUserIconPacks: 'No user icon packs',
       noIconPacksSelected: 'None',
-      noCustomBlocksSelected: 'None',
       selectTemplate: 'Select a template',
       noDescription: 'No description',
       noInitialPage: 'None',
@@ -89,7 +79,6 @@ const messages = {
       location: 'Location',
       target: 'Target',
       iconPacks: 'Icon packs to register',
-      customBlocks: 'Custom blocks to register',
     },
     confirmDelete: 'Delete this template?',
     defaults: { projectName: 'Untitled Project' },
@@ -115,7 +104,6 @@ const messages = {
       builtinDeleteForbidden: 'Cannot delete built-in template',
       copyFailed: 'Copy failed',
       iconPackFailed: 'Icon pack failed',
-      customBlockFailed: 'Custom block failed',
       unknown: 'Unknown error',
     },
   },
@@ -185,11 +173,6 @@ describe('CreateProjectWorkspace', () => {
     appSettingsStore = {
       settings: ref({ projectCreation: { lastParentPath: '/cached-projects' } }),
       updateProjectCreation: vi.fn(),
-    }
-    customBlockStore = {
-      blocks: ref([]),
-      load: vi.fn(async () => undefined),
-      findBlock: vi.fn(() => null),
     }
   })
 
@@ -381,23 +364,4 @@ describe('CreateProjectWorkspace', () => {
     }))
   })
 
-  it('shows and submits custom blocks selected for the new project', async () => {
-    const badge: UserCustomBlockCatalogEntry = {
-      key: 'user:alice/badge',
-      id: 'alice/badge',
-      packageId: 'alice/badge',
-      name: 'Badge',
-      path: '/app/custom-blocks/alice-badge.ocblock',
-    }
-    customBlockStore.blocks.value = [badge]
-    customBlockStore.findBlock.mockImplementation(key => key === badge.key ? badge : null)
-    const wrapper = mountWorkspace(builtin.key, [badge.key])
-    await flushPromises()
-
-    expect(wrapper.get('.create-project__custom-block-list').text()).toContain('Badge')
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
-
-    expect(store.createProject).toHaveBeenCalledWith(expect.objectContaining({ customBlocks: [badge] }))
-  })
 })

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { RenderReadyFlowContainerBlock } from '../render.types'
 import FlowContainerBlockRenderer from './FlowContainerBlockRenderer.vue'
 import { rendererTestGlobal } from './renderTestUtils'
+import CardBlockRenderer from './CardBlockRenderer.vue'
 
 describe('FlowContainerBlockRenderer', () => {
   it('does not shrink an explicitly sized child along the flow axis', () => {
@@ -42,16 +43,16 @@ describe('FlowContainerBlockRenderer', () => {
       }],
     } as unknown as RenderReadyFlowContainerBlock
     const wrapper = mount(FlowContainerBlockRenderer, {
-      props: { block },
+      props: { block, placement: { kind: 'root' } },
       global: {
         ...rendererTestGlobal,
         stubs: { CardBlockRenderer: true },
       },
     })
 
-    const child = wrapper.findAll('div')[1]!
+    const child = wrapper.getComponent(CardBlockRenderer)
     expect(wrapper.get('[data-block-id="flow"]').attributes('style')).toContain('overflow: hidden')
-    expect(child.attributes('style')).toContain('width: 400px')
-    expect(child.attributes('style')).toContain('flex-shrink: 0')
+    expect(child.props('block')).toEqual(block.children[0]!.block)
+    expect(child.props('placement')).toEqual({ kind: 'flow', location: block.children[0]!.location })
   })
 })

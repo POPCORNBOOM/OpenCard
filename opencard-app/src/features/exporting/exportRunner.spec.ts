@@ -4,6 +4,8 @@ import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCat
 import { createCardRenderResourceContext } from '../card-rendering/cardRenderResources'
 import { runExportPlan } from './exportRunner'
 import type { ExportDestination, ExportFaceRenderer, ExportPlan, ExportProgressEvent } from './exportTask'
+import { ExportRenderDiagnosticsError } from './exportRenderingError'
+import { createCardPipelineIssue } from '../card-rendering/cardPipelineIssue'
 
 const face: RenderReadyCardFace = {
   type: 'card-face', id: 'front', faceKey: 'front', width: 540, height: 850, background: '#fff', children: [],
@@ -79,6 +81,31 @@ describe('runExportPlan', () => {
       expect(render).toHaveBeenCalledTimes(calls)
       expect(result.failed).toBe(1)
       expect(result.status).toBe('failed')
+    }
+  })
+
+  it('preserves runtime diagnostics on rendering failures and applies the error policy', async () => {
+    const issue = createCardPipelineIssue({
+      type: 'card-designer.render-parse.invalid-type',
+      location: {
+        documentId: 'document', instanceId: null, faceKey: 'front',
+        owner: { kind: 'block', id: 'custom' }, blockId: 'custom', fieldKey: 'content',
+      },
+    })
+    for (const [policy, calls] of [['continue', 2], ['stop', 1]] as const) {
+      const renderFace = vi.fn()
+        .mockRejectedValueOnce(new ExportRenderDiagnosticsError([issue]))
+        .mockResolvedValue(new Uint8Array([1]))
+      const result = await runExportPlan({
+        plan: plan(policy), renderer: renderer(renderFace), destination: destination(),
+        signal: new AbortController().signal, report: () => undefined,
+      })
+      expect(renderFace).toHaveBeenCalledTimes(calls)
+      expect(result.failures[0]).toMatchObject({
+        stage: 'rendering',
+        message: 'Rendering reported 1 runtime issue',
+        runtimeIssues: [issue],
+      })
     }
   })
 

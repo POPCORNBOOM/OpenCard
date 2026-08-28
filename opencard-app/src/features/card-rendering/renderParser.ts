@@ -35,6 +35,32 @@ export type ParseRenderDocumentOptions = {
   instanceId?: string | null
 }
 
+export type ParseRenderBlockOptions = {
+  documentId: string
+  instanceId?: string | null
+  faceKey?: CardFaceKey
+  allowTypedLiterals?: boolean
+}
+
+export function parseRenderBlock(
+  block: CardBlock,
+  options: ParseRenderBlockOptions,
+): { block: RenderReadyCardBlock; issues: CardPipelineIssue[] } {
+  const issues: CardPipelineIssue[] = []
+  return {
+    block: parseBlock(
+      block,
+      '',
+      options.documentId,
+      options.instanceId ?? null,
+      options.faceKey ?? 'front',
+      issues,
+      options.allowTypedLiterals ?? false,
+    ),
+    issues,
+  }
+}
+
 type RenderParseFailure =
   | 'invalid-type'
   | 'conversion-failed'
@@ -45,7 +71,7 @@ type RenderParseFailure =
   | 'invalid-css-length'
   | 'invalid-file-path'
   | 'invalid-object'
-const blockTypes: readonly BlockType[] = [
+  const blockTypes: readonly BlockType[] = [
   'text-block',
   'markdown-text-block',
   'image-block',
@@ -131,7 +157,7 @@ function parseFace(
       const block = parseBlock(child.block, '', documentId, instanceId, faceKey, issues)
       return {
         block,
-        location: parseSimpleLocation(child.location, block, block.name, documentId, instanceId, faceKey, issues),
+        location: parseSimpleLocation(child.location, block, readyBlockName(block), documentId, instanceId, faceKey, issues),
       }
     }),
   }
@@ -144,6 +170,7 @@ function parseBlock(
   instanceId: string | null,
   faceKey: CardFaceKey,
   issues: CardPipelineIssue[],
+  allowTypedLiterals = false,
 ): RenderReadyCardBlock {
   const source = toRecord(blockValue)
   const type = resolveBlockType(source, parentPath, documentId, instanceId, faceKey, issues)
@@ -157,9 +184,8 @@ function parseBlock(
     blockId: sourceBlockId || undefined,
     typeName: type,
   }
-  const fields = createFieldReader(source, context, issues)
-  validateAdditionalFields(source, context, issues)
-  const base = parseBaseBlock(fields)
+  const fields = createFieldReader(source, context, issues, allowTypedLiterals)
+  const base = parseBaseBlock(source, fields)
 
   context.blockId = base.id || undefined
   context.owner = { kind: 'block', id: base.id }
@@ -219,13 +245,13 @@ function parseBlock(
         clip: fields.boolean('clip'),
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
-          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues)
+          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues, allowTypedLiterals)
           return {
             block,
             location: parseSimpleLocation(
               child.location,
               block,
-              joinBlockPath(context.blockPath, block.name),
+              joinBlockPath(context.blockPath, readyBlockName(block)),
               documentId,
               instanceId,
               faceKey,
@@ -243,13 +269,13 @@ function parseBlock(
         gap: fields.cssLength('gap'),
         children: fields.array('children').map((childValue) => {
           const child = toRecord(childValue)
-          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues)
+          const block = parseBlock(child.block, context.blockPath, documentId, instanceId, faceKey, issues, allowTypedLiterals)
           return {
             block,
             location: parseFlowLocation(
               child.location,
               block,
-              joinBlockPath(context.blockPath, block.name),
+              joinBlockPath(context.blockPath, readyBlockName(block)),
               documentId,
               instanceId,
               faceKey,
@@ -258,18 +284,15 @@ function parseBlock(
           }
         }),
       }
-    case 'custom-block':
-      return {
-        ...base,
-        type,
-        customBlockKey: fields.string('customBlockKey'),
-        content: null,
-      }
   }
 }
 
-function parseBaseBlock(fields: FieldReader): RenderReadyBaseBlock {
-  return {
+function readyBlockName(block: RenderReadyCardBlock): string {
+  return typeof block.name === 'string' ? block.name : block.id
+}
+
+function parseBaseBlock(source: SourceRecord, fields: FieldReader): RenderReadyBaseBlock {
+  const ready: RenderReadyBaseBlock = {
     id: fields.string('id'),
     name: fields.string('name'),
     notes: fields.string('notes'),
@@ -291,6 +314,13 @@ function parseBaseBlock(fields: FieldReader): RenderReadyBaseBlock {
     opacity: fields.number('opacity'),
     customCss: fields.string('customCss'),
   }
+  const schema = resolvePropertyEditorSchema(source)
+  for (const fieldKey of schema.customKeys) {
+    if (!Object.prototype.hasOwnProperty.call(source, fieldKey)) continue
+    const contract = dynamicRenderContract(schema.fields[fieldKey])
+    if (contract) ready[fieldKey] = fields.dynamic(fieldKey, contract)
+  }
+  return ready
 }
 
 function parseSimpleLocation(
@@ -397,35 +427,22 @@ function dynamicRenderContract(
   }
 }
 
-function validateAdditionalFields(
+type FieldReader = ReturnType<typeof createFieldReader>
+
+function createFieldReader(
   source: SourceRecord,
   context: IssueContext,
   issues: CardPipelineIssue[],
- ): void {
-  const schema = resolvePropertyEditorSchema(source)
-  for (const fieldKey of schema.customKeys) {
-    const contract = dynamicRenderContract(schema.fields[fieldKey])
-    if (!contract || !Object.prototype.hasOwnProperty.call(source, fieldKey)) continue
-    const parsed = parseRenderField(source[fieldKey], contract)
-    if (!parsed.ok) {
-      for (const diagnostic of parsed.diagnostics) {
-        pushIssue(context, fieldKey, contract, diagnostic.code, issues, diagnostic.path)
-      }
-    }
-  }
-}
-
-type FieldReader = ReturnType<typeof createFieldReader>
-
-function createFieldReader(source: SourceRecord, context: IssueContext, issues: CardPipelineIssue[]) {
+  allowTypedLiterals = false,
+) {
   function contractFor(fieldKey: string): RenderFieldContract {
     const contract = getRenderFieldContract(context.typeName, fieldKey)
     if (!contract) throw new Error(`Missing render contract for ${context.typeName}.${fieldKey}`)
     return contract
   }
 
-  function value(fieldKey: string): unknown {
-    const contract = contractFor(fieldKey)
+  function value(fieldKey: string, suppliedContract?: RenderFieldContract): unknown {
+    const contract = suppliedContract ?? contractFor(fieldKey)
     const hasValue = Object.prototype.hasOwnProperty.call(source, fieldKey)
       && source[fieldKey] !== null
       && source[fieldKey] !== undefined
@@ -435,7 +452,7 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
       return parseRenderDefault(context.typeName, fieldKey, contract)
     }
 
-    const parsed = parseRenderField(source[fieldKey], contract)
+    const parsed = parseRenderField(source[fieldKey], contract, false, allowTypedLiterals)
     if (!parsed.ok) {
       for (const diagnostic of parsed.diagnostics) {
         pushIssue(context, fieldKey, contract, diagnostic.code, issues, diagnostic.path)
@@ -446,6 +463,9 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
   }
 
   return {
+    dynamic(fieldKey: string, contract: RenderFieldContract): unknown {
+      return value(fieldKey, contract)
+    },
     string(fieldKey: string): string {
       return value(fieldKey) as string
     },
@@ -456,7 +476,7 @@ function createFieldReader(source: SourceRecord, context: IssueContext, issues: 
         && source[fieldKey] !== undefined
       if (!hasValue) return fallback
 
-      const parsed = parseRenderField(source[fieldKey], contract)
+      const parsed = parseRenderField(source[fieldKey], contract, false, allowTypedLiterals)
       if (!parsed.ok) {
         for (const diagnostic of parsed.diagnostics) {
           pushIssue(context, fieldKey, contract, diagnostic.code, issues, diagnostic.path)
@@ -508,6 +528,7 @@ function parseRenderField(
   value: unknown,
   contract: RenderFieldContract,
   ignoreRequired = false,
+  allowTypedLiterals = false,
 ): RenderFieldResult {
   if (!ignoreRequired && contract.required && value === '') return invalidRenderField('required')
 
@@ -525,6 +546,12 @@ function parseRenderField(
   }
 
   if (contract.kind === 'number') {
+    if (allowTypedLiterals && typeof value === 'number') {
+      if (!Number.isFinite(value)) return invalidRenderField('conversion-failed')
+      if ((contract.min !== undefined && value < contract.min)
+        || (contract.max !== undefined && value > contract.max)) return invalidRenderField('out-of-range')
+      return { ok: true, value }
+    }
     if (typeof value !== 'string') return invalidRenderField('invalid-type')
     const parsed = value.trim() === '' ? Number.NaN : Number(value)
     if (!Number.isFinite(parsed)) return invalidRenderField('conversion-failed')
@@ -534,6 +561,7 @@ function parseRenderField(
   }
 
   if (contract.kind === 'boolean') {
+    if (allowTypedLiterals && typeof value === 'boolean') return { ok: true, value }
     if (value !== 'true' && value !== 'false') {
       return invalidRenderField(typeof value === 'string' ? 'conversion-failed' : 'invalid-type')
     }

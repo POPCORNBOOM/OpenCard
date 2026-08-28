@@ -1,7 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
-import type { CustomBlockRuntimeEntry } from '../../card-rendering/expandCustomBlocks'
 import {
   findProjectIcon,
   type ProjectIconCatalogEntry,
@@ -15,7 +14,7 @@ import {
 } from './projectResourceEnvironment'
 
 export type ResourceReferenceScope = 'current' | 'host' | 'package'
-export type ResourceReferenceKind = 'asset' | 'font' | 'icon' | 'block'
+export type ResourceReferenceKind = 'asset' | 'font' | 'icon'
 
 export type ResourceReference = {
   scope: ResourceReferenceScope
@@ -72,7 +71,7 @@ function splitReference(source: string): { qualifier: string | null, body: strin
 }
 
 function normalizeKind(value: string): ResourceReferenceKind | null {
-  return value === 'asset' || value === 'font' || value === 'icon' || value === 'block'
+  return value === 'asset' || value === 'font' || value === 'icon'
     ? value
     : null
 }
@@ -199,11 +198,6 @@ function findFont(environment: ProjectResourceEnvironment, key: string): Project
   return Object.entries(environment.fonts).find(([candidate]) => candidate.toLocaleLowerCase() === key.toLocaleLowerCase())?.[1] ?? null
 }
 
-function findBlock(environment: ProjectResourceEnvironment, key: string): CustomBlockRuntimeEntry | null {
-  const catalog = environment.customBlockCatalog
-  return catalog?.get(`block:${key}`) ?? catalog?.get(key) ?? null
-}
-
 function resourceUnavailable<T>(
   reference: ResourceReference,
   environment: ProjectResourceEnvironment | null,
@@ -218,7 +212,7 @@ function resourceUnavailable<T>(
   }
 }
 
-export function resolveResourceReference<T extends string | ProjectFontRegistryEntry | ProjectIconCatalogEntry | CustomBlockRuntimeEntry>(
+export function resolveResourceReference<T extends string | ProjectFontRegistryEntry | ProjectIconCatalogEntry>(
   reference: ResourceReference,
   options: ResourceReferenceResolutionOptions,
 ): ResolvedResource<T> {
@@ -253,13 +247,10 @@ export function resolveResourceReference<T extends string | ProjectFontRegistryE
       ? { reference, environment, value: icon as T, diagnostics: [] }
       : resourceUnavailable(reference, environment, 'Referenced icon is unavailable')
   }
-  const block = findBlock(environment, reference.key)
-  return block
-    ? { reference, environment, value: block as T, diagnostics: [] }
-    : resourceUnavailable(reference, environment, 'Referenced custom block is unavailable')
+  return resourceUnavailable(reference, environment, 'Referenced icon is unavailable')
 }
 
-export function resolveResourceReferenceText<T extends string | ProjectFontRegistryEntry | ProjectIconCatalogEntry | CustomBlockRuntimeEntry>(
+export function resolveResourceReferenceText<T extends string | ProjectFontRegistryEntry | ProjectIconCatalogEntry>(
   source: string,
   options: ResourceReferenceResolutionOptions,
 ): ResolvedResource<T> {

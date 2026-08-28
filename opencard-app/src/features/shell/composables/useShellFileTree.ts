@@ -5,11 +5,7 @@ import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
 import type { IconToken } from '../../../shared/ui/icon/iconTokens'
 import { reportAppError } from '../../logging/appErrorCatalog'
-import type { ProjectCustomBlockRegistryDocument } from '../../workspace/model/projectCustomBlockRegistry'
-import type { ProjectCustomBlockDefinitionCatalogEntry } from '../../workspace/services/projectCustomBlockDefinition'
 import {
-  PROJECT_CUSTOM_BLOCK_DIRECTORY,
-  PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
   PROJECT_DICTIONARY_FILE_NAME,
   PROJECT_FONT_DIRECTORY,
   PROJECT_FONT_REGISTRY_FILE_NAME,
@@ -22,8 +18,6 @@ import {
 } from '../../workspace/model/projectStructure'
 
 export const OPENED_EDITOR_CLOSE_ACTION_KEY = 'close-editor'
-export const PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY = 'project-custom-block-register'
-export const PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY = 'project-custom-block-delete'
 export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
 export const PROJECT_ENTRY_REVEAL_ACTION_KEY = 'project-entry-reveal'
 export const PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY = 'project-entry-copy-relative-path'
@@ -43,12 +37,6 @@ const PROJECT_MANAGEMENT_ENTRIES: readonly ProjectManagementEntry[] = [
   { path: PROJECT_DICTIONARY_FILE_NAME, labelKey: 'fileTypes.opencardDictionary' },
   { path: PROJECT_FONT_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardFontRegistry', assetDirectory: PROJECT_FONT_DIRECTORY },
   { path: PROJECT_ICON_REGISTRY_FILE_NAME, labelKey: 'fileTypes.opencardIconRegistry', assetDirectory: PROJECT_ICON_DIRECTORY },
-  {
-    path: PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME,
-    labelKey: 'fileTypes.opencardCustomBlockRegistry',
-    assetDirectory: PROJECT_CUSTOM_BLOCK_DIRECTORY,
-    packageDirectory: true,
-  },
   {
     path: PROJECT_PACKAGE_MANIFEST_FILE_NAME,
     labelKey: 'fileTypes.opencardResourcePackage',
@@ -99,8 +87,6 @@ type UseShellFileTreeOptions = {
   ensureProjectManagementStructure: () => Promise<void>
   translate: (key: string) => string
   registeredFontSources?: Readonly<Ref<readonly string[] | null>>
-  customBlockRegistry?: Readonly<Ref<ProjectCustomBlockRegistryDocument>>
-  customBlockDefinitions?: Readonly<Ref<ReadonlyMap<string, ProjectCustomBlockDefinitionCatalogEntry>>>
 }
 
 function normalizeShellPath(path: string): string {
@@ -225,31 +211,6 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         icon: presentation.icon,
         iconTone: presentation.tone,
       })
-      if (entry.path === PROJECT_CUSTOM_BLOCK_REGISTRY_FILE_NAME) {
-        const registeredNames = new Map((options.customBlockRegistry?.value.blocks ?? []).map(block => [
-          block.key.toLocaleLowerCase(), block.name,
-        ]))
-        const blockChildren = options.indexedEntries.value
-          .map(indexedEntry => normalizeShellPath(indexedEntry.name))
-          .filter(relativePath => relativePath.startsWith(`${PROJECT_INTERNAL_DIRECTORY_NAME}/${PROJECT_CUSTOM_BLOCK_DIRECTORY}/`)
-            && relativePath.toLocaleLowerCase().endsWith('.ocblock'))
-          .map(relativePath => {
-            const blockDirectory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${PROJECT_CUSTOM_BLOCK_DIRECTORY}/`
-            const blockKey = relativePath.slice(blockDirectory.length, -'.ocblock'.length)
-            const registeredName = registeredNames.get(blockKey.toLocaleLowerCase())
-            const definition = options.customBlockDefinitions?.value.get(blockKey.toLocaleLowerCase())
-            const childKey = normalizeShellPath(`${options.projectPath.value}/${relativePath}`)
-            items.set(childKey, {
-              label: registeredName ?? definition?.definition.name ?? blockKey,
-              tail: registeredName ? blockKey : options.translate('projectTemplates.status.customBlockPendingRegistration'),
-              icon: 'file.custom-block',
-              iconTone: registeredName ? 'config' : 'muted',
-              ...(!registeredName ? { actions: [PROJECT_CUSTOM_BLOCK_REGISTER_ACTION_KEY, PROJECT_CUSTOM_BLOCK_DELETE_ACTION_KEY] } : {}),
-            })
-            return childKey
-          })
-        if (blockChildren.length > 0) children.set(key, blockChildren)
-      }
       if (entry.packageDirectory && entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY) {
         const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
         const childSets = new Map<string, Set<string>>()
@@ -269,8 +230,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
                 : resolveEntryIcon(nodeKey, isDirectory, false, options.projectPath.value)
               items.set(nodeKey, {
                 label: segment,
-                icon: index === 1 && isDirectory && entry.assetDirectory !== PROJECT_PACKAGE_DIRECTORY
-                  ? 'file.custom-block' : nodePresentation.icon,
+                icon: nodePresentation.icon,
                 iconTone: nodePresentation.tone,
                 ...(index === 1 ? { tail: `${segments[0]}/${segments[1]}` } : {}),
               })

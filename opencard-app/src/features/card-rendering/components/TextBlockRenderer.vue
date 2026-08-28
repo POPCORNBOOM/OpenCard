@@ -2,7 +2,7 @@
 <template>
     <div :data-block-id="block.id" :style="blockStyle" @click.stop="handleClick">
         <RichTextDocumentRenderer v-if="preparedRichText" class="text-block-content text-block-content--richtext"
-          :prepared="preparedRichText" :owner-block-id="block.id" />
+          :prepared="preparedRichText" :owner-block="block" />
 	        <div v-else class="text-block-content text-block-content--richtext" />
     </div>
 </template>
@@ -12,24 +12,22 @@ import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyTextBlock } from '../render.types'
 import { getTextContentBlockStyle } from './textContentBlockStyle'
 import RichTextDocumentRenderer from './richTextDocumentRenderer'
+import type { BlockRenderPlacement } from './blockRenderPlacement'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
     /** 文本块数据模型。 */
     block: RenderReadyTextBlock
-    /** 布局模式：absolute 使用绝对定位，static 参与父容器流式布局。 */
-    layoutMode?: 'absolute' | 'static'
-}>(), {
-    layoutMode: 'absolute',
-})
+    placement: BlockRenderPlacement
+}>()
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
 const preparedRichText = computed(() => editorContext.richText?.value.get(props.block.id) ?? null)
 const blockStyle = computed(() => getTextContentBlockStyle(
     props.block,
-    props.layoutMode,
+    props.placement,
     isTransformDisabled.value,
-    value => editorContext.resolveFontFamily(value, props.block.id, 'fontFamily'),
+	    value => editorContext.resources.resolveFont(value, props.block.id, 'fontFamily'),
 ))
 
 function handleClick(event: MouseEvent) {
@@ -62,14 +60,5 @@ function handleClick(event: MouseEvent) {
     display: inline-block;
     background-repeat: no-repeat;
     vertical-align: text-bottom;
-}
-.text-block-content--richtext :deep(.rich-text-custom-block--inline) {
-    display: inline-block;
-    max-width: 100%;
-    vertical-align: text-bottom;
-}
-.text-block-content--richtext :deep(.rich-text-custom-block--block) {
-    display: block;
-    max-width: 100%;
 }
 </style>

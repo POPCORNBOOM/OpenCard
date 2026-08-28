@@ -366,22 +366,6 @@ function createBaseBlockPropertyEditorSchema(): Record<string, EditorPropertyDef
     }
 }
 
-function createCustomBlockPropertyEditorSchema(): Record<string, EditorPropertyDefinition> {
-    return {
-        id: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false },
-        type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false, exposesReference: false },
-        customBlockKey: {
-            fieldType: 'string',
-            required: true,
-            isReadonly: true,
-            categoryId: 'advanced',
-            acceptsBinding: false,
-            exposesReference: false,
-        },
-        additionalFieldDefinition: { fieldType: 'object', objectType: 'AdditionalFieldDefinition', isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
-    }
-}
-
 function createTextContentBlockPropertyEditorSchema(richText: boolean): Record<string, EditorPropertyDefinition> {
     return {
         ...createBaseBlockPropertyEditorSchema(),
@@ -475,7 +459,6 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         gap: { fieldType: 'string', required: true, autocomplete: cssLengthAutocomplete, categoryId: 'container' },
         children: { fieldType: 'object', objectType: 'CardBlock', required: true, isArray: true, isHidden: true, categoryId: 'data', acceptsBinding: false, exposesReference: false },
     },
-    'custom-block': createCustomBlockPropertyEditorSchema(),
     'simple-container-location': {
         id: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false },
         type: { fieldType: 'string', required: true, isReadonly: true, categoryId: 'advanced', acceptsBinding: false, exposesReference: false },
@@ -726,13 +709,6 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         background: '#FFFFFF',
         children: [],
     },
-    'custom-block': {
-        id: '',
-        name: '',
-        notes: '',
-        visible: 'true',
-        type: 'custom-block',
-        customBlockKey: '',    },
     'card-instance': {
         type: 'card-instance',
         amount: '1',

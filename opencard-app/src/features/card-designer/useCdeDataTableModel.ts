@@ -1,4 +1,4 @@
-import { computed, type DeepReadonly, type Ref } from 'vue'
+import { computed, type Ref } from 'vue'
 import {
   getBlockProperty,
   type CardBlock,
@@ -9,8 +9,6 @@ import { isBlockContainer, isBlockPackaged } from '../../entities/card/tree'
 import { isInstanceBlockFieldOverridable } from '../../entities/card/instance'
 import type { CardPropertyFieldDefinition } from '../card-properties/cardPropertyFieldDefinitions'
 import { resolveCardPropertyFields } from '../card-properties/cardPropertyFieldDefinitions'
-import type { ProjectCustomBlockCatalogEntry } from '../workspace/model/projectCustomBlocks'
-import { createProjectCustomBlockPropertySchema } from '../workspace/services/projectCustomBlockPublicFields'
 
 export type CdeDataTableColumn = {
   key: string
@@ -71,7 +69,6 @@ type UseCdeDataTableModelOptions = {
   fieldSelection: Readonly<Ref<CdeDataTableFieldSelection>>
   exportInstanceIds?: Readonly<Ref<readonly string[]>>
   blueprintCardId: string
-  customBlockCatalog?: Readonly<Ref<ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>>>>
   blueprintTitle: () => string
   faceTitle: (faceKey: CardFaceKey) => string
   translate: (messageKey: string) => string
@@ -80,18 +77,6 @@ type UseCdeDataTableModelOptions = {
 
 function hasOwn(record: object, fieldKey: string): boolean {
   return Object.prototype.hasOwnProperty.call(record, fieldKey)
-}
-
-function findCatalogEntry(
-  catalog: ReadonlyMap<string, DeepReadonly<ProjectCustomBlockCatalogEntry>> | undefined,
-  key: string,
-): DeepReadonly<ProjectCustomBlockCatalogEntry> | undefined {
-  if (!catalog) return undefined
-  const identity = key.toLocaleLowerCase()
-  const legacy = identity.includes('@block:')
-    ? `${identity.slice(0, identity.indexOf('@block:'))}/${identity.slice(identity.indexOf('@block:') + 7)}`
-    : identity
-  return catalog.get(identity) ?? catalog.get(legacy)
 }
 
 export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
@@ -185,33 +170,23 @@ export function useCdeDataTableModel(options: UseCdeDataTableModelOptions) {
       }
     }
 
-    const customEntry = block.type === 'custom-block'
-      ? findCatalogEntry(options.customBlockCatalog?.value, block.customBlockKey)
-      : undefined
-    const packageSchema = customEntry ? createProjectCustomBlockPropertySchema({ definition: customEntry.definition, block: customEntry.definition.root }) : null
-    const override = packageSchema?.fields ?? {}
     const definitions = resolveCardPropertyFields(definitionRecord, {
       allowDelete: true,
       translate: options.translate,
       hasMessage: options.hasMessage,
-      ...(packageSchema ? {
-        override,
-        labels: packageSchema.labels,
-        customKeys: packageSchema.customKeys,
-      } : {}),
     })
     const blockRecord = block as unknown as Record<string, unknown>
 
     return Object.entries(definitions)
       .filter(([fieldKey, definition]) => (
         fieldKey !== 'name' && !definition.isHidden && !definition.isReadonly
-        && (block.type !== 'custom-block' || hasOwn(override, fieldKey))
+        
       ))
       .map(([fieldKey, definition]) => ({
         key: fieldKey,
         title: definition.title,
         definition,
-        deletable: block.type !== 'custom-block' && hasOwn(blockRecord, fieldKey) && definition.deletable === true,
+        deletable: hasOwn(blockRecord, fieldKey) && definition.deletable === true,
       }))
   }
 

@@ -6,7 +6,6 @@ export const RESOURCE_PACKAGE_EXTENSION = 'ocpack'
 export const RESOURCE_PACKAGE_SUFFIX = `.${RESOURCE_PACKAGE_EXTENSION}`
 
 export type ResourcePackagePublicResources = {
-  blocks: readonly string[]
   fonts: readonly string[]
   iconSeries: readonly string[]
   assets: readonly string[]
@@ -18,7 +17,7 @@ export type ResourcePackageDependency = {
   contentHash: string
 }
 
-export type ResourcePackageDependencyKind = 'asset' | 'font' | 'icon' | 'block' | 'package'
+export type ResourcePackageDependencyKind = 'asset' | 'font' | 'icon' | 'package'
 
 export type ResourcePackageHostDependency = {
   kind: ResourcePackageDependencyKind
@@ -49,7 +48,7 @@ export type ResourcePackageManifestNormalization = {
 
 const semanticVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const hashPattern = /^[0-9a-f]{64}$/i
-const dependencyKinds = new Set<ResourcePackageDependencyKind>(['asset', 'font', 'icon', 'block', 'package'])
+const dependencyKinds = new Set<ResourcePackageDependencyKind>(['asset', 'font', 'icon', 'package'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -202,7 +201,6 @@ export function normalizeResourcePackageManifest(
       version,
       contentHash: normalizeHash(source.contentHash, issues, 'contentHash'),
       public: {
-        blocks: normalizeStringList(publicSource.blocks, issues, 'public.blocks'),
         fonts: normalizeStringList(publicSource.fonts, issues, 'public.fonts'),
         iconSeries: normalizeStringList(publicSource.iconSeries, issues, 'public.iconSeries'),
         assets: normalizeStringList(publicSource.assets, issues, 'public.assets'),

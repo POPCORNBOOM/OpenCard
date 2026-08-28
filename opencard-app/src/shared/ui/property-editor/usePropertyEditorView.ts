@@ -110,13 +110,7 @@ function buildCategories(
 function createEntries(source: PropertyEditorInput): PropertyEditorEntry[] {
   return Object.keys(source.record).flatMap(fieldKey => {
     const definition = source.fields[fieldKey]
-    if (!definition) {
-      if (import.meta.env.DEV) {
-        console.warn(`[PropertyEditor] Missing field definition for ${source.key}.${fieldKey}`)
-      }
-      return []
-    }
-    if (definition.isHidden) return []
+    if (!definition || definition.isHidden) return []
     return [{
       key: fieldKey,
       fieldKey,

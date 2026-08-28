@@ -40,16 +40,11 @@ export type CardRenderParseIssueType =
   | 'card-designer.render-parse.invalid-css-length'
   | 'card-designer.render-parse.invalid-file-path'
   | 'card-designer.render-parse.invalid-object'
-export type CardCustomBlockIssueType =
-  | 'card-designer.custom-block.unavailable'
-  | 'card-designer.custom-block.content-error'
-  | 'card-designer.custom-block.resource-error'
-
 export type CardRichTextIssueType =
   | 'card-designer.rich-text.invalid-html'
   | 'card-designer.rich-text.limit-exceeded'
 
-export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType | CardCustomBlockIssueType | CardRichTextIssueType
+export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType | CardRichTextIssueType
 
 const cardIssueMessageKeys: Readonly<Record<CardIssueType, string>> = {
   'card-designer.binding.invalid-token': 'app.problems.bindingCodes.INVALID_TOKEN',
@@ -68,9 +63,6 @@ const cardIssueMessageKeys: Readonly<Record<CardIssueType, string>> = {
   'card-designer.render-parse.invalid-css-length': 'app.problems.renderCodes.INVALID_CSS_LENGTH',
   'card-designer.render-parse.invalid-file-path': 'app.problems.renderCodes.INVALID_FILE_PATH',
   'card-designer.render-parse.invalid-object': 'app.problems.renderCodes.INVALID_OBJECT',
-  'card-designer.custom-block.unavailable': 'app.problems.customBlockCodes.UNAVAILABLE',
-  'card-designer.custom-block.content-error': 'app.problems.customBlockCodes.CONTENT_ERROR',
-  'card-designer.custom-block.resource-error': 'app.problems.customBlockCodes.RESOURCE_ERROR',
   'card-designer.rich-text.invalid-html': 'app.problems.richTextCodes.INVALID_HTML',
   'card-designer.rich-text.limit-exceeded': 'app.problems.richTextCodes.LIMIT_EXCEEDED',
 }
@@ -86,6 +78,8 @@ export type CardPipelineIssue = {
   location: CardIssueLocation
   parameters?: Readonly<Record<string, string | number>>
   token?: string
+  details?: Readonly<Record<string, unknown>>
+  children?: readonly CardPipelineIssue[]
 }
 
 export type CreateCardPipelineIssueInput = Omit<CardPipelineIssue, 'id' | 'severity'>

@@ -146,7 +146,7 @@ export function createCardDesignerIssues(
   resolveFieldLabel: ResolveFieldLabel,
 ): readonly EditorIssue[] {
   if (!result) return []
-  return result.issues.map((issue) => {
+  function convert(issue: CardPipelineIssue): EditorIssue {
     const cardLabel = resolveCardLabel(instance, issue.location.faceKey, translate)
     const navigationToken = createNavigationToken(issue)
     return {
@@ -159,8 +159,13 @@ export function createCardDesignerIssues(
         createDescriptionParameters(issue, translate, resolveFieldLabel),
       ),
       ...(navigationToken ? { navigationToken } : {}),
+      ...(issue.details ? { details: issue.details } : {}),
+      ...(issue.children?.length
+        ? { children: issue.children.map(convert) }
+        : {}),
     }
-  })
+  }
+  return result.issues.map(convert)
 }
 
 export function createCardDesignerIssueSnapshot(options: {

@@ -1,8 +1,6 @@
 import type { IconToken } from '../icon/iconRegistry'
 import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
-import type { DeepReadonly } from 'vue'
-import type { ProjectCustomBlockCatalog } from '../../../features/workspace/model/projectCustomBlocks'
 import type { OcItemTailPart } from '../itemViewModel.types'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
@@ -118,10 +116,6 @@ type PropertyEditorFieldBase = {
     provider?: PropertyCompletionProvider
     catalog?: ProjectIconCatalog
   }
-  customBlock?: {
-    catalog: DeepReadonly<ProjectCustomBlockCatalog>
-    ensureLoaded: (key: string) => Promise<unknown>
-  }
   tail?: OcItemTailPart | readonly OcItemTailPart[]
 }
 
@@ -174,7 +168,7 @@ export type PropertyEditorCategoryDefinition = {
 export type PropertyEditorMutation = {
   key: string
   fieldKey: string
-  value: unknown
+  value?: unknown
 }
 
 export type PropertyEditorFieldIntent = {

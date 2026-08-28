@@ -71,7 +71,7 @@ function parseJson(bytes: Uint8Array, path: string): unknown {
 function validatePackageProjection(files: readonly ResourcePackageContentFile[]): void {
   for (const file of files) {
     const lower = file.path.toLocaleLowerCase()
-    if (lower.endsWith('.json') || lower.endsWith('.ocblock')) parseJson(file.bytes, file.path)
+    if (lower.endsWith('.json')) parseJson(file.bytes, file.path)
   }
 }
 

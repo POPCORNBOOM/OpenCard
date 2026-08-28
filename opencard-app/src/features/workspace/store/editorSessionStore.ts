@@ -4,7 +4,7 @@
  * 职责边界：
  * - 只管理会话真相 不处理文件系统目录索引
  */
-import { computed, readonly, ref } from 'vue'
+import { computed, nextTick, readonly, ref } from 'vue'
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 import {
   CARD_DOCUMENT_SUFFIX,
@@ -322,17 +322,21 @@ export function useEditorSessionStore() {
           mode: 'edit',
     }
 
+    const replacedPreviewSessionIds = preview
+      ? sessions.value.filter((candidate) => candidate.isPreview).map(candidate => candidate.id)
+      : []
     const nextSessions = preview
       ? sessions.value.filter((candidate) => !candidate.isPreview)
       : sessions.value
 
-    if (preview) {
-      editorHistoryManager.releaseMany(sessions.value.filter(candidate => candidate.isPreview).map(candidate => candidate.id))
-    }
-
     sessions.value = [...nextSessions, session]
     initializeSessionHistory(session)
     activeSessionId.value = session.id
+    if (preview) {
+      await nextTick()
+      await new Promise<void>(resolve => setTimeout(resolve, 250))
+      editorHistoryManager.releaseMany(replacedPreviewSessionIds)
+    }
     return session
   }
 

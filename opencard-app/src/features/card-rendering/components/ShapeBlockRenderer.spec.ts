@@ -29,7 +29,7 @@ describe('ShapeBlockRenderer', () => {
     ['diamond', 'M50 0L100 50L50 100L0 50Z'],
   ] as const)('renders %s as a full-boundary closed path', (shape, pathData) => {
     const wrapper = mount(ShapeBlockRenderer, {
-      props: { block: createBlock(shape), layoutMode: 'static' },
+      props: { block: createBlock(shape), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
@@ -43,7 +43,7 @@ describe('ShapeBlockRenderer', () => {
 
   it('renders line across the full viewBox width', () => {
     const wrapper = mount(ShapeBlockRenderer, {
-      props: { block: createBlock('line'), layoutMode: 'static' },
+      props: { block: createBlock('line'), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
@@ -58,7 +58,7 @@ describe('ShapeBlockRenderer', () => {
 
   it('keeps static shape geometry positioned relative to its own block box', () => {
     const wrapper = mount(ShapeBlockRenderer, {
-      props: { block: createBlock('ellipse'), layoutMode: 'static' },
+      props: { block: createBlock('ellipse'), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
@@ -70,7 +70,7 @@ describe('ShapeBlockRenderer', () => {
   ] as const)('simulates %s alignment with a doubled clipped stroke', (alignment, attribute) => {
     const block = { ...createBlock('triangle'), strokeAlignment: alignment }
     const wrapper = mount(ShapeBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const stroke = wrapper.get('.shape-block__stroke')
@@ -88,7 +88,7 @@ describe('ShapeBlockRenderer', () => {
       strokeMiterLimit: 8,
     }
     const wrapper = mount(ShapeBlockRenderer, {
-      props: { block, layoutMode: 'static' },
+      props: { block, placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
     const style = wrapper.get('line').attributes('style')

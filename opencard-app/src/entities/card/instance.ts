@@ -61,12 +61,6 @@ function mergeBlockOverride(block: CardBlock, instance: CardInstanceRecord): Car
                     block: mergeBlockOverride(child.block, instance),
                 })),
             }
-        case 'custom-block':
-            return {
-                ...block,
-                ...projected,
-                additionalFieldDefinition: cloneAdditionalFieldDefinitions(block.additionalFieldDefinition),
-            }
     }
 }
 

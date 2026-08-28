@@ -9,7 +9,6 @@ import { parseProjectMetadataText, serializeProjectMetadata } from '../../worksp
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
-import { readProjectCustomBlockDefinitionFile, writeProjectCustomBlockDefinitionFile } from '../../workspace/services/projectCustomBlock'
 import { initializeProjectStructure } from '../../workspace/services/projectStructureService'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
@@ -46,7 +45,6 @@ import {
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
-import type { UserCustomBlockCatalogEntry } from '../../workspace/model/userCustomBlockCatalog'
 
 const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
@@ -413,7 +411,6 @@ export class ProjectTemplateService {
       }
       await initializeProjectStructure(this.fs, temporaryPath, this.createId)
       await this.registerIconPacks(temporaryPath, request.iconPacks ?? [])
-      await this.registerCustomBlocks(temporaryPath, request.customBlocks ?? [])
       if (selectedEntry) {
         const entryPath = await this.paths.join(temporaryPath, ...pathSegments(selectedEntry))
         if (!await this.fs.fileExists(entryPath)) {
@@ -505,36 +502,6 @@ export class ProjectTemplateService {
       }
     }
     await this.fs.writeFile(registryPath, serializeProjectIconRegistry({ iconSeries }))
-  }
-
-  private async registerCustomBlocks(
-    projectPath: string,
-    blocks: readonly UserCustomBlockCatalogEntry[],
-  ): Promise<void> {
-    if (blocks.length === 0) return
-    try {
-      const existingKeys = new Set<string>()
-      const selectedKeys = new Set<string>()
-      for (const block of blocks) {
-        const customBlock = await readProjectCustomBlockDefinitionFile(this.fs, block.path)
-        if (!customBlock.definition) throw new Error(`Custom block definition is unavailable: ${block.path}`)
-        const identity = customBlock.definition.key.toLocaleLowerCase()
-        if (identity !== block.blockKey.toLocaleLowerCase()) {
-          throw new Error(`Selected custom block changed after selection: ${block.blockKey}`)
-        }
-        if (selectedKeys.has(identity)) {
-          throw new Error(`Selected custom block Key is duplicated: ${customBlock.definition.key}`)
-        }
-        if (existingKeys.has(identity)) {
-          throw new Error(`Custom block Key already exists in the template: ${customBlock.definition.key}`)
-        }
-        selectedKeys.add(identity)
-        await writeProjectCustomBlockDefinitionFile(this.fs, projectPath, customBlock.definition)
-      }
-    } catch (cause) {
-      if (cause instanceof TemplateServiceError) throw cause
-      throw new TemplateServiceError('custom-block-failed', 'Could not install selected custom blocks', { cause })
-    }
   }
 
   private async readTemplateArchive(sourcePath: string): Promise<{

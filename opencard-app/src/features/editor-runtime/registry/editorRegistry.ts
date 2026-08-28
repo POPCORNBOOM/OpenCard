@@ -18,7 +18,6 @@ import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/founda
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import type { ProjectInformation } from '../../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
-import type { CustomBlockRuntimeCatalog } from '../../card-rendering/expandCustomBlocks'
 import type { EditorHistoryKind } from '../history/editorHistoryManager'
 import type { ContentHistoryOperationMeta } from '../history/contentHistory'
 
@@ -58,7 +57,6 @@ export interface EditorSnapshotContext {
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>>
   projectIconCatalog?: ProjectIconCatalog
-  customBlockCatalog?: CustomBlockRuntimeCatalog
   resolveFontFamily?: (references: string) => string
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
 }
@@ -127,8 +125,6 @@ import ExternalPackageManagerEditor from '../../../components/editors/ExternalPa
 import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
-import ProjectCustomBlockRegistryEditor from '../../../components/editors/ProjectCustomBlockRegistryEditor.vue'
-import ProjectCustomBlockEditor from '../../../components/editors/ProjectCustomBlockEditor.vue'
 
 // 单例实例
 export const editorRegistry = new EditorRegistry()
@@ -211,23 +207,6 @@ editorRegistry.register({
   history: 'none',
   hasPreview: false,
 })
-
-editorRegistry.register({
-  id: 'custom-block-manager',
-  name: 'Custom Block Manager',
-  component: ProjectCustomBlockRegistryEditor,
-  history: 'none',
-  hasPreview: false,
-})
-
-editorRegistry.register({
-  id: 'custom-block',
-  name: 'Custom Block',
-  component: ProjectCustomBlockEditor,
-  history: 'none',
-  hasPreview: false,
-})
-
 
 editorRegistry.register({
   id: 'dictionary',

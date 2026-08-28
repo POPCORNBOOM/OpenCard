@@ -55,9 +55,6 @@
             </template>
           </OcButton>
         </div>
-        <div v-if="customBlockCatalog" class="oc-rich-text-editor__tool-group" role="group" aria-label="自定义块">
-          <OcActionButton :action="customBlockAction" size="md" variant="ghost" @select="insertCustomBlock" />
-        </div>
         <div class="oc-rich-text-editor__tool-group" role="group" aria-label="颜色与描边">
           <OcColorPicker label="前景色" :model-value="foregroundColor" :z-index="2500"
             @open-change="captureColorSnapshot('foreground', $event)"
@@ -120,18 +117,6 @@
         <OcActionButton :action="dialogProjectIconAction" size="md" variant="ghost"
           @select="selectDialogProjectIcon" />
       </div>
-      <div v-else-if="dialogNodeTarget?.kind === 'customBlock' && selectedCustomBlock"
-        class="oc-rich-text-editor__node-dialog-content">
-        <header class="oc-rich-text-editor__node-dialog-actions">
-          <OcButton size="sm" icon-only icon="layout.rows" data-tooltip="切换行内/独占行"
-            aria-label="切换行内/独占行" @click="toggleDialogCustomBlockLayout" />
-        </header>
-        <PropertyEditor :inputs="dialogCustomBlockInputs" :categories="dialogCustomBlockCategories" sort-mode="category"
-          :binding-interpreter="customBlockBindingInterpreter"
-          @update-property="updateDialogCustomBlockProperty"
-          @add-property="updateDialogCustomBlockProperty"
-          @reset-property="resetDialogCustomBlockProperty" />
-      </div>
       <template #footer>
         <OcButton type="button" @click="cancelSelectedNodeEditor">{{ tr('propertyEditor.richText.cancel', '取消') }}</OcButton>
         <OcButton type="button" variant="solid" @click="confirmSelectedNodeEditor">{{ tr('propertyEditor.richText.confirm', '确定') }}</OcButton>
@@ -170,19 +155,6 @@ import OcActionButton, {
   type OcActionButtonSelectPayload,
 } from '../../../components/standard/OcActionButton.vue'
 import OcFloatingLayer from '../../../components/standard/OcFloatingLayer.vue'
-import PropertyEditor from '../property-editor/PropertyEditor.vue'
-import type {
-  PropertyEditorBindingInterpreter,
-  PropertyEditorCategoryDefinition,
-  PropertyEditorFieldIntent,
-  PropertyEditorInput,
-  PropertyEditorMutation,
-} from '../property-editor/propertyEditor.types'
-import type { DeepReadonly } from 'vue'
-import type { ProjectCustomBlockCatalog } from '../../../features/workspace/model/projectCustomBlocks'
-import { createProjectCustomBlockPropertySchema } from '../../../features/workspace/services/projectCustomBlockPublicFields'
-import { resolveCardPropertyFields } from '../../../features/card-properties/cardPropertyFieldDefinitions'
-import { InlineCustomBlockNode, BlockCustomBlockNode, remapPastedEmbedIds } from './customBlockNode'
 import { normalizeRichTextHtml, parseRichTextHtml } from '../../rich-text/richTextHtml'
 import type { IconToken } from '../icon/iconRegistry'
 import { BindingNode } from './bindingNode'
@@ -214,10 +186,6 @@ const props = defineProps<{
   modelValue: string
   bindingCompletion?: RichTextBindingCompletionProvider
   projectIconCatalog?: ProjectIconCatalog
-  customBlockCatalog?: {
-    catalog: DeepReadonly<ProjectCustomBlockCatalog>
-    ensureLoaded: (key: string) => Promise<unknown>
-  }
   fontOptions?: readonly RichTextFontOption[]
   baseStyle?: {
     fontFamily?: string
@@ -237,14 +205,10 @@ const tr = (key: string, fallback: string) => translate?.(key) ?? fallback
 
 const lastEmittedValue = ref<string | null>(null)
 const toolbarRevision = ref(0)
-const loadingCustomBlockPackageId = ref<string | null>(null)
-const failedCustomBlockPackageIds = ref(new Set<string>())
 const selectedNodeEditorOpen = ref(false)
 const dialogBindingExpression = ref('')
 const dialogIconPath = ref<string | null>(null)
-const dialogCustomBlockProperties = ref<Record<string, string>>({})
-const dialogCustomBlockNodeType = ref<'inlineCustomBlock' | 'blockCustomBlock'>('inlineCustomBlock')
-const dialogNodeTarget = ref<{ position: number, nodeType: string, kind: 'binding' | 'projectIcon' | 'customBlock' } | null>(null)
+const dialogNodeTarget = ref<{ position: number, nodeType: string, kind: 'binding' | 'projectIcon' } | null>(null)
 type ColorCommand = 'foreground' | 'background' | 'stroke'
 type ColorSnapshot = {
   content: JSONContent
@@ -434,16 +398,6 @@ const projectIconAction = computed<OcActionButtonAction>(() => {
     children: projectIconActionChildren.value,
   }
 })
-const customBlockAction = computed<OcActionButtonAction>(() => ({
-  key: 'custom-block', icon: 'action.custom-block-plus', title: '插入自定义块',
-  children: [...(props.customBlockCatalog?.catalog.values() ?? [])].map(item => ({
-    key: `custom-block:${item.definition.key}`,
-    title: item.definition.name,
-    disabled: loadingCustomBlockPackageId.value === item.definition.key,
-    icon: failedCustomBlockPackageIds.value.has(item.definition.key.toLowerCase())
-      ? 'status.warning' as const : 'data.symbol-custom-block' as const,
-  })),
-}))
 const tableAction = computed<OcActionButtonAction>(() => ({
   key: 'table-actions',
   icon: 'data.table',
@@ -459,39 +413,13 @@ const tableAction = computed<OcActionButtonAction>(() => ({
     { key: 'table.delete', icon: 'action.discard', iconTone: 'danger', title: tr('propertyEditor.richText.deleteTable', '删除整个表格') },
   ],
 }))
-function isCompleteBinding(value: unknown): boolean {
-  return typeof value === 'string' && /^\s*\{\{\s*[^{}]+?\s*\}\}\s*$/.test(value)
-}
-
-const customBlockBindingInterpreter: PropertyEditorBindingInterpreter = {
-  isExpression: isCompleteBinding,
-}
-
-const selectedCustomBlock = computed(() => {
-  toolbarRevision.value
-  const currentEditor = editor.value
-  const selection = currentEditor?.state.selection
-  if (!currentEditor || !(selection instanceof NodeSelection)
-    || !['inlineCustomBlock', 'blockCustomBlock'].includes(selection.node.type.name)) return null
-  const packageId = String(selection.node.attrs.packageId ?? '')
-  const entry = props.customBlockCatalog?.catalog.get(packageId.toLowerCase())
-  return {
-    key: packageId,
-    entry,
-    position: selection.from,
-    nodeType: selection.node.type.name,
-    schema: entry ? createProjectCustomBlockPropertySchema({ definition: entry.definition, block: entry.definition.root }) : null,
-  }
-})
-
-const selectedNodeKind = computed<'binding' | 'projectIcon' | 'customBlock' | null>(() => {
+const selectedNodeKind = computed<'binding' | 'projectIcon' | null>(() => {
   const node = editor.value?.state.selection instanceof NodeSelection
     ? editor.value.state.selection.node
     : null
   if (!node) return null
   if (node.type.name === 'binding') return 'binding'
   if (node.type.name === 'projectIcon') return 'projectIcon'
-  if (node.type.name === 'inlineCustomBlock' || node.type.name === 'blockCustomBlock') return 'customBlock'
   return null
 })
 const selectedNodeAnchor = computed<DOMRect | null>(() => {
@@ -513,44 +441,7 @@ const selectedNodeDialogTitle = computed(() => dialogNodeTarget.value?.kind === 
   ? tr('propertyEditor.richText.editBinding', '编辑 Binding')
   : dialogNodeTarget.value?.kind === 'projectIcon'
     ? tr('propertyEditor.richText.editProjectIcon', '编辑项目图标')
-    : tr('propertyEditor.richText.editCustomBlock', '编辑自定义块'))
-const dialogCustomBlockCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
-  ['customFields', {
-    title: tr('propertyEditor.categories.customFields', 'Custom fields'),
-    icon: 'data.variable',
-  }],
-]))
-const dialogCustomBlockInputs = computed<readonly PropertyEditorInput[]>(() => {
-  const selected = selectedCustomBlock.value
-  if (!selected?.schema) return []
-  const record = { ...dialogCustomBlockProperties.value }
-  const override = Object.fromEntries(Object.entries(selected.schema.fields).map(([fieldKey, definition]) => [
-    fieldKey,
-    {
-      ...definition,
-      resettable: Object.prototype.hasOwnProperty.call(record, fieldKey),
-      ...(props.bindingCompletion ? {
-        binding: { provider: props.bindingCompletion },
-        completion: { provider: props.bindingCompletion },
-      } : {}),
-    },
-  ]))
-  const resolved = resolveCardPropertyFields({ type: 'custom-block', ...record }, {
-    allowDelete: false,
-    translate: key => tr(key, key),
-    hasMessage: () => false,
-    override,
-    labels: selected.schema.labels,
-    customKeys: selected.schema.customKeys,
-  })
-  const included = new Set([...Object.keys(selected.schema.fields), ...Object.keys(record)])
-  return [{
-    key: String(selected.position),
-    title: selected.entry?.definition.name ?? selected.key,
-    record,
-    fields: Object.fromEntries(Object.entries(resolved).filter(([fieldKey]) => included.has(fieldKey))),
-  }]
-})
+    : '')
 const dialogProjectIconAction = computed<OcActionButtonAction>(() => ({
   ...projectIconAction.value,
   title: tr('propertyEditor.richText.chooseProjectIcon', '选择项目图标'),
@@ -567,11 +458,6 @@ function openSelectedNodeEditor(): void {
     dialogBindingExpression.value = String(selection.node.attrs.expression ?? '')
   } else if (selectedNodeKind.value === 'projectIcon') {
     dialogIconPath.value = String(selection.node.attrs.iconPath ?? '')
-  } else if (selectedNodeKind.value === 'customBlock') {
-    dialogCustomBlockProperties.value = { ...(selection.node.attrs.properties as Record<string, string>) }
-    dialogCustomBlockNodeType.value = selection.node.type.name === 'blockCustomBlock'
-      ? 'blockCustomBlock'
-      : 'inlineCustomBlock'
   }
   selectedNodeEditorOpen.value = true
 }
@@ -584,25 +470,6 @@ function updateDialogBindingExpression(event: Event): void {
 function selectDialogProjectIcon(payload: OcActionButtonSelectPayload): void {
   const entry = projectIconEntriesByActionKey.value.get(payload.key)
   if (entry) dialogIconPath.value = `${entry.seriesKey}/${entry.iconKey}`
-}
-
-function updateDialogCustomBlockProperty(payload: PropertyEditorMutation): void {
-  dialogCustomBlockProperties.value = {
-    ...dialogCustomBlockProperties.value,
-    [payload.fieldKey]: String(payload.value ?? ''),
-  }
-}
-
-function resetDialogCustomBlockProperty(payload: PropertyEditorFieldIntent): void {
-  const next = { ...dialogCustomBlockProperties.value }
-  delete next[payload.fieldKey]
-  dialogCustomBlockProperties.value = next
-}
-
-function toggleDialogCustomBlockLayout(): void {
-  dialogCustomBlockNodeType.value = dialogCustomBlockNodeType.value === 'inlineCustomBlock'
-    ? 'blockCustomBlock'
-    : 'inlineCustomBlock'
 }
 
 function confirmSelectedNodeEditor(): void {
@@ -619,16 +486,6 @@ function confirmSelectedNodeEditor(): void {
   } else if (target.kind === 'projectIcon' && dialogIconPath.value) {
     currentEditor.chain().focus().setNodeSelection(target.position)
       .updateAttributes(target.nodeType, { iconPath: dialogIconPath.value }).run()
-  } else if (target.kind === 'customBlock') {
-    if (target.nodeType === dialogCustomBlockNodeType.value) {
-      currentEditor.chain().focus().setNodeSelection(target.position)
-        .updateAttributes(target.nodeType, { properties: dialogCustomBlockProperties.value }).run()
-    } else {
-      currentEditor.chain().focus().insertContentAt({ from: target.position, to: target.position + node.nodeSize }, {
-        type: dialogCustomBlockNodeType.value,
-        attrs: { ...node.attrs, properties: dialogCustomBlockProperties.value },
-      }).setNodeSelection(target.position).run()
-    }
   }
   selectedNodeEditorOpen.value = false
 }
@@ -636,8 +493,6 @@ function confirmSelectedNodeEditor(): void {
 function cancelSelectedNodeEditor(): void {
   selectedNodeEditorOpen.value = false
   dialogIconPath.value = null
-  dialogCustomBlockProperties.value = {}
-  dialogCustomBlockNodeType.value = 'inlineCustomBlock'
   dialogNodeTarget.value = null
 }
 
@@ -669,15 +524,12 @@ const editor = useEditor({
     ProjectIconNode.configure({
       catalog: () => props.projectIconCatalog,
     }),
-    InlineCustomBlockNode,
-    BlockCustomBlockNode,
   ],
   editorProps: {
     attributes: {
       class: 'oc-rich-text-editor__content',
       spellcheck: 'true',
     },
-    transformPasted: slice => remapPastedEmbedIds(slice),
     handleDOMEvents: {
       blur: () => {
         return false
@@ -740,33 +592,6 @@ function handleTableAction(payload: OcActionButtonSelectPayload): void {
   else if (payload.key === 'table.delete-row') chain.deleteRow().run()
   else if (payload.key === 'table.delete-column') chain.deleteColumn().run()
   else if (payload.key === 'table.delete') chain.deleteTable().run()
-}
-
-async function insertCustomBlock(payload: OcActionButtonSelectPayload): Promise<void> {
-  const packageId = payload.key.startsWith('custom-block:') ? payload.key.slice('custom-block:'.length) : ''
-  if (!packageId || !props.customBlockCatalog) return
-  loadingCustomBlockPackageId.value = packageId
-  try {
-    await props.customBlockCatalog.ensureLoaded(packageId)
-  } catch {
-    failedCustomBlockPackageIds.value = new Set(failedCustomBlockPackageIds.value).add(packageId.toLowerCase())
-    return
-  } finally {
-    loadingCustomBlockPackageId.value = null
-  }
-  if (!props.customBlockCatalog.catalog.has(packageId.toLowerCase())) {
-    failedCustomBlockPackageIds.value = new Set(failedCustomBlockPackageIds.value).add(packageId.toLowerCase())
-    return
-  }
-  if (failedCustomBlockPackageIds.value.has(packageId.toLowerCase())) {
-    const nextFailedPackageIds = new Set(failedCustomBlockPackageIds.value)
-    nextFailedPackageIds.delete(packageId.toLowerCase())
-    failedCustomBlockPackageIds.value = nextFailedPackageIds
-  }
-  editor.value?.chain().focus().insertContent({
-    type: 'inlineCustomBlock',
-    attrs: { embedId: crypto.randomUUID(), packageId, properties: {} },
-  }).run()
 }
 
 function parsePositiveNumber(value: unknown): number | null {

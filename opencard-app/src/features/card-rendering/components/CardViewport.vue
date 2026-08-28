@@ -17,7 +17,8 @@
             :transform-disabled-block-ids="transformDisabledBlockIds" :clip-to-face="clipToFace"
             :resource-context="props.comparison.before.resourceContext"
             :visual-readiness="visualReadiness"
-            :diff-highlights="props.comparison.before.diffHighlights ?? []" @block-click="handleBlockClick" />
+            :diff-highlights="props.comparison.before.diffHighlights ?? []" @block-click="handleBlockClick"
+            @runtime-issues-change="comparisonDiagnostics.replace('before', $event)" />
         </div>
       </div>
       <div ref="comparisonAfterLayerRef" class="card-viewport-comparison-layer" :class="{ 'is-transitioning': comparisonTransitioning }"
@@ -29,7 +30,8 @@
             :transform-disabled-block-ids="transformDisabledBlockIds" :clip-to-face="clipToFace"
             :resource-context="props.comparison.after.resourceContext"
             :visual-readiness="visualReadiness"
-            :diff-highlights="props.comparison.after.diffHighlights ?? []" @block-click="handleBlockClick" />
+            :diff-highlights="props.comparison.after.diffHighlights ?? []" @block-click="handleBlockClick"
+            @runtime-issues-change="comparisonDiagnostics.replace('after', $event)" />
         </div>
       </div>
     </template>
@@ -37,7 +39,8 @@
       <CardFaceRenderer :face="face" :transform-disabled-block-ids="transformDisabledBlockIds"
         :clip-to-face="clipToFace" :resource-context="resourceContext"
         :visual-readiness="visualReadiness"
-        :diff-highlights="diffHighlights" @block-click="handleBlockClick" />
+        :diff-highlights="diffHighlights" @block-click="handleBlockClick"
+        @runtime-issues-change="emit('runtime-issues-change', $event)" />
       <Transition name="card-info-fade">
         <aside v-if="$slots.info && showInfo" class="card-viewport-info" :style="viewportInfoStyle">
           <slot name="info" />
@@ -288,6 +291,7 @@ import CardLayerView from './CardLayerView.vue'
 import { buildCardLayerGroups } from './cardLayerModel'
 import type { RenderReadyCardBlock, RenderReadyCardFace } from '../render.types'
 import type { CardRenderResourceContext } from '../cardRenderResources'
+import { createCardViewportComparisonDiagnostics } from './cardViewportComparisonDiagnostics'
 import {
   snapMoveRect,
   snapResizeRect,
@@ -374,6 +378,7 @@ const emit = defineEmits<{
   (e: 'z-index-step', payload: { delta: -1 | 1; existingLayersOnly: boolean }): void
   (e: 'diff-divider-change', value: number): void
   (e: 'render-readiness-change', value: CardVisualReadinessState): void
+  (e: 'runtime-issues-change', value: readonly import('../cardPipelineIssue').CardPipelineIssue[]): void
 }>()
 
 const props = withDefaults(defineProps<{
@@ -455,6 +460,7 @@ const props = withDefaults(defineProps<{
 
 const visualReadiness = createCardVisualReadiness(state => emit('render-readiness-change', state))
 visualReadiness.reset()
+const comparisonDiagnostics = createCardViewportComparisonDiagnostics(issues => emit('runtime-issues-change', issues))
 
 const viewportRef = ref<HTMLElement | null>(null)
 const stageRef = ref<HTMLElement | null>(null)
@@ -478,6 +484,9 @@ const isPanning = ref(false)
 const lastPointerX = ref(0)
 const lastPointerY = ref(0)
 const selectionFrame = ref<SelectionFrame | null>(null)
+let selectionSyncScheduled = false
+let selectionSyncInFlight = false
+let selectionSyncAgain = false
 const diffOverlayHighlights = ref<DiffOverlayHighlight[]>([])
 const diffOverlayVisible = ref(true)
 const diffOverlayBeforeHighlights = computed(() => diffOverlayHighlights.value.filter(highlight => highlight.side === 'before'))
@@ -502,6 +511,7 @@ const isMovingSelection = ref(false)
 const dragMeasurement = ref<SelectionMeasurement | null>(null)
 const previewWorldRect = ref<SelectionFrame | null>(null)
 const rawPreviewWorldRect = ref<SelectionFrame | null>(null)
+const lastTransformClientPosition = ref<{ x: number; y: number } | null>(null)
 const alignmentSnapTargets = ref<ResizeSnapTarget[]>([])
 const alignmentSnapLocks = ref<ResizeSnapLocks>({})
 const alignmentSnapDistances = ref<AlignmentSnapDistances | null>(null)
@@ -562,6 +572,21 @@ const stageStyle = computed(() => ({
 const comparisonDivider = computed(() => Math.min(1, Math.max(0, props.comparison?.divider ?? 0.5)))
 const comparisonTransitioning = ref(false)
 const comparisonDividerDragging = ref(false)
+watch(() => props.comparison?.before.face.id, (next, previous) => {
+  if (previous !== undefined && next !== previous) comparisonDiagnostics.remove('before')
+})
+watch(() => props.comparison?.after.face.id, (next, previous) => {
+  if (previous !== undefined && next !== previous) comparisonDiagnostics.remove('after')
+})
+watch(() => props.comparison?.before.placeholder, placeholder => {
+  if (placeholder) comparisonDiagnostics.remove('before')
+})
+watch(() => props.comparison?.after.placeholder, placeholder => {
+  if (placeholder) comparisonDiagnostics.remove('after')
+})
+watch(() => Boolean(props.comparison), comparisonActive => {
+  if (!comparisonActive) comparisonDiagnostics.reset()
+})
 watch(() => props.comparison?.viewMode, (next, previous) => {
   if (next && previous && next !== previous) comparisonTransitioning.value = true
 })
@@ -1383,7 +1408,7 @@ function syncDiffOverlayHighlights(): void {
   const viewport = viewportRef.value
   const comparison = props.comparison
   if (!viewport || !comparison) {
-    diffOverlayHighlights.value = []
+    if (diffOverlayHighlights.value.length > 0) diffOverlayHighlights.value = []
     return
   }
   const viewportRect = viewport.getBoundingClientRect()
@@ -1391,7 +1416,7 @@ function syncDiffOverlayHighlights(): void {
     { side: 'before', root: stageRef.value, highlights: comparison.before.diffHighlights ?? [] },
     { side: 'after', root: comparisonAfterStageRef.value, highlights: comparison.after.diffHighlights ?? [] },
   ] as const
-  diffOverlayHighlights.value = layers.flatMap(({ side, root, highlights }) => {
+  const nextHighlights: DiffOverlayHighlight[] = layers.flatMap(({ side, root, highlights }) => {
     if (!root) return []
     return highlights.flatMap(highlight => {
       const element = root.querySelector(`[data-block-id="${escapeAttributeSelectorValue(highlight.blockId)}"]`)
@@ -1408,6 +1433,27 @@ function syncDiffOverlayHighlights(): void {
         },
       }]
     })
+  })
+  if (!sameDiffOverlayHighlights(diffOverlayHighlights.value, nextHighlights)) {
+    diffOverlayHighlights.value = nextHighlights
+  }
+}
+
+function sameDiffOverlayHighlights(
+  current: readonly DiffOverlayHighlight[],
+  next: readonly DiffOverlayHighlight[],
+): boolean {
+  if (current.length !== next.length) return false
+  return current.every((item, index) => {
+    const candidate = next[index]
+    return candidate !== undefined
+      && item.key === candidate.key
+      && item.left === candidate.left
+      && item.top === candidate.top
+      && item.width === candidate.width
+      && item.height === candidate.height
+      && item.kind === candidate.kind
+      && item.side === candidate.side
   })
 }
 
@@ -1505,17 +1551,40 @@ function directSiblingBlocks(): readonly RenderReadyCardBlock[] {
   const parentId = props.selectedParentBlockId
   if (!parentId) return props.face.children.map(child => child.block)
   const parent = findRenderBlock(props.face.children.map(child => child.block), parentId)
-  return parent && 'children' in parent ? parent.children.map(child => child.block) : []
+  return parent && (parent.type === 'simple-container-block' || parent.type === 'flow-container-block')
+    ? parent.children.map(child => child.block) : []
 }
 
 function findRenderBlock(blocks: readonly RenderReadyCardBlock[], blockId: string): RenderReadyCardBlock | null {
   for (const block of blocks) {
     if (block.id === blockId) return block
-    if (!('children' in block)) continue
+    if (block.type !== 'simple-container-block' && block.type !== 'flow-container-block') continue
     const match = findRenderBlock(block.children.map(child => child.block), blockId)
     if (match) return match
   }
   return null
+}
+
+function requestSelectionFrameSync() {
+  if (selectionSyncInFlight) {
+    selectionSyncAgain = true
+    return
+  }
+  if (selectionSyncScheduled) return
+  selectionSyncScheduled = true
+  void nextTick().then(async () => {
+    selectionSyncScheduled = false
+    selectionSyncInFlight = true
+    try {
+      await syncSelectionFrame()
+    } finally {
+      selectionSyncInFlight = false
+      if (selectionSyncAgain) {
+        selectionSyncAgain = false
+        requestSelectionFrameSync()
+      }
+    }
+  })
 }
 
 async function syncSelectionFrame() {
@@ -1526,7 +1595,17 @@ async function syncSelectionFrame() {
   }
   syncDiffOverlayHighlights()
   const measurement = measureSelection()
-  selectionFrame.value = measurement?.frame ?? null
+  const nextFrame = measurement?.frame ?? null
+  if (!sameSelectionFrame(selectionFrame.value, nextFrame)) selectionFrame.value = nextFrame
+}
+
+function sameSelectionFrame(current: SelectionFrame | null, next: SelectionFrame | null): boolean {
+  if (current === next) return true
+  if (!current || !next) return false
+  return current.left === next.left
+    && current.top === next.top
+    && current.width === next.width
+    && current.height === next.height
 }
 
 function startResize(handle: ResizeHandle) {
@@ -1549,6 +1628,7 @@ function startResize(handle: ResizeHandle) {
   alignmentSnapDistances.value = readAlignmentSnapDistances()
   transformBlockId.value = props.selectedBlockId
   selectionFrame.value = measurement.frame
+  lastTransformClientPosition.value = null
 
   bindTransformListeners()
 }
@@ -1573,6 +1653,7 @@ function startMove() {
   alignmentSnapDistances.value = readAlignmentSnapDistances()
   transformBlockId.value = props.selectedBlockId
   selectionFrame.value = measurement.frame
+  lastTransformClientPosition.value = null
 
   bindTransformListeners()
 }
@@ -1611,8 +1692,10 @@ function handleTransformMove(event: PointerEvent) {
     return
   }
 
-  const deltaX = event.movementX / (scale.value || 1)
-  const deltaY = event.movementY / (scale.value || 1)
+  const previousClientPosition = lastTransformClientPosition.value ?? { x: event.clientX, y: event.clientY }
+  const deltaX = (event.clientX - previousClientPosition.x) / (scale.value || 1)
+  const deltaY = (event.clientY - previousClientPosition.y) / (scale.value || 1)
+  lastTransformClientPosition.value = { x: event.clientX, y: event.clientY }
   let interactionPreview = rawPreview
 
   if (isMovingSelection.value) {
@@ -1789,10 +1872,11 @@ function stopTransform() {
   alignmentSnapLocks.value = {}
   alignmentSnapDistances.value = null
   transformBlockId.value = null
+  lastTransformClientPosition.value = null
   window.removeEventListener('pointermove', handleTransformMove)
   window.removeEventListener('pointerup', stopTransform)
   window.removeEventListener('pointercancel', stopTransform)
-  void syncSelectionFrame()
+  requestSelectionFrameSync()
 }
 
 function constrainResizePreview(
@@ -1874,7 +1958,7 @@ watch(
       y: panY.value,
       scale: scale.value,
     }
-    void syncSelectionFrame()
+    requestSelectionFrameSync()
   },
 )
 
@@ -1904,7 +1988,7 @@ watch(
     stopZoomAnimation()
     applyViewportTransform(nextTransform)
     lastEmittedTransform = { ...nextTransform }
-    void syncSelectionFrame()
+    requestSelectionFrameSync()
   },
   { deep: true },
 )
@@ -1921,12 +2005,12 @@ onMounted(() => {
   if (viewportRef.value) {
     resizeObserver = new ResizeObserver(() => {
       updateViewportSize()
-      void syncSelectionFrame()
+      requestSelectionFrameSync()
     })
     resizeObserver.observe(viewportRef.value)
   }
 
-  void syncSelectionFrame()
+  requestSelectionFrameSync()
   void nextTick().then(observeDiffOverlayStages)
 })
 
@@ -1983,7 +2067,7 @@ watch(
     if (activeHandle.value || isMovingSelection.value) {
       return
     }
-    void syncSelectionFrame()
+    requestSelectionFrameSync()
   }
 )
 
@@ -2013,7 +2097,7 @@ watch(
     if (activeHandle.value || isMovingSelection.value) {
       return
     }
-    void syncSelectionFrame()
+    requestSelectionFrameSync()
   },
   { deep: true }
 )

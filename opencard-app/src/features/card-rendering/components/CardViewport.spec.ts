@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RenderReadyCardFace } from '../render.types'
 import { createTextBlock } from '../../../entities/card/model'
 import CardViewport from './CardViewport.vue'
+import CardFaceRenderer from './CardFaceRenderer.vue'
 import { parseRenderReadyBlockForTest } from './renderTestUtils'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
 import { createCardRenderResourceContext } from '../cardRenderResources'
+import { createCardPipelineIssue } from '../cardPipelineIssue'
 
 const resourceContext = createCardRenderResourceContext({})
 
@@ -201,6 +203,7 @@ describe('CardViewport wheel zoom API', () => {
     wrapper.element.dispatchEvent(new MouseEvent('pointerdown', { button: 0, bubbles: true }))
     await nextTick()
     expect(wrapper.emitted('blank-click')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('keeps the comparison divider inside the viewport safe region', async () => {
@@ -311,7 +314,8 @@ describe('CardViewport wheel zoom API', () => {
       cycleLayerByInitial: (initial: string, currentLayerOnly?: boolean) => boolean
     }
 
-    const layerName = layeredFace.children[0]!.block.name || 'layer-block'
+    const candidateName = layeredFace.children[0]!.block.name
+    const layerName = typeof candidateName === 'string' && candidateName ? candidateName : 'layer-block'
     expect(wrapper.get('.card-layer-view__base-index').text()).toBe('Base plate')
     expect(viewport.cycleLayerByInitial(Array.from(layerName.trimStart())[0]!)).toBe(true)
 
@@ -806,5 +810,53 @@ describe('CardViewport wheel zoom API', () => {
       [{ dimension: 'height', value: face.height + 30, final: false }],
       [{ dimension: 'height', value: face.height + 30, final: true }],
     ])
+  })
+
+  it('merges comparison runtime issues and clears a placeholder side', async () => {
+    const issueFor = (id: string) => createCardPipelineIssue({
+      type: 'card-designer.rich-text.invalid-html',
+      location: {
+        documentId: id,
+        instanceId: null,
+        faceKey: 'front',
+        owner: { kind: 'face', id },
+        fieldKey: 'content',
+      },
+    })
+    const beforeFace = { ...face, id: 'before-face' }
+    const afterFace = { ...face, id: 'after-face' }
+    const wrapper = mount(CardViewport, {
+      props: {
+        resourceContext,
+        face,
+        comparison: {
+          before: { face: beforeFace, resourceContext },
+          after: { face: afterFace, resourceContext },
+          divider: 0.5,
+          viewMode: 'split',
+        },
+      },
+      global: { stubs: { CardFaceRenderer: true } },
+    })
+    const renderers = wrapper.findAllComponents(CardFaceRenderer)
+    renderers[0]!.vm.$emit('runtime-issues-change', [issueFor('before-face')])
+    renderers[1]!.vm.$emit('runtime-issues-change', [issueFor('after-face')])
+    await nextTick()
+
+    const snapshots = wrapper.emitted('runtime-issues-change') ?? []
+    expect(snapshots[snapshots.length - 1]?.[0]).toEqual([issueFor('before-face'), issueFor('after-face')])
+
+    await wrapper.setProps({
+      comparison: {
+        before: { face: beforeFace, resourceContext, placeholder: true },
+        after: { face: afterFace, resourceContext },
+        divider: 0.5,
+        viewMode: 'split',
+      },
+    })
+    await nextTick()
+    const clearedSnapshots = wrapper.emitted('runtime-issues-change') ?? []
+    expect(clearedSnapshots[clearedSnapshots.length - 1]?.[0]).toEqual([issueFor('after-face')])
+    wrapper.unmount()
   })
 })

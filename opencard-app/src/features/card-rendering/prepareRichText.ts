@@ -1,109 +1,62 @@
-import { createBlock, createCustomBlock, getBlockProperty, type CardBlock, type CardDocument, type CardFaceKey, type CardInstanceRecord } from '../../entities/card/model'
+import type { CardBlock, CardDocument, CardFaceKey, CardInstanceRecord } from '../../entities/card/model'
 import { visitCardBlockTree } from '../../entities/card/tree'
-import { parseRichTextHtml, type RichTextCustomBlockNode, type RichTextDocument, type RichTextNode } from '../../shared/rich-text/richTextHtml'
+import { parseRichTextHtml, type RichTextDocument } from '../../shared/rich-text/richTextHtml'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
-import { getProjectCustomBlockPublicFieldKeys } from '../workspace/services/projectCustomBlockPublicFields'
-import {
-  projectResourceScopeIdentity,
-  type ProjectResourceEnvironment,
-  type ProjectResourceScopeMap,
-} from '../workspace/services/projectResourceEnvironment'
+import type { ProjectResourceEnvironment, ProjectResourceScopeMap } from '../workspace/services/projectResourceEnvironment'
 import { createCardPipelineIssue, type CardPipelineIssue } from './cardPipelineIssue'
-import { expandCustomBlocks, wrapExpandedCustomBlocks, type CustomBlockRuntimeCatalog } from './expandCustomBlocks'
-import { parseRenderDocument } from './renderParser'
-import type { RenderReadyCardBlock, RenderReadyCustomBlock } from './render.types'
-import { resolveReferences } from './resolveCardBindings'
-import type { DeepReadonly } from 'vue'
-
-const MAX_RICH_TEXT_EMBED_DEPTH = 12
-const MAX_RICH_TEXT_EMBED_COUNT = 512
+import type { RenderReadyCardBlock } from './render.types'
 
 export type PreparedRichText = {
   document: RichTextDocument
-  embeddedBlocks: ReadonlyMap<string, DeepReadonly<RenderReadyCustomBlock>>
+  embeddedBlocks: ReadonlyMap<string, RenderReadyCardBlock>
   diagnostics: readonly CardPipelineIssue[]
   valid: boolean
 }
 
 export type PreparedRichTextCatalog = ReadonlyMap<string, PreparedRichText>
 
-type RichTextHost = {
-  block: CardBlock
-  faceKey: CardFaceKey
-  ancestors: readonly string[]
-}
-
-type EmbedWork = {
-  host: RichTextHost
-  node: RichTextCustomBlockNode
-  identity: string
-}
-
-function customBlockNodes(nodes: readonly RichTextNode[]): RichTextCustomBlockNode[] {
-  const result: RichTextCustomBlockNode[] = []
-  const visit = (node: RichTextNode): void => {
-    if (node.type === 'customBlock') result.push(node)
-    else if (node.type === 'element') node.children.forEach(visit)
-  }
-  nodes.forEach(visit)
-  return result
-}
-
-function createProxy(host: RichTextHost, embeds: readonly EmbedWork[]): CardBlock {
-  const proxy = createBlock('simple-container-block', {
-    id: `rich-host:${host.block.id}`,
-    width: getBlockProperty<string>(host.block, 'width'),
-    height: getBlockProperty<string>(host.block, 'height'),
-  })
-  const source = host.block as unknown as Record<string, unknown>
-  const target = proxy as unknown as Record<string, unknown>
-  for (const [key, value] of Object.entries(source)) {
-    if (key !== 'id' && key !== 'type' && key !== 'children') target[key] = structuredClone(value)
-  }
-  proxy.id = `rich-host:${host.block.id}`
-  proxy.type = 'simple-container-block'
-  proxy.children = embeds.map((embed, index) => {
-    const instance = createCustomBlock({
-      id: embed.identity,
-      customBlockKey: embed.node.packageId,
-      name: embed.node.packageId,
-    })
-    Object.assign(instance, embed.node.properties)
-    return {
-      block: instance,
-      location: {
-        id: `${embed.identity}::location`, type: 'simple-container-location' as const,
-        anchor: 'lt' as const, x: '0px', y: `${index}px`,
-      },
-    }
-  })
-  return proxy
-}
-
-function findRenderBlock(root: RenderReadyCardBlock, id: string): RenderReadyCardBlock | null {
-  if (root.id === id) return root
-  if (root.type !== 'simple-container-block' && root.type !== 'flow-container-block') return null
-  for (const child of root.children) {
-    const found = findRenderBlock(child.block, id)
-    if (found) return found
-  }
-  return null
-}
-
-
-function issueForHost(
-  document: CardDocument,
-  host: RichTextHost,
-  type: CardPipelineIssue['type'],
-  instanceId: string | null = null,
-): CardPipelineIssue {
+function hostIssue(documentId: string, block: CardBlock, faceKey: CardFaceKey, instanceId: string | null, type: CardPipelineIssue['type']): CardPipelineIssue {
   return createCardPipelineIssue({
     type,
     location: {
-      documentId: document.id, instanceId, faceKey: host.faceKey,
-      owner: { kind: 'block', id: host.block.id }, blockId: host.block.id, fieldKey: 'content',
+      documentId, instanceId, faceKey,
+      owner: { kind: 'block', id: block.id }, blockId: block.id, fieldKey: 'content',
     },
   })
+}
+
+export function prepareRichTextForBlockTree(options: {
+  root: CardBlock
+  documentId: string
+  instanceId?: string | null
+  faceKey: CardFaceKey
+  project?: Readonly<ProjectInformation> | null
+  dictionary?: Readonly<Record<string, string>> | null
+}): { catalog: PreparedRichTextCatalog, issues: CardPipelineIssue[], rootParseCount: number } {
+  const prepared = new Map<string, PreparedRichText>()
+  const issues: CardPipelineIssue[] = []
+  let rootParseCount = 0
+
+  visitCardBlockTree(options.root, host => {
+    if (host.type !== 'text-block') return
+    rootParseCount += 1
+    const parsed = parseRichTextHtml(host.content)
+    const diagnostics: CardPipelineIssue[] = []
+    const embeddedBlocks = new Map<string, RenderReadyCardBlock>()
+    if (!parsed.canEnterVisualMode) {
+      const issue = hostIssue(options.documentId, host, options.faceKey, options.instanceId ?? null, 'card-designer.rich-text.invalid-html')
+      diagnostics.push(issue)
+      issues.push(issue)
+    }
+    prepared.set(host.id, {
+      document: parsed.document,
+      embeddedBlocks,
+      diagnostics,
+      valid: parsed.canEnterVisualMode,
+    })
+  })
+
+  return { catalog: prepared, issues, rootParseCount }
 }
 
 export function prepareRichText(options: {
@@ -111,178 +64,29 @@ export function prepareRichText(options: {
   currentCard?: CardInstanceRecord | null
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>> | null
-  customBlockCatalog?: CustomBlockRuntimeCatalog
   hostEnvironment?: ProjectResourceEnvironment
   resourceScopes?: ProjectResourceScopeMap
 }): { catalog: PreparedRichTextCatalog, issues: CardPipelineIssue[], rootParseCount: number, nestedParseCount: number, batchCount: number } {
-  const customBlockCatalog = options.customBlockCatalog ?? new Map()
-  const resourceScopes = new Map(options.resourceScopes)
-  const environmentForHost = (host: RichTextHost): ProjectResourceEnvironment | undefined => (
-    resourceScopes.get(projectResourceScopeIdentity(host.block.id, 'content')) ?? options.hostEnvironment
-  )
-  const catalogForHost = (host: RichTextHost): CustomBlockRuntimeCatalog => (
-    environmentForHost(host)?.customBlockCatalog ?? customBlockCatalog
-  )
-  const prepared = new Map<string, { document: RichTextDocument, embeddedBlocks: Map<string, RenderReadyCustomBlock>, diagnostics: CardPipelineIssue[], valid: boolean }>()
+  const prepared = new Map<string, PreparedRichText>()
   const issues: CardPipelineIssue[] = []
   let rootParseCount = 0
-  let nestedParseCount = 0
-  let batchCount = 0
-  let embedCount = 0
-  const reportedHostIssues = new Set<string>()
 
-  function reportHost(host: RichTextHost, type: CardPipelineIssue['type']): void {
-    const identity = `${host.faceKey}\u0000${host.block.id}\u0000${type}`
-    if (reportedHostIssues.has(identity)) return
-    reportedHostIssues.add(identity)
-    const issue = issueForHost(options.document, host, type, options.currentCard?.id ?? null)
-    issues.push(issue)
-    prepared.get(host.block.id)?.diagnostics.push(issue)
-  }
-
-  let hosts: RichTextHost[] = []
   for (const [faceKey, face] of Object.entries(options.document.faces) as [CardFaceKey, CardDocument['faces'][CardFaceKey]][]) {
-    for (const child of face.children) visitCardBlockTree(child.block, block => {
-      if (block.type === 'text-block') hosts.push({ block, faceKey, ancestors: [] })
+    for (const child of face.children) visitCardBlockTree(child.block, host => {
+      if (host.type !== 'text-block') return
+      const result = prepareRichTextForBlockTree({
+        root: host,
+        documentId: options.document.id,
+        instanceId: options.currentCard?.id ?? null,
+        faceKey,
+        project: options.project,
+        dictionary: options.dictionary,
+      })
+      rootParseCount += result.rootParseCount
+      result.catalog.forEach((value, key) => prepared.set(key, value))
+      issues.push(...result.issues)
     })
   }
 
-  for (let depth = 0; hosts.length > 0 && depth <= MAX_RICH_TEXT_EMBED_DEPTH; depth += 1) {
-    const nextHosts: RichTextHost[] = []
-    const work: EmbedWork[] = []
-    const grouped = new Map<string, EmbedWork[]>()
-
-    for (const host of hosts) {
-      if (depth === 0) rootParseCount += 1
-      else nestedParseCount += 1
-      const hostCatalog = catalogForHost(host)
-      const parsed = parseRichTextHtml(String((host.block as unknown as Record<string, unknown>).content ?? ''), {
-        resolveCustomBlock: packageId => {
-          const catalogEntry = hostCatalog.get(packageId.toLowerCase())
-          return catalogEntry
-            ? {
-                publicFieldKeys: getProjectCustomBlockPublicFieldKeys({
-                  definition: catalogEntry.manifest, block: catalogEntry.block,
-                }),
-              }
-            : null
-        },
-      })
-      const entry = {
-        document: parsed.document,
-        embeddedBlocks: new Map<string, RenderReadyCustomBlock>(),
-        diagnostics: [] as CardPipelineIssue[],
-        valid: parsed.canEnterVisualMode,
-      }
-      prepared.set(host.block.id, entry)
-      if (!parsed.canEnterVisualMode) {
-        reportHost(host, 'card-designer.rich-text.invalid-html')
-        continue
-      }
-      for (const node of customBlockNodes(parsed.document.children)) {
-        if (embedCount >= MAX_RICH_TEXT_EMBED_COUNT || depth >= MAX_RICH_TEXT_EMBED_DEPTH) {
-          reportHost(host, 'card-designer.rich-text.limit-exceeded')
-          continue
-        }
-        const keyIdentity = node.packageId.toLowerCase()
-        if (host.ancestors.includes(keyIdentity)) {
-          reportHost(host, 'card-designer.custom-block.content-error')
-          continue
-        }
-        const embed: EmbedWork = {
-          host, node, identity: `${host.block.id}::embed:${node.embedId}`,
-        }
-        embedCount += 1
-        work.push(embed)
-        const list = grouped.get(host.block.id) ?? []
-        list.push(embed)
-        grouped.set(host.block.id, list)
-      }
-    }
-    if (work.length === 0) break
-    batchCount += 1
-
-    const workDocument: CardDocument = {
-      ...options.document,
-      id: `${options.document.id}::rich-text:${depth}`,
-      faces: Object.fromEntries((Object.entries(options.document.faces) as [CardFaceKey, CardDocument['faces'][CardFaceKey]][])
-        .map(([faceKey, face]) => [faceKey, {
-          ...face,
-          children: hosts.filter(host => host.faceKey === faceKey && grouped.has(host.block.id)).map(host => ({
-            block: createProxy(host, grouped.get(host.block.id) ?? []),
-            location: { id: `rich-root:${host.block.id}`, type: 'simple-container-location', anchor: 'lt', x: '0px', y: '0px' },
-          })),
-        }])) as CardDocument['faces'],
-      instances: [],
-    }
-    const workScopes = new Map(resourceScopes)
-    for (const embed of work) {
-      const environment = environmentForHost(embed.host)
-      if (!environment) continue
-      workScopes.set(projectResourceScopeIdentity(embed.identity, 'customBlockKey'), environment)
-      for (const fieldKey of Object.keys(embed.node.properties)) {
-        workScopes.set(projectResourceScopeIdentity(embed.identity, fieldKey), environment)
-      }
-    }
-    const expanded = expandCustomBlocks(
-      workDocument,
-      customBlockCatalog,
-      options.hostEnvironment,
-      workScopes,
-    )
-    for (const [identity, environment] of expanded.resourceScopes) resourceScopes.set(identity, environment)
-    const resolved = resolveReferences(expanded.document, {
-      currentCard: options.currentCard,
-      project: options.project,
-      dictionary: options.dictionary,
-    })
-    const parsed = parseRenderDocument(resolved.document)
-    const wrapped = wrapExpandedCustomBlocks(parsed.document, expanded.hosts)
-    const hostForRuntimeId = (runtimeId: string | null): RichTextHost | null => {
-      if (!runtimeId) return null
-      const embed = work.find(candidate => runtimeId === candidate.identity || runtimeId.startsWith(`${candidate.identity}::`))
-      if (embed) return embed.host
-      return hosts.find(host => runtimeId === `rich-host:${host.block.id}` || runtimeId.startsWith(`rich-host:${host.block.id}::`)) ?? null
-    }
-    for (const issue of [...resolved.issues, ...parsed.issues]) {
-      const host = hostForRuntimeId(issue.location.blockId ?? issue.location.owner.id)
-      if (host) reportHost(host, 'card-designer.custom-block.content-error')
-    }
-    for (const issue of expanded.issues) {
-      const host = hostForRuntimeId(issue.blockId)
-      if (host) reportHost(host, issue.reason === 'missing'
-        ? 'card-designer.custom-block.unavailable'
-        : 'card-designer.custom-block.content-error')
-    }
-    for (const [blockId, expansionHost] of expanded.hosts) {
-      if (!expansionHost.hasResourceErrors) continue
-      const host = hostForRuntimeId(blockId)
-      if (host) reportHost(host, 'card-designer.custom-block.resource-error')
-    }
-
-    for (const embed of work) {
-      const face = wrapped.faces[embed.host.faceKey]
-      const proxy = face.children.map(child => child.block).find(block => block.id === `rich-host:${embed.host.block.id}`)
-      const block = proxy ? findRenderBlock(proxy, embed.identity) : null
-      if (block?.type !== 'custom-block') continue
-      prepared.get(embed.host.block.id)?.embeddedBlocks.set(embed.node.embedId, block)
-
-      const sourceProxy = resolved.document.faces[embed.host.faceKey].children
-        .map(child => child.block).find(block => block.id === `rich-host:${embed.host.block.id}`)
-      if (!sourceProxy) continue
-      let sourceEmbed: CardBlock | null = null
-      visitCardBlockTree(sourceProxy, candidate => { if (candidate.id === embed.identity) sourceEmbed = candidate })
-      if (!sourceEmbed) continue
-      visitCardBlockTree(sourceEmbed, candidate => {
-        if (candidate.type === 'text-block') nextHosts.push({
-          block: candidate,
-          faceKey: embed.host.faceKey,
-          ancestors: [...embed.host.ancestors, embed.node.packageId.toLowerCase()],
-        })
-      })
-    }
-    hosts = nextHosts
-  }
-
-  return { catalog: prepared, issues, rootParseCount, nestedParseCount, batchCount }
+  return { catalog: prepared, issues, rootParseCount, nestedParseCount: 0, batchCount: 0 }
 }

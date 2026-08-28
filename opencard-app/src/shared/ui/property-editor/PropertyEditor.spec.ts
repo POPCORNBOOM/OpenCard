@@ -35,7 +35,7 @@ describe('PropertyEditor records protocol', () => {
     expect(menu.state.value.items[0]).toMatchObject({ key: 'add-property' })
     menu.selectMenuItem('add-property:content')
     expect(wrapper.emitted('add-property')).toEqual([[
-      { key: 'block', fieldKey: 'content', value: '' },
+      { key: 'block', fieldKey: 'content' },
     ]])
     menu.closeMenu()
   })

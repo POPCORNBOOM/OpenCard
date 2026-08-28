@@ -14,9 +14,11 @@ const blockPresentations = {
   'shape-block': { icon: 'entity.block-shape', iconTone: 'block-shape' },
   'simple-container-block': { icon: 'entity.block-simple-container', iconTone: 'block-simple-container' },
   'flow-container-block': { icon: 'entity.block-flow-container', iconTone: 'block-flow-container' },
-  'custom-block': { icon: 'entity.block-custom', iconTone: 'block-simple-container' },
 } as const satisfies Record<CardBlock['type'], BlockPresentation>
 
-export function getBlockPresentation(type: CardBlock['type']): BlockPresentation {
-  return blockPresentations[type]
+export function getBlockPresentation(type: CardBlock['type'] | string): BlockPresentation {
+  return blockPresentations[type as CardBlock['type']] ?? {
+    icon: 'entity.block-package',
+    iconTone: 'muted',
+  }
 }

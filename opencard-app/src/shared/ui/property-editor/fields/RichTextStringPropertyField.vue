@@ -19,7 +19,6 @@
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
 		              :project-icon-catalog="definition.projectIcon?.catalog"
-	              :custom-block-catalog="definition.customBlock"
               :field-mode-labels="fieldModeLabels"
               :font-options="definition.fontOptions"
               :base-style="definition.richTextBaseStyle"

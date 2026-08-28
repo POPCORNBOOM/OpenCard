@@ -16,7 +16,7 @@ function createBlock(content: string): RenderReadyQrCodeBlock {
 describe('QrCodeBlockRenderer', () => {
   it('shows an OC placeholder for empty content', () => {
     const wrapper = mount(QrCodeBlockRenderer, {
-      props: { block: createBlock(''), layoutMode: 'static' },
+      props: { block: createBlock(''), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
@@ -26,7 +26,7 @@ describe('QrCodeBlockRenderer', () => {
 
   it('generates a square SVG using the configured QR semantics', async () => {
     const wrapper = mount(QrCodeBlockRenderer, {
-      props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
+      props: { block: createBlock('https://opencard.local/card/42'), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
@@ -39,7 +39,7 @@ describe('QrCodeBlockRenderer', () => {
 
   it('keeps the rendered graphic when only zIndex changes', async () => {
     const wrapper = mount(QrCodeBlockRenderer, {
-      props: { block: createBlock('https://opencard.local/card/42'), layoutMode: 'static' },
+      props: { block: createBlock('https://opencard.local/card/42'), placement: { kind: 'root' } },
       global: rendererTestGlobal,
     })
 
