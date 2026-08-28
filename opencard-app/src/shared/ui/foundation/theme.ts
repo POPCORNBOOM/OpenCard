@@ -246,10 +246,16 @@ function applyTheme(
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (!prefersReducedMotion) {
     root.classList.add('oc-theme-transitioning')
+    const durationValue = getComputedStyle(root).getPropertyValue('--oc-duration-slow').trim()
+    const durationMs = durationValue.endsWith('ms')
+      ? Number.parseFloat(durationValue)
+      : durationValue.endsWith('s')
+        ? Number.parseFloat(durationValue) * 1000
+        : 250
     themeTransitionTimer = setTimeout(() => {
       root.classList.remove('oc-theme-transitioning')
       themeTransitionTimer = null
-    }, 180)
+    }, Number.isFinite(durationMs) ? durationMs : 250)
   }
   const tokens = resolveOcThemeTokens(themeId, overrides, accentNeighborAngle, typography)
   for (const token of OC_THEME_TOKEN_KEYS) {

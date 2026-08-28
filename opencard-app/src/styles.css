@@ -11,13 +11,13 @@ html.oc-theme-transitioning *,
 html.oc-theme-transitioning *::before,
 html.oc-theme-transitioning *::after {
   transition:
-    color var(--oc-duration-normal) var(--oc-ease),
-    background-color var(--oc-duration-normal) var(--oc-ease),
-    border-color var(--oc-duration-normal) var(--oc-ease),
-    outline-color var(--oc-duration-normal) var(--oc-ease),
-    box-shadow var(--oc-duration-normal) var(--oc-ease),
-    fill var(--oc-duration-normal) var(--oc-ease),
-    stroke var(--oc-duration-normal) var(--oc-ease);
+    color var(--oc-duration-slow) var(--oc-ease),
+    background-color var(--oc-duration-slow) var(--oc-ease),
+    border-color var(--oc-duration-slow) var(--oc-ease),
+    outline-color var(--oc-duration-slow) var(--oc-ease),
+    box-shadow var(--oc-duration-slow) var(--oc-ease),
+    fill var(--oc-duration-slow) var(--oc-ease),
+    stroke var(--oc-duration-slow) var(--oc-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {
