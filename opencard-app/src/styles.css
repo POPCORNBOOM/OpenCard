@@ -21,26 +21,13 @@ html.oc-theme-transitioning *,
 html.oc-theme-transitioning *::before,
 html.oc-theme-transitioning *::after {
   transition:
-    color var(--oc-duration-theme) var(--oc-ease),
+    color 0ms var(--oc-ease) calc(var(--oc-duration-theme) / 2),
     background-color var(--oc-duration-theme) var(--oc-ease),
     border-color var(--oc-duration-theme) var(--oc-ease),
     outline-color var(--oc-duration-theme) var(--oc-ease),
     box-shadow var(--oc-duration-theme) var(--oc-ease),
     fill var(--oc-duration-theme) var(--oc-ease),
     stroke var(--oc-duration-theme) var(--oc-ease) !important;
-}
-
-html.oc-theme-transitioning {
-  transition:
-    --oc-fg-default var(--oc-duration-theme) var(--oc-ease),
-    --oc-fg-muted var(--oc-duration-theme) var(--oc-ease),
-    --oc-fg-subtle var(--oc-duration-theme) var(--oc-ease),
-    --oc-fg-disabled var(--oc-duration-theme) var(--oc-ease),
-    --oc-fg-accent var(--oc-duration-theme) var(--oc-ease),
-    --oc-accent-fg var(--oc-duration-theme) var(--oc-ease),
-    --oc-icon-default var(--oc-duration-theme) var(--oc-ease),
-    --oc-icon-muted var(--oc-duration-theme) var(--oc-ease),
-    --oc-icon-accent var(--oc-duration-theme) var(--oc-ease);
 }
 
 @media (prefers-reduced-motion: reduce) {

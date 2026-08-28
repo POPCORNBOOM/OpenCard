@@ -251,11 +251,11 @@ function applyTheme(
       ? Number.parseFloat(durationValue)
       : durationValue.endsWith('s')
         ? Number.parseFloat(durationValue) * 1000
-        : 420
+        : 1200
     themeTransitionTimer = setTimeout(() => {
       root.classList.remove('oc-theme-transitioning')
       themeTransitionTimer = null
-    }, Number.isFinite(durationMs) ? durationMs : 420)
+    }, Number.isFinite(durationMs) ? durationMs : 1200)
   }
   const tokens = resolveOcThemeTokens(themeId, overrides, accentNeighborAngle, typography)
   for (const token of OC_THEME_TOKEN_KEYS) {
