@@ -127,7 +127,7 @@ function handleCommit(part: EditorItemEditorPart, value: unknown): void {
   display: grid;
   min-height: var(--oc-page-editor-row-min-height);
   grid-template-columns: minmax(var(--oc-page-editor-title-min-width), 1fr)
-    minmax(var(--oc-page-editor-content-min-width), auto);
+    minmax(var(--oc-page-editor-content-min-width), 1fr);
   align-items: center;
   gap: var(--oc-page-editor-column-gap);
   border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
