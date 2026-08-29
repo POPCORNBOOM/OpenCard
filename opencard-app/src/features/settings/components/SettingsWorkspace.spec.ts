@@ -15,7 +15,7 @@ describe('SettingsWorkspace', () => {
         viewModel: {
           key: 'general',
           title: 'General',
-          fields: [{
+          content: [{
             type: 'switch',
             key: 'updates.suppressReleaseNotesAfterUpdate',
             label: 'Do not show release notes after an update',
@@ -40,7 +40,7 @@ describe('SettingsWorkspace', () => {
     const viewModel = {
       key: 'appearance' as const,
       title: 'Appearance',
-      fields: [{
+      content: [{
         type: 'options' as const,
         key: 'appearance.theme' as const,
         label: 'Theme',
@@ -58,7 +58,7 @@ describe('SettingsWorkspace', () => {
     expect(wrapper.emitted('intent')).toEqual([[
       { type: 'setting.change', key: 'appearance.theme', value: 'light' },
     ]])
-    expect(viewModel.fields[0].value).toBe('dark')
+    expect(viewModel.content[0].value).toBe('dark')
   })
 
   it('does not emit a disabled project reset action', async () => {
@@ -67,7 +67,7 @@ describe('SettingsWorkspace', () => {
         viewModel: {
           key: 'workspace',
           title: 'Workspace',
-          fields: [{
+          content: [{
             type: 'action',
             key: 'project-workspace.reset',
             label: 'Project workspace state',
@@ -89,7 +89,7 @@ describe('SettingsWorkspace', () => {
         viewModel: {
           key: 'appearance',
           title: 'Appearance',
-          fields: [{
+          content: [{
             type: 'range',
             key: 'appearance.glassIntensity',
             label: 'Glass intensity',
@@ -119,7 +119,7 @@ describe('SettingsWorkspace', () => {
         viewModel: {
           key: 'appearance',
           title: 'Appearance',
-          fields: [{
+          content: [{
             type: 'theme-color-panel',
             key: 'appearance.darkThemeColors',
             label: 'Dark theme',
@@ -210,8 +210,7 @@ describe('SettingsWorkspace', () => {
         viewModel: {
           key: 'appearance',
           title: 'Appearance',
-          preview: { glassIntensity: 72 },
-          fields: [],
+          content: [{ type: 'preview', key: 'appearance.preview', glassIntensity: 72 }],
         },
       },
     })

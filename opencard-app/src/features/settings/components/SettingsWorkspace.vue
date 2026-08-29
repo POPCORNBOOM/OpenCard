@@ -2,8 +2,8 @@
 <template>
   <section ref="workspaceRef" class="settings-workspace" :aria-label="viewModel.title"
     @scroll.passive="schedulePreviewPresentation">
-    <div class="settings-workspace__content" :class="{ 'has-preview': viewModel.preview }">
-      <template v-if="viewModel.preview">
+    <div class="settings-workspace__content" :class="{ 'has-preview': previewContent }">
+      <template v-if="previewContent">
         <div ref="previewStageRef" class="settings-workspace__preview-stage" aria-hidden="true">
           <div ref="previewGlassRef" class="settings-workspace__preview-glass" />
           <div ref="previewSurfaceRef" class="settings-workspace__preview-surface">
@@ -72,9 +72,9 @@
       </template>
 
       <div class="settings-workspace__fields">
+        <template v-for="field in viewModel.content" :key="field.key">
         <div
-          v-for="field in viewModel.fields"
-          :key="field.key"
+          v-if="field.type !== 'preview'"
           class="settings-workspace__row"
           :class="{ 'is-theme-color-panel': field.type === 'theme-color-panel' }"
         >
@@ -231,13 +231,14 @@
           </OcButton>
           </template>
         </div>
+        </template>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import previewLogoPhase from '../../../assets/opencard-logo-phase-map.png'
 import OcButton from '../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
@@ -260,6 +261,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   intent: [intent: SettingsIntent]
 }>()
+
+const previewContent = computed(() => props.viewModel.content.find(node => node.type === 'preview'))
 
 const workspaceRef = ref<HTMLElement | null>(null)
 const previewRef = ref<HTMLElement | null>(null)
@@ -348,7 +351,7 @@ onMounted(() => {
     previewResizeObserver.observe(workspaceRef.value)
   }
 })
-watch(() => props.viewModel.preview, async preview => {
+watch(previewContent, async preview => {
   previewMetrics = null
   if (!preview) return
   await nextTick()
@@ -375,7 +378,7 @@ function emitTextSettingChange(
   if (event.target instanceof HTMLInputElement) emitSettingChange(key, event.target.value)
 }
 
-type ThemeColorPanel = Extract<SettingsCategoryViewModel['fields'][number], { type: 'theme-color-panel' }>
+type ThemeColorPanel = Extract<SettingsCategoryViewModel['content'][number], { type: 'theme-color-panel' }>
 type ThemeColor = ThemeColorPanel['colors'][number]
 const themeColorSnapshots = new Map<string, string | null>()
 

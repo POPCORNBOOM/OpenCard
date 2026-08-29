@@ -104,13 +104,16 @@ export type SettingsFieldViewModel =
       disabledReason?: string
     }
 
+export type SettingsContentNode = SettingsFieldViewModel | {
+  type: 'preview'
+  key: 'appearance.preview'
+  glassIntensity: number
+}
+
 export interface SettingsCategoryViewModel {
   key: SettingsCategoryKey
   title: string
-  fields: readonly SettingsFieldViewModel[]
-  preview?: {
-    glassIntensity: number
-  }
+  content: readonly SettingsContentNode[]
 }
 
 interface UseSettingsWorkspaceOptions {
@@ -154,7 +157,7 @@ export function useSettingsWorkspace(
       return {
         key: categoryKey,
         title: categoryLabels.value.general,
-        fields: [
+        content: [
           {
             type: 'options',
             key: 'appearance.locale',
@@ -285,8 +288,8 @@ export function useSettingsWorkspace(
       return {
         key: categoryKey,
         title: categoryLabels.value.appearance,
-        preview: { glassIntensity: settings.appearance.glassIntensity },
-        fields: [
+        content: [
+          { type: 'preview', key: 'appearance.preview', glassIntensity: settings.appearance.glassIntensity },
           {
             type: 'options',
             key: 'appearance.theme',
@@ -345,7 +348,7 @@ export function useSettingsWorkspace(
     return {
       key: categoryKey,
       title: categoryLabels.value.workspace,
-        fields: [
+        content: [
           {
             type: 'switch',
             key: 'workspace.autoSave',

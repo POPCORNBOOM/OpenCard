@@ -16,32 +16,36 @@ describe('useSettingsWorkspace', () => {
 
     expect(categoryTreeData.value.rootKeys).toEqual(['general', 'appearance', 'workspace'])
     expect(categoryTreeData.value.children.size).toBe(0)
-    expect(activeCategory.value.fields[0]).toMatchObject({
+    expect(activeCategory.value.content[0]).toMatchObject({
       type: 'options',
       key: 'appearance.locale',
       value: 'system',
     })
-    expect(activeCategory.value.fields[1]).toMatchObject({
+    expect(activeCategory.value.content[1]).toMatchObject({
       type: 'range',
       key: 'shell.titleBarNoticeHistoryLimit',
       value: 128,
       min: 1,
       max: 512,
     })
-    expect(activeCategory.value.fields[2]).toMatchObject({
+    expect(activeCategory.value.content[2]).toMatchObject({
       type: 'switch',
       key: 'updates.suppressReleaseNotesAfterUpdate',
       checked: false,
     })
-    expect(activeCategory.value.fields[3]).toMatchObject({
+    expect(activeCategory.value.content[3]).toMatchObject({
       type: 'switch',
       key: 'exporting.openCdeWorkbookAfterExport',
       checked: true,
     })
 
     categoryKey.value = 'appearance'
-    expect(activeCategory.value.preview).toEqual({ glassIntensity: 60 })
-    expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
+    expect(activeCategory.value.content[0]).toEqual({
+      type: 'preview',
+      key: 'appearance.preview',
+      glassIntensity: 60,
+    })
+    expect(activeCategory.value.content).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: 'options',
         key: 'appearance.theme',
@@ -85,7 +89,7 @@ describe('useSettingsWorkspace', () => {
       expect.objectContaining({ type: 'theme-color-panel', key: 'appearance.lightThemeColors', themeId: 'light' }),
       expect.objectContaining({ type: 'action', key: 'themes.reset' }),
     ]))
-    const colorPanels = activeCategory.value.fields.filter(field => field.type === 'theme-color-panel')
+    const colorPanels = activeCategory.value.content.filter(field => field.type === 'theme-color-panel')
     expect(colorPanels).toHaveLength(2)
     expect(colorPanels.every(panel => panel.colors.length === 3)).toBe(true)
     expect(colorPanels.every(panel => panel.preset.options.filter(option => !option.value.startsWith('user:')).length === 5)).toBe(true)
@@ -110,12 +114,12 @@ describe('useSettingsWorkspace', () => {
       projectOpen,
       translate: (_key, fallback) => fallback,
     })
-    expect(customWorkspace.activeCategory.value.fields.find(field => (
+    expect(customWorkspace.activeCategory.value.content.find(field => (
       field.type === 'theme-color-panel' && field.themeId === 'dark'
     ))).toMatchObject({ preset: { value: '', canDelete: false } })
 
     categoryKey.value = 'workspace'
-    expect(activeCategory.value.fields.map((field) => field.key)).toEqual([
+    expect(activeCategory.value.content.map((field) => field.key)).toEqual([
       'workspace.autoSave',
       'workspace.autoSaveIntervalSeconds',
       'workspace.historyEntryLimit',
@@ -128,7 +132,7 @@ describe('useSettingsWorkspace', () => {
       'workspace.alignmentSnappingEnabledByDefault',
       'project-workspace.reset',
     ])
-    expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
+    expect(activeCategory.value.content).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'switch', key: 'workspace.autoSave', checked: true }),
       expect.objectContaining({
         type: 'range',
@@ -178,7 +182,7 @@ describe('useSettingsWorkspace', () => {
     ]))
 
     projectOpen.value = true
-    expect(activeCategory.value.fields).toEqual(expect.arrayContaining([
+    expect(activeCategory.value.content).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'action', key: 'project-workspace.reset', disabled: false }),
     ]))
   })
@@ -192,7 +196,7 @@ describe('useSettingsWorkspace', () => {
       translate: (_key, fallback) => fallback,
     })
 
-    const panels = activeCategory.value.fields.filter(field => field.type === 'theme-color-panel')
+    const panels = activeCategory.value.content.filter(field => field.type === 'theme-color-panel')
     expect(panels).toHaveLength(2)
     expect(panels[0]!.fontFamily.fontFamilies).toEqual(['Inter', 'Microsoft YaHei UI'])
     expect(panels[0]!.fontFamily.placeholder).toBe('System')
@@ -222,7 +226,7 @@ describe('useSettingsWorkspace', () => {
       translate: (_key, fallback) => fallback,
     })
 
-    const darkPanel = activeCategory.value.fields.find(field => (
+    const darkPanel = activeCategory.value.content.find(field => (
       field.type === 'theme-color-panel' && field.themeId === 'dark'
     ))
     expect(darkPanel).toMatchObject({ preset: { value: 'user:Forest', canDelete: true } })
