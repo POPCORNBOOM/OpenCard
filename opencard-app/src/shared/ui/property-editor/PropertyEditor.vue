@@ -107,6 +107,7 @@ import type {
   PropertyEditorCategoryDefinition,
   PropertyEditorFieldIntent,
   PropertyEditorInput,
+  PropertyEditorAddMutation,
   PropertyEditorMutation,
   PropertyEditorTailActionIntent,
   PropertyEditorSortMode,
@@ -135,7 +136,7 @@ import { normalizeItemTail } from '../itemViewModel.types'
 // 输出事件协议。
 const emit = defineEmits<{
   (e: 'update-property', payload: PropertyEditorMutation): void
-  (e: 'add-property', payload: PropertyEditorMutation): void
+  (e: 'add-property', payload: PropertyEditorAddMutation): void
   (e: 'reset-property', payload: PropertyEditorFieldIntent): void
   (e: 'delete-property', payload: PropertyEditorFieldIntent): void
   (e: 'tail-action', payload: PropertyEditorTailActionIntent): void
