@@ -29,6 +29,9 @@ export type SettingsFieldViewModel =
   | {
       type: 'options'
       key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'string'
+      editor?: 'options'
       label: string
       value: string
       options: readonly OcOption[]
@@ -36,22 +39,32 @@ export type SettingsFieldViewModel =
   | {
       type: 'switch'
       key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'boolean'
+      editor?: 'switch'
       label: string
       checked: boolean
     }
   | {
       type: 'range'
       key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'number'
+      editor?: 'slider'
       label: string
       value: number
       min: number
       max: number
       step: number
       suffix: string
+      ticks?: readonly number[]
     }
   | {
       type: 'text'
       key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'string'
+      editor?: 'text'
       label: string
       value: string
       placeholder?: string
@@ -103,6 +116,16 @@ export type SettingsFieldViewModel =
       disabled: boolean
       disabledReason?: string
     }
+
+function decorateSettingsFields(content: readonly SettingsContentNode[]): readonly SettingsContentNode[] {
+  return content.map((node) => {
+    if (node.type === 'options') return { ...node, path: node.key, fieldType: 'string' as const, editor: 'options' as const }
+    if (node.type === 'switch') return { ...node, path: node.key, fieldType: 'boolean' as const, editor: 'switch' as const }
+    if (node.type === 'range') return { ...node, path: node.key, fieldType: 'number' as const, editor: 'slider' as const }
+    if (node.type === 'text') return { ...node, path: node.key, fieldType: 'string' as const, editor: 'text' as const }
+    return node
+  })
+}
 
 export type SettingsContentNode = SettingsFieldViewModel | {
   type: 'preview'
@@ -157,7 +180,7 @@ export function useSettingsWorkspace(
       return {
         key: categoryKey,
         title: categoryLabels.value.general,
-        content: [
+        content: decorateSettingsFields([
           {
             type: 'options',
             key: 'appearance.locale',
@@ -197,7 +220,7 @@ export function useSettingsWorkspace(
             ),
             checked: settings.exporting.openCdeWorkbookAfterExport,
           },
-        ],
+        ]),
       }
     }
 
@@ -288,7 +311,7 @@ export function useSettingsWorkspace(
       return {
         key: categoryKey,
         title: categoryLabels.value.appearance,
-        content: [
+        content: decorateSettingsFields([
           { type: 'preview', key: 'appearance.preview', glassIntensity: settings.appearance.glassIntensity },
           {
             type: 'options',
@@ -309,6 +332,7 @@ export function useSettingsWorkspace(
             min: 10,
             max: 16,
             step: 1,
+            ticks: [10, 12, 14, 16],
             suffix: 'px',
           },
           {
@@ -341,14 +365,14 @@ export function useSettingsWorkspace(
             icon: 'action.restart',
             disabled: false,
           },
-        ],
+        ]),
       }
     }
 
     return {
       key: categoryKey,
       title: categoryLabels.value.workspace,
-        content: [
+      content: decorateSettingsFields([
           {
             type: 'switch',
             key: 'workspace.autoSave',
@@ -455,7 +479,7 @@ export function useSettingsWorkspace(
             ? undefined
             : options.translate('settings.reasons.openProjectFirst', 'Open a project first'),
         },
-      ],
+      ]),
     }
   })
 
