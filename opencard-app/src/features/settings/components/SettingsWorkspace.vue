@@ -76,9 +76,9 @@
         <div
           v-if="field.type !== 'preview'"
           class="settings-workspace__row"
-          :class="{ 'is-theme-color-panel': field.type === 'theme-color-panel' }"
+          :class="{ 'is-theme-color-panel': field.type === 'composite' }"
         >
-          <section v-if="field.type === 'theme-color-panel'" class="settings-workspace__color-panel">
+          <section v-if="field.type === 'composite'" class="settings-workspace__color-panel">
             <header class="settings-workspace__color-panel-header">
               <OcText as="span" size="sm" bold>{{ field.label }}</OcText>
             </header>
@@ -179,20 +179,20 @@
             <OcText class="settings-workspace__label" as="span" size="sm">{{ field.label }}</OcText>
 
             <OcOptionGroup
-            v-if="field.type === 'options'"
+            v-if="field.type === 'field' && field.editor === 'options'"
             class="settings-workspace__control"
             :model-value="field.value"
             :options="field.options"
             @update:model-value="emitSettingChange(field.key, $event)"
           />
           <OcSwitch
-            v-else-if="field.type === 'switch'"
+            v-else-if="field.type === 'field' && field.editor === 'switch'"
             class="settings-workspace__control"
             :checked="field.checked"
             :aria-label="field.label"
             @update:checked="emitSettingChange(field.key, $event)"
           />
-          <div v-else-if="field.type === 'range'" class="settings-workspace__range-control">
+          <div v-else-if="field.type === 'field' && field.editor === 'slider'" class="settings-workspace__range-control">
             <OcSlider
               class="settings-workspace__range"
               :model-value="field.value"
@@ -209,7 +209,7 @@
             </OcText>
           </div>
           <OcFieldInput
-            v-else-if="field.type === 'text'"
+            v-else-if="field.type === 'field' && field.editor === 'text'"
             class="settings-workspace__control"
             full-width
             :mono="field.mono"
@@ -218,7 +218,7 @@
             @change="emitTextSettingChange(field.key, $event)"
           />
           <OcButton
-            v-else
+            v-else-if="field.type === 'action'"
             class="settings-workspace__control"
             size="sm"
             variant="outline"
@@ -378,7 +378,7 @@ function emitTextSettingChange(
   if (event.target instanceof HTMLInputElement) emitSettingChange(key, event.target.value)
 }
 
-type ThemeColorPanel = Extract<SettingsCategoryViewModel['content'][number], { type: 'theme-color-panel' }>
+type ThemeColorPanel = Extract<SettingsCategoryViewModel['content'][number], { type: 'composite' }>
 type ThemeColor = ThemeColorPanel['colors'][number]
 const themeColorSnapshots = new Map<string, string | null>()
 

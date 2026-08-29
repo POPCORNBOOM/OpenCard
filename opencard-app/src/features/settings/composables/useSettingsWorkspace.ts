@@ -25,13 +25,10 @@ import {
   type SettingsCategoryKey,
 } from '../model/appSettings'
 
-export type SettingsFieldViewModel =
+type LegacySettingsFieldViewModel =
   | {
       type: 'options'
       key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'string'
-      editor?: 'options'
       label: string
       value: string
       options: readonly OcOption[]
@@ -39,18 +36,12 @@ export type SettingsFieldViewModel =
   | {
       type: 'switch'
       key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'boolean'
-      editor?: 'switch'
       label: string
       checked: boolean
     }
   | {
       type: 'range'
       key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'number'
-      editor?: 'slider'
       label: string
       value: number
       min: number
@@ -62,9 +53,6 @@ export type SettingsFieldViewModel =
   | {
       type: 'text'
       key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'string'
-      editor?: 'text'
       label: string
       value: string
       placeholder?: string
@@ -117,20 +105,119 @@ export type SettingsFieldViewModel =
       disabledReason?: string
     }
 
-function decorateSettingsFields(content: readonly SettingsContentNode[]): readonly SettingsContentNode[] {
-  return content.map((node) => {
-    if (node.type === 'options') return { ...node, path: node.key, fieldType: 'string' as const, editor: 'options' as const }
-    if (node.type === 'switch') return { ...node, path: node.key, fieldType: 'boolean' as const, editor: 'switch' as const }
-    if (node.type === 'range') return { ...node, path: node.key, fieldType: 'number' as const, editor: 'slider' as const }
-    if (node.type === 'text') return { ...node, path: node.key, fieldType: 'string' as const, editor: 'text' as const }
-    return node
-  })
-}
-
-export type SettingsContentNode = SettingsFieldViewModel | {
+type LegacySettingsContentNode = LegacySettingsFieldViewModel | {
   type: 'preview'
   key: 'appearance.preview'
   glassIntensity: number
+}
+
+export type SettingsFieldViewModel =
+  | {
+      type: 'field'
+      key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'string'
+      editor?: 'options'
+      label: string
+      value: string
+      options: readonly OcOption[]
+    }
+  | {
+      type: 'field'
+      key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'boolean'
+      editor?: 'switch'
+      label: string
+      checked: boolean
+    }
+  | {
+      type: 'field'
+      key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'number'
+      editor?: 'slider'
+      label: string
+      value: number
+      min: number
+      max: number
+      step: number
+      suffix: string
+      ticks?: readonly number[]
+    }
+  | {
+      type: 'field'
+      key: AppSettingKey
+      path?: AppSettingKey
+      fieldType?: 'string'
+      editor?: 'text'
+      label: string
+      value: string
+      placeholder?: string
+      mono?: boolean
+    }
+
+export type SettingsCompositeViewModel = {
+  type: 'composite'
+  key: string
+  label: string
+  themeId: OcThemeId
+  preset: {
+    label: string
+    value: string
+    placeholder: string
+    options: readonly { value: string; label: string }[]
+    importLabel: string
+    exportLabel: string
+    deleteLabel: string
+    canDelete: boolean
+  }
+  accentNeighborAngle: {
+    label: string
+    value: number
+    min: number
+    max: number
+    step: number
+    suffix: string
+  }
+  fontFamily: {
+    label: string
+    value: string
+    fontFamilies: readonly string[]
+    placeholder: string
+  }
+  colors: readonly {
+    key: string
+    label: string
+    token: OcEditableThemeColorKey
+    value: string
+    overrideValue: string | null
+  }[]
+}
+
+export type SettingsContentNode = SettingsFieldViewModel | SettingsCompositeViewModel | {
+  type: 'preview'
+  key: 'appearance.preview'
+  glassIntensity: number
+} | {
+  type: 'action'
+  key: 'project-workspace.reset' | 'themes.reset'
+  label: string
+  actionLabel: string
+  icon: IconToken
+  disabled: boolean
+  disabledReason?: string
+}
+
+function decorateSettingsFields(content: readonly LegacySettingsContentNode[]): readonly SettingsContentNode[] {
+  return content.map((node) => {
+    if (node.type === 'options') return { ...node, type: 'field' as const, path: node.key, fieldType: 'string' as const, editor: 'options' as const }
+    if (node.type === 'switch') return { ...node, type: 'field' as const, path: node.key, fieldType: 'boolean' as const, editor: 'switch' as const }
+    if (node.type === 'range') return { ...node, type: 'field' as const, path: node.key, fieldType: 'number' as const, editor: 'slider' as const }
+    if (node.type === 'text') return { ...node, type: 'field' as const, path: node.key, fieldType: 'string' as const, editor: 'text' as const }
+    if (node.type === 'theme-color-panel') return { ...node, type: 'composite' as const }
+    return node
+  })
 }
 
 export interface SettingsCategoryViewModel {
@@ -244,7 +331,7 @@ export function useSettingsWorkspace(
         const [key, fallback] = labels[presetId]
         return options.translate(`settings.values.${key}`, fallback)
       }
-      const colorPanel = (themeId: OcThemeId): SettingsFieldViewModel => ({
+      const colorPanel = (themeId: OcThemeId): LegacySettingsFieldViewModel => ({
         type: 'theme-color-panel',
         key: `appearance.${themeId}ThemeColors`,
         label: options.translate(`settings.fields.${themeId}ThemeColors`, themeId === 'dark' ? 'Dark theme' : 'Light theme'),

@@ -16,7 +16,7 @@ describe('SettingsWorkspace', () => {
           key: 'general',
           title: 'General',
           content: [{
-            type: 'switch',
+            type: 'field', editor: 'switch',
             key: 'updates.suppressReleaseNotesAfterUpdate',
             label: 'Do not show release notes after an update',
             checked: false,
@@ -41,7 +41,7 @@ describe('SettingsWorkspace', () => {
       key: 'appearance' as const,
       title: 'Appearance',
       content: [{
-        type: 'options' as const,
+        type: 'field' as const, editor: 'options' as const,
         key: 'appearance.theme' as const,
         label: 'Theme',
         value: 'dark',
@@ -90,7 +90,7 @@ describe('SettingsWorkspace', () => {
           key: 'appearance',
           title: 'Appearance',
           content: [{
-            type: 'range',
+            type: 'field', editor: 'slider',
             key: 'appearance.glassIntensity',
             label: 'Glass intensity',
             value: 60,
@@ -120,7 +120,7 @@ describe('SettingsWorkspace', () => {
           key: 'appearance',
           title: 'Appearance',
           content: [{
-            type: 'theme-color-panel',
+            type: 'composite',
             key: 'appearance.darkThemeColors',
             label: 'Dark theme',
             themeId: 'dark',

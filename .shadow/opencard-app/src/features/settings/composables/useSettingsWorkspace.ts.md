@@ -3,4 +3,4 @@
 - 普通节点描述可编辑设置，复合节点承载主题等跨字段业务，`preview` 节点只负责装饰和预览。
 - 顶部预览必须作为内容节点参与分类模型，不能再通过独立的分类属性绕过内容顺序。
 - 节点可以依赖设置值，但修改意图仍由 SettingsWorkspace 上抛给 store；投影层不直接持久化。
-- 普通字段节点同时携带 `path`、`fieldType` 与 `editor`，其中 `editor` 是展示选择而不是 JSON 值类型；数值 Slider 的刻度属于字段展示定义。
+- 普通字段节点统一为 `field`，同时携带 `path`、`fieldType` 与 `editor`；`editor` 是展示选择而不是 JSON 值类型，数值 Slider 的刻度属于字段展示定义。
