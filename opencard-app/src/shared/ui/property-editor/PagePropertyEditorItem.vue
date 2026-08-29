@@ -153,4 +153,17 @@ function handleCommit(part: EditorItemEditorPart, value: unknown): void {
   min-width: 0;
 }
 
+@media (max-width: 680px) {
+  .page-property-editor-item__row:not(.is-group) {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: var(--oc-space-2);
+    padding-block: var(--oc-space-3);
+  }
+
+  .page-property-editor-item__content {
+    justify-content: flex-start;
+  }
+}
+
 </style>
