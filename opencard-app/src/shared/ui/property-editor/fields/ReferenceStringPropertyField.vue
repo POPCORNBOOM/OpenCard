@@ -11,6 +11,7 @@
         :readonly="definition.isReadonly"
         :minlength="definition.minLength"
         :maxlength="definition.maxLength"
+        :placeholder="definition.placeholder"
         resize="none"
         autocomplete="off"
         spellcheck="false"
@@ -40,6 +41,7 @@
         :readonly="definition.isReadonly"
         :minlength="definition.minLength"
         :maxlength="definition.maxLength"
+        :placeholder="definition.placeholder"
         autocomplete="off"
         spellcheck="false"
         role="combobox"
@@ -174,7 +176,12 @@ async function refreshCompletion(
 
 function emitValue(value: string): void {
   draftValue.value = value
-  emit('update:value', value)
+  if ((props.definition.commitMode ?? 'input') === 'input') emit('update:value', value)
+}
+
+function commitDraft(): void {
+  const currentValue = props.value == null ? '' : String(props.value)
+  if (draftValue.value !== currentValue) emit('update:value', draftValue.value)
 }
 
 function setCursor(control: TextControl, cursor: number): void {
@@ -222,6 +229,7 @@ function handleCursorKeyup(event: KeyboardEvent): void {
 }
 
 function handleBlur(): void {
+  if ((props.definition.commitMode ?? 'input') === 'blur') commitDraft()
   window.setTimeout(() => {
     if (document.activeElement !== activeInput.value) {
       isMenuOpen.value = false

@@ -42,7 +42,7 @@
           :aria-label="t('propertyEditor.customFields.advanced')">
           <PropertyEditor v-if="Object.keys(definitionFields).length" :inputs="definitionInputs"
             :categories="definitionCategories" sort-mode="category" delete-mode
-            @update-property="updateDefinitionProperty" @add-property="updateDefinitionProperty"
+            @update-property="updateDefinitionProperty" @add-property="addDefinitionProperty"
             @delete-property="deleteDefinitionProperty" />
           <p v-else class="additional-field-dialog__empty">
             {{ t('propertyEditor.customFields.noAdvanced') }}
@@ -121,7 +121,7 @@ const definitionFields = computed<Record<string, PropertyEditorFieldDefinition>>
     maxLength: { ...common, title: t('propertyEditor.customFields.constraints.maxLength'), fieldType: 'number', min: 0, step: 1 },
     multiline: { ...common, title: t('propertyEditor.customFields.constraints.multiline'), fieldType: 'boolean' },
     options: { ...common, title: t('propertyEditor.customFields.constraints.options'), fieldType: 'string[]' },
-    enumMode: { ...common, title: t('propertyEditor.customFields.constraints.enumMode'), fieldType: 'string', options: ['select', 'stepper'] },
+    presentation: { ...common, title: t('propertyEditor.customFields.constraints.presentation'), fieldType: 'string', options: ['select', 'stepper'] },
   }).filter(([, value]) => value !== undefined)) as Record<string, PropertyEditorFieldDefinition>
   if (props.fieldType === 'number') return Object.fromEntries(Object.entries({
     min: { ...common, title: t('propertyEditor.customFields.constraints.min'), fieldType: 'number' },
@@ -161,6 +161,17 @@ function updateDefinitionProperty(mutation: PropertyEditorMutation): void {
   definitionRecord.value = { ...definitionRecord.value, [mutation.fieldKey]: mutation.value }
 }
 
+function addDefinitionProperty(mutation: Omit<PropertyEditorMutation, 'value'> & { value?: unknown }): void {
+  const definition = definitionFields.value[mutation.fieldKey]
+  if (!definition) return
+  definitionRecord.value = {
+    ...definitionRecord.value,
+    [mutation.fieldKey]: mutation.value ?? createPropertyDefaultValue(
+      definition as Parameters<typeof createPropertyDefaultValue>[0],
+    ),
+  }
+}
+
 function deleteDefinitionProperty(intent: PropertyEditorFieldIntent): void {
   const next = { ...definitionRecord.value }
   delete next[intent.fieldKey]
@@ -184,7 +195,7 @@ function validateDefinitionRecord(fieldType: string, record: Record<string, unkn
     const normalized = options.map(value => typeof value === 'string' ? value.trim() : '')
     if (normalized.some(value => !value)) return 'invalidOption'
     if (new Set(normalized.map(value => value.toLocaleLowerCase())).size !== normalized.length) return 'duplicateOption'
-    if (record.enumMode !== undefined && normalized.length === 0) return 'enumModeWithoutOptions'
+    if (record.presentation !== undefined && normalized.length === 0) return 'presentationWithoutOptions'
   }
   if (fieldType === 'number') {
     const min = parseNumber(record.min)
@@ -211,8 +222,8 @@ function buildDefinition(): AdditionalFieldDefinition {
       ...(maxLength !== undefined ? { maxLength } : {}),
       ...(typeof definitionRecord.value.multiline === 'boolean' ? { multiline: definitionRecord.value.multiline } : {}),
       ...(options.length ? { options } : {}),
-      ...(options.length && (definitionRecord.value.enumMode === 'select' || definitionRecord.value.enumMode === 'stepper')
-        ? { enumMode: definitionRecord.value.enumMode } : {}),
+      ...(options.length && (definitionRecord.value.presentation === 'select' || definitionRecord.value.presentation === 'stepper')
+        ? { presentation: definitionRecord.value.presentation } : {}),
     }
   }
   if (props.fieldType === 'number') {

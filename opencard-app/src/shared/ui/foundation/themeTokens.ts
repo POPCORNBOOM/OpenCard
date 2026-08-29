@@ -149,6 +149,12 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-space-8',
   '--oc-tree-indent',
   '--oc-tree-action-label-min-width',
+  '--oc-page-editor-indent',
+  '--oc-page-editor-column-gap',
+  '--oc-page-editor-row-min-height',
+  '--oc-page-editor-title-min-width',
+  '--oc-page-editor-content-min-width',
+  '--oc-page-editor-value-width',
 
   // 控件高度
   '--oc-size-sm',

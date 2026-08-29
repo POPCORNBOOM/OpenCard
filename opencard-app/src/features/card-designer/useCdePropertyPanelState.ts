@@ -48,6 +48,8 @@ export type CdePropertyMutation = {
   value: unknown
 }
 
+export type CdePropertyAddMutation = Omit<CdePropertyMutation, 'value'>
+
 export type CdePropertyResetMutation = {
   key: string
   fieldKey: string
@@ -357,7 +359,7 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
   function addProperty({
     key,
     fieldKey,
-  }: CdePropertyMutation) {
+  }: CdePropertyAddMutation) {
     const input = propertyInputs.value.find(candidate => candidate.key === key)
     const definition = input?.fields[fieldKey]
     const value = definition

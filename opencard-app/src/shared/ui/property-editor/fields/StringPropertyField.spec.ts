@@ -11,7 +11,7 @@ describe('StringPropertyField static completion', () => {
           title: 'Quality',
           fieldType: 'string',
           options: ['preview', 'standard', 'high', 'ultra', 'custom'],
-          enumMode: 'stepper',
+          presentation: 'stepper',
         },
       },
     })

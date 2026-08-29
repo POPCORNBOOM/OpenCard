@@ -7,6 +7,8 @@
     :disabled="disabled"
     :allow-alpha="allowAlpha"
     variant="field"
+    @preview="emit('preview', $event)"
+    @cancel="emit('cancel')"
     @update:model-value="commitValue"
   />
 </template>
@@ -29,6 +31,8 @@ withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
+  preview: [value: string]
+  cancel: []
   'update:modelValue': [value: string]
   commit: [value: string]
 }>()

@@ -2,6 +2,7 @@ import type { IconToken } from '../icon/iconRegistry'
 import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
 import type { OcItemTailPart } from '../itemViewModel.types'
+import type { OcActionDefinition } from '../../../components/standard/OcActionMenu.vue'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
 
@@ -52,7 +53,9 @@ export type PropertyFieldConstraintMap = {
     maxLength?: number
     options?: readonly string[]
     optionLabelKeys?: Readonly<Record<string, string>>
-    enumMode?: 'select' | 'stepper'
+    presentation?: 'input' | 'select' | 'stepper' | 'option-group'
+    optionLabels?: Readonly<Record<string, string>>
+    placeholder?: string
     multiline?: boolean
     richText?: boolean
   }
@@ -71,9 +74,14 @@ export type PropertyFieldConstraintMap = {
     max?: number
     step?: number
     allowedValues?: readonly number[]
+    presentation?: 'input' | 'slider'
+    ticks?: readonly number[]
+    suffix?: string
   }
   boolean: Record<never, never>
-  color: Record<never, never>
+  color: {
+    allowAlpha?: boolean
+  }
   object: {
     isArray?: boolean
   }
@@ -168,10 +176,48 @@ export type PropertyEditorCategoryDefinition = {
 export type PropertyEditorMutation = {
   key: string
   fieldKey: string
-  value?: unknown
+  value: unknown
 }
+
+export type PropertyEditorAddMutation = Omit<PropertyEditorMutation, 'value'>
 
 export type PropertyEditorFieldIntent = {
   key: string
   fieldKey: string
+}
+
+export type EditorItemEditorPart = {
+  type: 'editor'
+  key: string
+  definition: PropertyEditorFieldDefinition
+  value: unknown
+}
+
+export type EditorItemActionPart = OcActionDefinition & {
+  type: 'action'
+  iconOnly: boolean
+  variant: 'solid' | 'soft' | 'ghost' | 'outline'
+  size?: 'sm' | 'md' | 'lg'
+}
+
+export type EditorItemPart = string | EditorItemEditorPart | EditorItemActionPart
+
+export interface EditorItem {
+  key: string
+  title: string
+  content?: readonly EditorItemPart[]
+  children?: readonly EditorItem[]
+}
+
+export type EditorItemValueIntent = {
+  itemPath: readonly string[]
+  editorKey: string
+  value: unknown
+}
+
+export type EditorItemCancelIntent = Omit<EditorItemValueIntent, 'value'>
+
+export type EditorItemActionIntent = {
+  itemPath: readonly string[]
+  actionKey: string
 }

@@ -2,7 +2,15 @@
 <template>
   <section ref="workspaceRef" class="settings-workspace" :aria-label="viewModel.title"
     @scroll.passive="schedulePreviewPresentation">
-    <div class="settings-workspace__content" :class="{ 'has-preview': previewContent }">
+  <div class="settings-workspace__content" :class="{ 'has-preview': previewContent }">
+    <PagePropertyEditor
+      :items="viewModel.items"
+      @editor-preview="handleEditorPreview"
+      @editor-commit="handleEditorCommit"
+      @editor-cancel="handleEditorCancel"
+      @action="handleEditorAction"
+    >
+      <template #before>
       <template v-if="previewContent">
         <div ref="previewStageRef" class="settings-workspace__preview-stage" aria-hidden="true">
           <div ref="previewGlassRef" class="settings-workspace__preview-glass" />
@@ -70,169 +78,9 @@
         </div>
         <div ref="previewSpacerRef" class="settings-workspace__preview-spacer" aria-hidden="true" />
       </template>
+      </template>
 
-      <div class="settings-workspace__fields">
-        <template v-for="field in viewModel.content" :key="field.key">
-        <div
-          v-if="field.type !== 'preview'"
-          class="settings-workspace__row"
-          :class="{ 'is-theme-color-panel': field.type === 'composite' }"
-        >
-          <section v-if="field.type === 'composite'" class="settings-workspace__color-panel">
-            <header class="settings-workspace__color-panel-header">
-              <OcText as="span" size="sm" bold>{{ field.label }}</OcText>
-            </header>
-            <div class="settings-workspace__color-row">
-              <OcText as="span" size="sm">{{ field.preset.label }}</OcText>
-              <div class="settings-workspace__theme-preset-actions">
-                <OcSelect
-                  class="settings-workspace__theme-preset"
-                  size="sm"
-                  :model-value="field.preset.value"
-                  :placeholder="field.preset.placeholder"
-                  :options="field.preset.options"
-                  @update:model-value="applyThemePreset(field.themeId, $event)"
-                />
-                <OcButton
-                  icon="action.import"
-                  icon-only
-                  size="sm"
-                  variant="outline"
-                  :aria-label="field.preset.importLabel"
-                  :data-tooltip="field.preset.importLabel"
-                  @click="emitThemeFileAction('theme.import', field.themeId)"
-                />
-                <OcButton
-                  icon="action.export"
-                  icon-only
-                  size="sm"
-                  variant="outline"
-                  :aria-label="field.preset.exportLabel"
-                  :data-tooltip="field.preset.exportLabel"
-                  @click="emitThemeFileAction('theme.export', field.themeId)"
-                />
-                <OcButton
-                  icon="action.delete"
-                  icon-only
-                  size="sm"
-                  variant="outline"
-                  :disabled="!field.preset.canDelete"
-                  :aria-label="field.preset.deleteLabel"
-                  :data-tooltip="field.preset.deleteLabel"
-                  @click="deleteThemePreset(field.themeId, field.preset.value)"
-                />
-              </div>
-            </div>
-            <div
-              v-for="color in field.colors"
-              :key="color.key"
-              class="settings-workspace__color-row"
-            >
-              <OcText as="span" size="sm">{{ color.label }}</OcText>
-              <div class="settings-workspace__color-value">
-                <OcColorPicker
-                  class="settings-workspace__color-picker"
-                  :model-value="color.value"
-                  :label="`${field.label} ${color.label}`"
-                  variant="field"
-                  :allow-alpha="false"
-                  @preview="emitThemeColor('theme-color.preview', field.themeId, color, $event)"
-                  @commit="commitThemeColor(field.themeId, color, $event)"
-                  @cancel="cancelThemeColor(field.themeId, color)"
-                  @open-change="captureThemeColorSnapshot($event, field.themeId, color)"
-                />
-              </div>
-            </div>
-            <div class="settings-workspace__color-row">
-              <OcText as="span" size="sm">{{ field.fontFamily.label }}</OcText>
-              <FontFamilyAutocomplete
-                class="settings-workspace__theme-font"
-                :model-value="field.fontFamily.value"
-                :font-families="field.fontFamily.fontFamilies"
-                :label="`${field.label} ${field.fontFamily.label}`"
-                :placeholder="field.fontFamily.placeholder"
-                @commit="emitThemeFont(field.themeId, $event)"
-              />
-            </div>
-            <div class="settings-workspace__color-row">
-              <OcText as="span" size="sm">{{ field.accentNeighborAngle.label }}</OcText>
-              <div class="settings-workspace__range-control settings-workspace__theme-angle">
-                <OcSlider
-                  class="settings-workspace__range"
-                  :model-value="field.accentNeighborAngle.value"
-                  :min="field.accentNeighborAngle.min"
-                  :max="field.accentNeighborAngle.max"
-                  :step="field.accentNeighborAngle.step"
-                  :value-text="`${field.accentNeighborAngle.value}${field.accentNeighborAngle.suffix}`"
-                  :aria-label="`${field.label} ${field.accentNeighborAngle.label}`"
-                  @preview="emitThemeAngle('theme-angle.preview', field.themeId, $event)"
-                  @commit="emitThemeAngle('theme-angle.change', field.themeId, $event)"
-                />
-                <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
-                  {{ field.accentNeighborAngle.value }}{{ field.accentNeighborAngle.suffix }}
-                </OcText>
-              </div>
-            </div>
-          </section>
-
-          <template v-else>
-            <OcText class="settings-workspace__label" as="span" size="sm">{{ field.label }}</OcText>
-
-            <OcOptionGroup
-            v-if="field.type === 'field' && field.editor === 'options'"
-            class="settings-workspace__control"
-            :model-value="field.value"
-            :options="field.options"
-            @update:model-value="emitSettingChange(field.key, $event)"
-          />
-          <OcSwitch
-            v-else-if="field.type === 'field' && field.editor === 'switch'"
-            class="settings-workspace__control"
-            :checked="field.checked"
-            :aria-label="field.label"
-            @update:checked="emitSettingChange(field.key, $event)"
-          />
-          <div v-else-if="field.type === 'field' && field.editor === 'slider'" class="settings-workspace__range-control">
-            <OcSlider
-              class="settings-workspace__range"
-              :model-value="field.value"
-              :min="field.min"
-              :max="field.max"
-              :step="field.step"
-              :value-text="`${field.value}${field.suffix}`"
-              :aria-label="field.label"
-              @preview="emitSettingPreview(field.key, $event)"
-              @commit="emitSettingChange(field.key, $event)"
-            />
-            <OcText class="settings-workspace__range-value" as="output" size="sm" mono>
-              {{ field.value }}{{ field.suffix }}
-            </OcText>
-          </div>
-          <OcFieldInput
-            v-else-if="field.type === 'field' && field.editor === 'text'"
-            class="settings-workspace__control"
-            full-width
-            :mono="field.mono"
-            :value="field.value"
-            :placeholder="field.placeholder"
-            @change="emitTextSettingChange(field.key, $event)"
-          />
-          <OcButton
-            v-else-if="field.type === 'action'"
-            class="settings-workspace__control"
-            size="sm"
-            variant="outline"
-            :icon="field.icon"
-            :disabled="field.disabled"
-            :data-tooltip="field.disabledReason"
-            @click="emitAction(field.key)"
-          >
-            {{ field.actionLabel }}
-          </OcButton>
-          </template>
-        </div>
-        </template>
-      </div>
+    </PagePropertyEditor>
     </div>
   </section>
 </template>
@@ -240,18 +88,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import previewLogoPhase from '../../../assets/opencard-logo-phase-map.png'
-import OcButton from '../../../components/base/OcButton.vue'
-import OcFieldInput from '../../../components/base/OcFieldInput.vue'
-import OcSwitch from '../../../components/base/OcSwitch.vue'
-import OcText from '../../../components/base/OcText.vue'
-import OcOptionGroup from '../../../components/standard/OcOptionGroup.vue'
-import OcColorPicker from '../../../components/standard/OcColorPicker.vue'
 import OcPhaseImage from '../../../components/standard/OcPhaseImage.vue'
-import OcSelect from '../../../components/standard/OcSelect.vue'
-import OcSlider from '../../../components/standard/OcSlider.vue'
+import PagePropertyEditor from '../../../shared/ui/property-editor/PagePropertyEditor.vue'
+import type {
+  EditorItem,
+  EditorItemActionIntent,
+  EditorItemCancelIntent,
+  EditorItemEditorPart,
+  EditorItemValueIntent,
+} from '../../../shared/ui/property-editor/propertyEditor.types'
+import type { OcEditableThemeColorKey, OcThemeId } from '../../../shared/ui/foundation'
 import AppearanceShaderPreview from './AppearanceShaderPreview.vue'
-import FontFamilyAutocomplete from './FontFamilyAutocomplete.vue'
-import type { SettingsIntent } from '../model/appSettings'
+import type { AppSettingKey, SettingsIntent } from '../model/appSettings'
 import type { SettingsCategoryViewModel } from '../composables/useSettingsWorkspace'
 
 const props = defineProps<{
@@ -262,7 +110,7 @@ const emit = defineEmits<{
   intent: [intent: SettingsIntent]
 }>()
 
-const previewContent = computed(() => props.viewModel.content.find(node => node.type === 'preview'))
+const previewContent = computed(() => props.viewModel.preview)
 
 const workspaceRef = ref<HTMLElement | null>(null)
 const previewRef = ref<HTMLElement | null>(null)
@@ -371,76 +219,105 @@ function emitSettingPreview(key: Extract<SettingsIntent, { type: 'setting.previe
   emit('intent', { type: 'setting.preview', key, value })
 }
 
-function emitTextSettingChange(
-  key: Extract<SettingsIntent, { type: 'setting.change' }>['key'],
-  event: Event,
-): void {
-  if (event.target instanceof HTMLInputElement) emitSettingChange(key, event.target.value)
-}
-
-type ThemeColorPanel = Extract<SettingsCategoryViewModel['content'][number], { type: 'composite' }>
-type ThemeColor = ThemeColorPanel['colors'][number]
 const themeColorSnapshots = new Map<string, string | null>()
 
-function themeColorKey(themeId: ThemeColorPanel['themeId'], color: ThemeColor): string {
-  return `${themeId}:${color.token}`
+function findItem(items: readonly EditorItem[], path: readonly string[]): EditorItem | undefined {
+  const [key, ...remaining] = path
+  const item = items.find(candidate => candidate.key === key)
+  if (!item || remaining.length === 0) return item
+  return findItem(item.children ?? [], remaining)
 }
 
-function emitThemeColor(
-  type: 'theme-color.preview' | 'theme-color.change' | 'theme-color.cancel',
-  themeId: ThemeColorPanel['themeId'],
-  color: ThemeColor,
-  value: string | null,
-): void {
-  emit('intent', { type, themeId, token: color.token, value })
+function findEditor(path: readonly string[], editorKey: string): EditorItemEditorPart | undefined {
+  return findItem(props.viewModel.items, path)?.content?.find((part): part is EditorItemEditorPart => (
+    typeof part !== 'string' && part.type === 'editor' && part.key === editorKey
+  ))
 }
 
-function captureThemeColorSnapshot(
-  open: boolean,
-  themeId: ThemeColorPanel['themeId'],
-  color: ThemeColor,
-): void {
-  const key = themeColorKey(themeId, color)
-  if (open) themeColorSnapshots.set(key, color.overrideValue)
-  else themeColorSnapshots.delete(key)
+function themeContext(path: readonly string[]): { themeId: OcThemeId; childKey: string } | null {
+  const match = path[0]?.match(/^theme:(dark|light)$/)
+  if (!match || !path[1]) return null
+  return { themeId: match[1] as OcThemeId, childKey: path[1] }
 }
 
-function commitThemeColor(themeId: ThemeColorPanel['themeId'], color: ThemeColor, value: string): void {
-  themeColorSnapshots.set(themeColorKey(themeId, color), value)
-  emitThemeColor('theme-color.change', themeId, color, value)
+function colorToken(childKey: string): OcEditableThemeColorKey | null {
+  return childKey.startsWith('color:') ? childKey.slice('color:'.length) as OcEditableThemeColorKey : null
 }
 
-function cancelThemeColor(themeId: ThemeColorPanel['themeId'], color: ThemeColor): void {
-  const key = themeColorKey(themeId, color)
-  emitThemeColor('theme-color.cancel', themeId, color, themeColorSnapshots.get(key) ?? null)
+function snapshotKey(themeId: OcThemeId, token: OcEditableThemeColorKey): string {
+  return `${themeId}:${token}`
 }
 
-function emitThemeAngle(
-  type: 'theme-angle.preview' | 'theme-angle.change',
-  themeId: ThemeColorPanel['themeId'],
-  value: number,
-): void {
-  emit('intent', { type, themeId, value })
+function handleEditorPreview(intent: EditorItemValueIntent): void {
+  const context = themeContext(intent.itemPath)
+  if (!context) {
+    emitSettingPreview(intent.itemPath[0] as AppSettingKey, intent.value)
+    return
+  }
+  if (context.childKey === 'angle') {
+    emit('intent', { type: 'theme-angle.preview', themeId: context.themeId, value: intent.value as number })
+    return
+  }
+  const token = colorToken(context.childKey)
+  if (!token) return
+  const key = snapshotKey(context.themeId, token)
+  if (!themeColorSnapshots.has(key)) {
+    const editor = findEditor(intent.itemPath, intent.editorKey)
+    themeColorSnapshots.set(key, typeof editor?.definition.defaultValue === 'string'
+      ? editor.definition.defaultValue
+      : null)
+  }
+  emit('intent', { type: 'theme-color.preview', themeId: context.themeId, token, value: intent.value as string })
 }
 
-function emitThemeFont(themeId: ThemeColorPanel['themeId'], value: string): void {
-  if (value) emit('intent', { type: 'theme-font.change', themeId, value })
+function handleEditorCommit(intent: EditorItemValueIntent): void {
+  const context = themeContext(intent.itemPath)
+  if (!context) {
+    emitSettingChange(intent.itemPath[0] as AppSettingKey, intent.value)
+    return
+  }
+  if (context.childKey === 'preset') {
+    if (intent.value) emit('intent', { type: 'theme-preset.change', themeId: context.themeId, presetId: String(intent.value) })
+    return
+  }
+  if (context.childKey === 'font') {
+    emit('intent', { type: 'theme-font.change', themeId: context.themeId, value: String(intent.value).trim() || 'system' })
+    return
+  }
+  if (context.childKey === 'angle') {
+    emit('intent', { type: 'theme-angle.change', themeId: context.themeId, value: intent.value as number })
+    return
+  }
+  const token = colorToken(context.childKey)
+  if (!token) return
+  themeColorSnapshots.delete(snapshotKey(context.themeId, token))
+  emit('intent', { type: 'theme-color.change', themeId: context.themeId, token, value: intent.value as string })
 }
 
-function applyThemePreset(themeId: ThemeColorPanel['themeId'], presetId: string): void {
-  if (presetId) emit('intent', { type: 'theme-preset.change', themeId, presetId })
+function handleEditorCancel(intent: EditorItemCancelIntent): void {
+  const context = themeContext(intent.itemPath)
+  if (!context) return
+  const token = colorToken(context.childKey)
+  if (!token) return
+  const key = snapshotKey(context.themeId, token)
+  const snapshot = themeColorSnapshots.get(key)
+  themeColorSnapshots.delete(key)
+  emit('intent', { type: 'theme-color.cancel', themeId: context.themeId, token, value: snapshot ?? null })
 }
 
-function deleteThemePreset(themeId: ThemeColorPanel['themeId'], presetId: string): void {
-  if (presetId.startsWith('user:')) emit('intent', { type: 'theme-preset.delete', themeId, presetId })
-}
-
-function emitThemeFileAction(type: 'theme.import' | 'theme.export', themeId: ThemeColorPanel['themeId']): void {
-  emit('intent', { type, themeId })
-}
-
-function emitAction(key: 'project-workspace.reset' | 'themes.reset'): void {
-  emit('intent', { type: key })
+function handleEditorAction(intent: EditorItemActionIntent): void {
+  const context = themeContext(intent.itemPath)
+  if (context?.childKey === 'preset') {
+    if (intent.actionKey === 'import' || intent.actionKey === 'export') {
+      emit('intent', { type: `theme.${intent.actionKey}`, themeId: context.themeId })
+    } else if (intent.actionKey === 'delete') {
+      const presetId = String(findEditor(intent.itemPath, 'value')?.value ?? '')
+      if (presetId.startsWith('user:')) emit('intent', { type: 'theme-preset.delete', themeId: context.themeId, presetId })
+    }
+    return
+  }
+  const rootKey = intent.itemPath[0]
+  if (rootKey === 'themes.reset' || rootKey === 'project-workspace.reset') emit('intent', { type: rootKey })
 }
 </script>
 
@@ -772,112 +649,9 @@ function emitAction(key: 'project-workspace.reset' | 'themes.reset'): void {
 }
 .settings-workspace__preview-property.is-accented b { border-color: var(--oc-border-accent); }
 
-.settings-workspace__row {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(220px, auto);
-  align-items: center;
-  min-height: 54px;
-  gap: var(--oc-space-5);
-  border-bottom: 1px solid var(--oc-border-muted);
-}
-
-.settings-workspace__label {
-  min-width: 0;
-}
-
-.settings-workspace__control {
-  min-width: 0;
-  justify-self: end;
-}
-
-.settings-workspace__range-control {
-  display: grid;
-  grid-template-columns: minmax(160px, 240px) 48px;
-  align-items: center;
-  gap: var(--oc-space-3);
-  justify-self: end;
-}
-
-.settings-workspace__range {
-  width: 100%;
-}
-
-.settings-workspace__range-value {
-  text-align: right;
-}
-
-.settings-workspace__row.is-theme-color-panel {
-  display: block;
-  padding: var(--oc-space-3) 0;
-}
-
-.settings-workspace__color-panel {
-  width: 100%;
-}
-
-.settings-workspace__color-panel-header,
-.settings-workspace__color-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 0 var(--oc-space-4);
-  border-bottom: 1px solid var(--oc-border-muted);
-}
-
-.settings-workspace__color-panel-header {
-  min-height: 46px;
-}
-
-.settings-workspace__color-value {
-  width: 128px;
-}
-
-.settings-workspace__color-picker {
-  width: 100%;
-}
-
-.settings-workspace__theme-preset {
-  width: 128px;
-}
-
-.settings-workspace__theme-font {
-  width: min(320px, 48vw);
-}
-
-.settings-workspace__theme-preset-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--oc-space-2);
-}
-
-.settings-workspace__theme-angle {
-  grid-template-columns: minmax(120px, 180px) 48px;
-}
-
 @media (max-width: 680px) {
   .settings-workspace__content {
     padding: var(--oc-space-4);
   }
-
-  .settings-workspace__row {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: stretch;
-    gap: var(--oc-space-2);
-    padding: var(--oc-space-3) 0;
-  }
-
-  .settings-workspace__control {
-    justify-self: start;
-    max-width: 100%;
-  }
-
-  .settings-workspace__range-control {
-    width: 100%;
-    grid-template-columns: minmax(0, 1fr) 48px;
-    justify-self: stretch;
-  }
-
-
 }
 </style>

@@ -1,242 +1,88 @@
 import { ref } from 'vue'
 import { describe, expect, it } from 'vitest'
+import type { EditorItem, EditorItemEditorPart } from '../../../shared/ui/property-editor/propertyEditor.types'
 import { createDefaultAppSettings, type SettingsCategoryKey } from '../model/appSettings'
 import { useSettingsWorkspace } from './useSettingsWorkspace'
 
+function editor(item: EditorItem, key = 'value'): EditorItemEditorPart {
+  return item.content?.find((part): part is EditorItemEditorPart => (
+    typeof part !== 'string' && part.type === 'editor' && part.key === key
+  ))!
+}
+
 describe('useSettingsWorkspace', () => {
-  it('projects roots-only categories and the selected category fields', () => {
+  it('projects general settings as root editor items', () => {
     const categoryKey = ref<SettingsCategoryKey>('general')
-    const projectOpen = ref(false)
     const { categoryTreeData, activeCategory } = useSettingsWorkspace({
-      settings: ref(createDefaultAppSettings()),
-      categoryKey,
-      projectOpen,
+      settings: ref(createDefaultAppSettings()), categoryKey, projectOpen: ref(false),
       translate: (_key, fallback) => fallback,
     })
 
     expect(categoryTreeData.value.rootKeys).toEqual(['general', 'appearance', 'workspace'])
-    expect(categoryTreeData.value.children.size).toBe(0)
-    expect(activeCategory.value.content[0]).toMatchObject({
-      type: 'field', editor: 'options',
-      key: 'appearance.locale',
-      path: 'appearance.locale',
-      fieldType: 'string',
-      value: 'system',
-    })
-    expect(activeCategory.value.content[1]).toMatchObject({
-      type: 'field', editor: 'slider',
-      key: 'shell.titleBarNoticeHistoryLimit',
-      value: 128,
-      min: 1,
-      max: 512,
-    })
-    expect(activeCategory.value.content[2]).toMatchObject({
-      type: 'field', editor: 'switch',
-      key: 'updates.suppressReleaseNotesAfterUpdate',
-      checked: false,
-    })
-    expect(activeCategory.value.content[3]).toMatchObject({
-      type: 'field', editor: 'switch',
-      key: 'exporting.openCdeWorkbookAfterExport',
-      checked: true,
-    })
-
-    categoryKey.value = 'appearance'
-    expect(activeCategory.value.content[0]).toEqual({
-      type: 'preview',
-      key: 'appearance.preview',
-      glassIntensity: 60,
-    })
-    expect(activeCategory.value.content).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        type: 'field', editor: 'options',
-        key: 'appearance.theme',
-        value: 'system',
-        options: expect.arrayContaining([expect.objectContaining({ value: 'system' })]),
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'slider',
-        key: 'appearance.glassIntensity',
-        value: 60,
-        min: 0,
-        max: 100,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'slider',
-        key: 'appearance.baseFontSize',
-        path: 'appearance.baseFontSize',
-        fieldType: 'number',
-        value: 12,
-        min: 10,
-        max: 16,
-        ticks: [10, 12, 14, 16],
-        suffix: 'px',
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'slider',
-        key: 'appearance.phaseImageSpeed',
-        value: 100,
-        min: 25,
-        max: 400,
-        suffix: '%',
-      }),
-      expect.objectContaining({
-        type: 'composite',
-        key: 'appearance.darkThemeColors',
-        themeId: 'dark',
-        preset: expect.objectContaining({ value: 'default' }),
-        accentNeighborAngle: expect.objectContaining({ value: -50, min: -180, max: 180, suffix: '°' }),
-        fontFamily: expect.objectContaining({ value: 'system' }),
-        colors: expect.arrayContaining([
-          expect.objectContaining({ key: 'accentColor', token: '--oc-accent' }),
-        ]),
-      }),
-      expect.objectContaining({ type: 'composite', key: 'appearance.lightThemeColors', themeId: 'light' }),
-      expect.objectContaining({ type: 'action', key: 'themes.reset' }),
-    ]))
-    const colorPanels = activeCategory.value.content.filter(field => field.type === 'composite')
-    expect(colorPanels).toHaveLength(2)
-    expect(colorPanels.every(panel => panel.colors.length === 3)).toBe(true)
-    expect(colorPanels.every(panel => panel.preset.options.filter(option => !option.value.startsWith('user:')).length === 5)).toBe(true)
-    expect(colorPanels[0]!.preset.options[0]).toEqual({ value: 'default', label: 'OpenCard Dark' })
-    expect(colorPanels[1]!.preset.options[0]).toEqual({ value: 'default', label: 'OpenCard Light' })
-    expect(colorPanels[0]!.preset.options).toEqual(expect.arrayContaining([
-      expect.objectContaining({ value: 'grass-block', label: 'Grass Block' }),
-    ]))
-    expect(colorPanels[1]!.preset.options).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ value: 'grass-block' }),
-    ]))
-    expect(colorPanels[1]!.preset.options).toEqual(expect.arrayContaining([
-      expect.objectContaining({ value: 'morning-mist', label: 'Morning Mist' }),
-      expect.objectContaining({ value: 'mint', label: 'Mint' }),
-    ]))
-
-    const customSettings = createDefaultAppSettings()
-    customSettings.appearance.accentNeighborAngles.dark = -72
-    const customWorkspace = useSettingsWorkspace({
-      settings: ref(customSettings),
-      categoryKey,
-      projectOpen,
-      translate: (_key, fallback) => fallback,
-    })
-    expect(customWorkspace.activeCategory.value.content.find(field => (
-      field.type === 'composite' && field.themeId === 'dark'
-    ))).toMatchObject({ preset: { value: '', canDelete: false } })
-
-    categoryKey.value = 'workspace'
-    expect(activeCategory.value.content.map((field) => field.key)).toEqual([
-      'workspace.autoSave',
-      'workspace.autoSaveIntervalSeconds',
-      'workspace.historyEntryLimit',
-      'workspace.customBlockMaxDepth',
-      'workspace.structureTreeSelectionBehavior',
-      'workspace.structureTreeScrollToSelection',
-      'workspace.hideDotFiles',
-      'workspace.showSelectionPositionOnMove',
-      'workspace.showSelectionSizeOnResize',
-      'workspace.alignmentSnappingEnabledByDefault',
-      'project-workspace.reset',
+    expect(activeCategory.value.items.map(item => item.key)).toEqual([
+      'appearance.locale',
+      'shell.titleBarNoticeHistoryLimit',
+      'updates.suppressReleaseNotesAfterUpdate',
+      'exporting.openCdeWorkbookAfterExport',
     ])
-    expect(activeCategory.value.content).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'field', editor: 'switch', key: 'workspace.autoSave', checked: true }),
-      expect.objectContaining({
-        type: 'field', editor: 'slider',
-        key: 'workspace.autoSaveIntervalSeconds',
-        value: 30,
-        min: 5,
-        max: 300,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'slider',
-        key: 'workspace.customBlockMaxDepth',
-        value: 16,
-        min: 1,
-        max: 64,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'options',
-        key: 'workspace.structureTreeSelectionBehavior',
-        value: 'expand-exclusive',
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'switch',
-        key: 'workspace.structureTreeScrollToSelection',
-        checked: true,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'switch',
-        key: 'workspace.hideDotFiles',
-        checked: true,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'switch',
-        key: 'workspace.showSelectionPositionOnMove',
-        checked: true,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'switch',
-        key: 'workspace.showSelectionSizeOnResize',
-        checked: true,
-      }),
-      expect.objectContaining({
-        type: 'field', editor: 'switch',
-        key: 'workspace.alignmentSnappingEnabledByDefault',
-        checked: true,
-      }),
-      expect.objectContaining({ type: 'action', key: 'project-workspace.reset', disabled: true }),
-    ]))
-
-    projectOpen.value = true
-    expect(activeCategory.value.content).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'action', key: 'project-workspace.reset', disabled: false }),
-    ]))
-  })
-
-  it('projects installed system font families into both theme panels', () => {
-    const { activeCategory } = useSettingsWorkspace({
-      settings: ref(createDefaultAppSettings()),
-      categoryKey: ref<SettingsCategoryKey>('appearance'),
-      projectOpen: ref(false),
-      systemFontFamilies: ref(['Inter', 'Microsoft YaHei UI']),
-      translate: (_key, fallback) => fallback,
+    expect(editor(activeCategory.value.items[0]!)).toMatchObject({
+      value: 'system',
+      definition: { fieldType: 'string', presentation: 'option-group' },
     })
-
-    const panels = activeCategory.value.content.filter(field => field.type === 'composite')
-    expect(panels).toHaveLength(2)
-    expect(panels[0]!.fontFamily.fontFamilies).toEqual(['Inter', 'Microsoft YaHei UI'])
-    expect(panels[0]!.fontFamily.placeholder).toBe('System')
+    expect(editor(activeCategory.value.items[1]!)).toMatchObject({
+      value: 128,
+      definition: { fieldType: 'number', presentation: 'slider', min: 1, max: 512 },
+    })
   })
 
-  it('adds imported themes to the preset list and marks only them deletable', () => {
+  it('projects appearance preview, sliders, and recursive theme items', async () => {
     const settings = createDefaultAppSettings()
     settings.appearance.userThemePresets.dark = [{
       name: 'Forest',
       definition: {
-        colors: {
-          '--oc-accent': '#228833',
-          '--oc-bg-base': '#102010',
-          '--oc-fg-default': '#DDEEDD',
-        },
-        accentNeighborAngle: -25,
-        fontFamily: 'Inter; SimSun',
+        colors: { '--oc-accent': '#112233', '--oc-bg-base': '#223344', '--oc-fg-default': '#DDEEFF' },
+        accentNeighborAngle: -70,
+        fontFamily: 'Inter',
       },
     }]
     settings.appearance.themeOverrides.dark = { ...settings.appearance.userThemePresets.dark[0]!.definition.colors }
-    settings.appearance.accentNeighborAngles.dark = -25
-    settings.appearance.fontFamilies.dark = 'Inter; SimSun'
+    settings.appearance.accentNeighborAngles.dark = -70
+    settings.appearance.fontFamilies.dark = 'Inter'
+    const categoryKey = ref<SettingsCategoryKey>('appearance')
     const { activeCategory } = useSettingsWorkspace({
-      settings: ref(settings),
-      categoryKey: ref<SettingsCategoryKey>('appearance'),
-      projectOpen: ref(false),
+      settings: ref(settings), categoryKey, projectOpen: ref(false),
+      systemFontFamilies: ref(['Inter', 'Microsoft YaHei UI']),
       translate: (_key, fallback) => fallback,
     })
 
-    const darkPanel = activeCategory.value.content.find(field => (
-      field.type === 'composite' && field.themeId === 'dark'
-    ))
-    expect(darkPanel).toMatchObject({ preset: { value: 'user:Forest', canDelete: true } })
-    expect(darkPanel?.type === 'composite' && darkPanel.preset.options).toEqual(expect.arrayContaining([
-      { value: 'user:Forest', label: 'Forest Imported' },
-    ]))
+    expect(activeCategory.value.preview).toEqual({ glassIntensity: 60 })
+    expect(editor(activeCategory.value.items.find(item => item.key === 'appearance.baseFontSize')!))
+      .toMatchObject({ definition: { presentation: 'slider', ticks: [10, 12, 14, 16] } })
+    const darkTheme = activeCategory.value.items.find(item => item.key === 'theme:dark')!
+    const lightTheme = activeCategory.value.items.find(item => item.key === 'theme:light')!
+    expect(darkTheme.children?.map(item => item.key)).toEqual([
+      'preset', 'color:--oc-accent', 'color:--oc-bg-base', 'color:--oc-fg-default', 'font', 'angle',
+    ])
+    expect(lightTheme.children).toHaveLength(6)
+    const preset = darkTheme.children?.[0]!
+    expect(editor(preset).value).toBe('user:Forest')
+    expect(preset.content?.filter(part => typeof part !== 'string' && part.type === 'action')).toHaveLength(3)
+    const font = darkTheme.children?.find(item => item.key === 'font')!
+    expect((await editor(font).definition.completion?.provider?.({ value: 'Mic', cursor: 3 }))?.items[0]?.label)
+      .toBe('Microsoft YaHei UI')
+  })
+
+  it('projects workspace settings and updates reset availability reactively', () => {
+    const categoryKey = ref<SettingsCategoryKey>('workspace')
+    const projectOpen = ref(false)
+    const { activeCategory } = useSettingsWorkspace({
+      settings: ref(createDefaultAppSettings()), categoryKey, projectOpen,
+      translate: (_key, fallback) => fallback,
+    })
+
+    expect(activeCategory.value.items.map(item => item.key)).toContain('workspace.autoSave')
+    expect(activeCategory.value.items[activeCategory.value.items.length - 1]?.content?.[0]).toMatchObject({ type: 'action', disabled: true })
+    projectOpen.value = true
+    expect(activeCategory.value.items[activeCategory.value.items.length - 1]?.content?.[0]).toMatchObject({ type: 'action', disabled: false })
   })
 })

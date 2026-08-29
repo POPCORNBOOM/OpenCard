@@ -6,7 +6,9 @@
       ref="fieldComponent"
       :definition="rawStringDefinition"
       :value="value"
-      @update:value="emit('update:value', $event)"
+      @update:value="handleCommit"
+      @preview:value="emit('preview:value', $event)"
+      @cancel:value="emit('cancel:value')"
     />
     <ArrayPropertyField
       v-else-if="isArrayPropertyFieldType(definition.fieldType)"
@@ -15,7 +17,9 @@
       :element-component="getArrayPropertyElementComponent(definition.fieldType)"
       :element-definition="toArrayPropertyElementDefinition(definition)"
       :value="value"
-      @update:value="emit('update:value', $event)"
+      @update:value="handleCommit"
+      @preview:value="emit('preview:value', $event)"
+      @cancel:value="emit('cancel:value')"
     />
     <component
       v-else
@@ -23,7 +27,9 @@
       :is="getPropertyFieldComponent(definition)"
       :definition="definition"
       :value="value"
-      @update:value="emit('update:value', $event)"
+      @update:value="handleCommit"
+      @preview:value="emit('preview:value', $event)"
+      @cancel:value="emit('cancel:value')"
     />
   </div>
 </template>
@@ -52,7 +58,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:value': [value: unknown]
+  'preview:value': [value: unknown]
+  'commit:value': [value: unknown]
+  'cancel:value': []
 }>()
+
+function handleCommit(value: unknown): void {
+  emit('update:value', value)
+  emit('commit:value', value)
+}
 
 type ActivatablePropertyField = {
   activate?: () => void | Promise<void>
@@ -82,8 +96,9 @@ defineExpose({ activate })
 
 const appearance = computed(() => props.appearance ?? 'default')
 const rawStringDefinition = computed(() => {
-  const { options: _options, ...baseDefinition } = props.definition as PropertyEditorFieldDefinition & {
+  const { options: _options, presentation: _presentation, ...baseDefinition } = props.definition as PropertyEditorFieldDefinition & {
     options?: readonly string[]
+    presentation?: string
   }
   return { ...baseDefinition, fieldType: 'string' as const }
 })

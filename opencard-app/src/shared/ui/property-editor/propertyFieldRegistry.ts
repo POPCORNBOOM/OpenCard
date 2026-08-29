@@ -17,6 +17,7 @@ import ColorPropertyField from './fields/ColorPropertyField.vue'
 import FilePathPropertyField from './fields/FilePathPropertyField.vue'
 import FlowDirectionPropertyField from './fields/FlowDirectionPropertyField.vue'
 import NumberPropertyField from './fields/NumberPropertyField.vue'
+import NumberSliderPropertyField from './fields/NumberSliderPropertyField.vue'
 import ObjectPropertyField from './fields/ObjectPropertyField.vue'
 import ReferenceStringPropertyField from './fields/ReferenceStringPropertyField.vue'
 import StringPropertyField from './fields/StringPropertyField.vue'
@@ -67,6 +68,9 @@ export function formatPropertyFieldReadonlyValue(definition: PropertyEditorField
 }
 
 export function getPropertyFieldComponent(definition: PropertyEditorFieldDefinition): Component {
+  if (definition.fieldType === 'number' && definition.presentation === 'slider') {
+    return NumberSliderPropertyField
+  }
   if (definition.fieldType === 'string' && definition.richText) return RichTextStringPropertyField
   if (definition.fieldType === 'string' && !definition.options && definition.completion?.provider) {
     return ReferenceStringPropertyField

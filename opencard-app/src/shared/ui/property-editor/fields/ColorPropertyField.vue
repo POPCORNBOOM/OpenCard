@@ -1,7 +1,8 @@
 <!-- 属性颜色字段：把值与只读协议适配到标准颜色字段。 -->
 <template>
   <OcColorField :model-value="stringValue" :label="definition.title"
-    :disabled="definition.isReadonly" allow-alpha
+    :disabled="definition.isReadonly" :allow-alpha="definition.allowAlpha ?? true"
+    @preview="emit('preview:value', $event)" @cancel="emit('cancel:value')"
     @update:model-value="emit('update:value', $event)" />
 </template>
 
@@ -17,6 +18,8 @@ interface ColorPropertyFieldProps {
 }
 
 interface ColorPropertyFieldEmits {
+  (e: 'preview:value', value: string): void
+  (e: 'cancel:value'): void
   /** 颜色变化时输出当前颜色字符串。 */
   (e: 'update:value', value: string): void
 }

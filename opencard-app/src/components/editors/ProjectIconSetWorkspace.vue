@@ -199,7 +199,7 @@ const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
       pixelated: { title: t('projectConfig.icons.pixelated'), fieldType: 'boolean', category: 'appearance', order: 1 },
       rotation: {
         title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 2,
-        options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), enumMode: 'select',
+        options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), presentation: 'select',
       },
     },
   }]

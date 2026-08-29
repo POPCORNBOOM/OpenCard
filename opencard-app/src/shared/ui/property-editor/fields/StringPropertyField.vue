@@ -2,13 +2,15 @@
   <div v-if="definition.isReadonly" class="readonly-value" :data-tooltip="stringValue || '-'">
     {{ stringValue || '-' }}
   </div>
-  <OcEnumStepper v-else-if="definition.options?.length && definition.enumMode === 'stepper'"
+  <OcEnumStepper v-else-if="definition.options?.length && definition.presentation === 'stepper'"
     :model-value="stringValue" :options="enumOptions" @update:model-value="emit('update:value', $event)" />
+  <OcOptionGroup v-else-if="definition.options?.length && definition.presentation === 'option-group'"
+    :model-value="stringValue" :options="selectOptions" @update:model-value="emit('update:value', $event)" />
   <OcSelect v-else-if="definition.options?.length" :model-value="stringValue"
     :options="selectOptions" full-width @update:model-value="emit('update:value', $event)" />
   <OcFieldFrame v-else-if="definition.multiline" class="multiline-field" full-width>
     <OcFieldInput as="textarea" variant="plain" full-width class="multiline-field__input"
-      :value="draftValue"
+      :value="draftValue" :placeholder="definition.placeholder"
       resize="none" @input="handleInput" @blur="handleBlur" @keydown="handleKeydown" />
   </OcFieldFrame>
   <OcFieldFrame v-else class="autocomplete-field" full-width>
@@ -21,6 +23,7 @@
       type="text"
       :value="draftValue"
       :readonly="definition.isReadonly"
+      :placeholder="definition.placeholder"
       @input="handleInput"
       @blur="handleBlur"
       @keydown="handleKeydown"
@@ -38,6 +41,7 @@ import OcFieldFrame from '../../../../components/base/OcFieldFrame.vue'
 import OcFieldInput from '../../../../components/base/OcFieldInput.vue'
 import OcSelect from '../../../../components/standard/OcSelect.vue'
 import OcEnumStepper from '../../../../components/standard/OcEnumStepper.vue'
+import OcOptionGroup from '../../../../components/standard/OcOptionGroup.vue'
 import type { PropertyEditorFieldDefinition } from '../propertyEditor.types'
 
 const props = defineProps<{
@@ -49,9 +53,10 @@ const emit = defineEmits<{
   (e: 'update:value', value: string): void
 }>()
 const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as ((key: string) => string) | undefined
-const optionLabel = (option: string) => props.definition.optionLabelKeys?.[option]
-  ? translate?.(props.definition.optionLabelKeys[option]!) ?? option
-  : option
+const optionLabel = (option: string) => props.definition.optionLabels?.[option]
+  ?? (props.definition.optionLabelKeys?.[option]
+    ? translate?.(props.definition.optionLabelKeys[option]!) ?? option
+    : option)
 
 const stringValue = computed(() => (props.value == null ? '' : String(props.value)))
 const draftValue = ref(stringValue.value)

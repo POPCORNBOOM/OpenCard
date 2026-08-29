@@ -1,8 +1,13 @@
 /** Projects application settings into key-only tree and row view models. */
 import { computed, type ComputedRef, type DeepReadonly, type Ref } from 'vue'
-import type { OcOption } from '../../../components/standard/OcOptionGroup.vue'
-import type { IconToken } from '../../../shared/ui/icon/iconRegistry'
 import type { OcTreeData } from '../../../shared/ui/tree/tree.types'
+import type {
+  EditorItem,
+  EditorItemActionPart,
+  EditorItemEditorPart,
+  PropertyCompletionProvider,
+  PropertyEditorFieldDefinition,
+} from '../../../shared/ui/property-editor/propertyEditor.types'
 import {
   OC_THEME_REGISTRY,
   type OcEditableThemeColorKey,
@@ -19,211 +24,18 @@ import {
   MIN_PHASE_IMAGE_SPEED,
   MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT,
   resolveThemePresetId,
-  type AppSettingKey,
   type AppSettings,
   type AppThemePresetId,
   type SettingsCategoryKey,
 } from '../model/appSettings'
 
-type LegacySettingsFieldViewModel =
-  | {
-      type: 'options'
-      key: AppSettingKey
-      label: string
-      value: string
-      options: readonly OcOption[]
-    }
-  | {
-      type: 'switch'
-      key: AppSettingKey
-      label: string
-      checked: boolean
-    }
-  | {
-      type: 'range'
-      key: AppSettingKey
-      label: string
-      value: number
-      min: number
-      max: number
-      step: number
-      suffix: string
-      ticks?: readonly number[]
-    }
-  | {
-      type: 'text'
-      key: AppSettingKey
-      label: string
-      value: string
-      placeholder?: string
-      mono?: boolean
-    }
-  | {
-      type: 'theme-color-panel'
-      key: string
-      label: string
-      themeId: OcThemeId
-      preset: {
-        label: string
-        value: string
-        placeholder: string
-        options: readonly { value: string; label: string }[]
-        importLabel: string
-        exportLabel: string
-        deleteLabel: string
-        canDelete: boolean
-      }
-      accentNeighborAngle: {
-        label: string
-        value: number
-        min: number
-        max: number
-        step: number
-        suffix: string
-      }
-      fontFamily: {
-        label: string
-        value: string
-        fontFamilies: readonly string[]
-        placeholder: string
-      }
-      colors: readonly {
-        key: string
-        label: string
-        token: OcEditableThemeColorKey
-        value: string
-        overrideValue: string | null
-      }[]
-    }
-  | {
-      type: 'action'
-      key: 'project-workspace.reset' | 'themes.reset'
-      label: string
-      actionLabel: string
-      icon: IconToken
-      disabled: boolean
-      disabledReason?: string
-    }
-
-type LegacySettingsContentNode = LegacySettingsFieldViewModel | {
-  type: 'preview'
-  key: 'appearance.preview'
-  glassIntensity: number
-}
-
-export type SettingsFieldViewModel =
-  | {
-      type: 'field'
-      key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'string'
-      editor?: 'options'
-      label: string
-      value: string
-      options: readonly OcOption[]
-    }
-  | {
-      type: 'field'
-      key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'boolean'
-      editor?: 'switch'
-      label: string
-      checked: boolean
-    }
-  | {
-      type: 'field'
-      key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'number'
-      editor?: 'slider'
-      label: string
-      value: number
-      min: number
-      max: number
-      step: number
-      suffix: string
-      ticks?: readonly number[]
-    }
-  | {
-      type: 'field'
-      key: AppSettingKey
-      path?: AppSettingKey
-      fieldType?: 'string'
-      editor?: 'text'
-      label: string
-      value: string
-      placeholder?: string
-      mono?: boolean
-    }
-
-export type SettingsCompositeViewModel = {
-  type: 'composite'
-  key: string
-  label: string
-  themeId: OcThemeId
-  preset: {
-    label: string
-    value: string
-    placeholder: string
-    options: readonly { value: string; label: string }[]
-    importLabel: string
-    exportLabel: string
-    deleteLabel: string
-    canDelete: boolean
-  }
-  accentNeighborAngle: {
-    label: string
-    value: number
-    min: number
-    max: number
-    step: number
-    suffix: string
-  }
-  fontFamily: {
-    label: string
-    value: string
-    fontFamilies: readonly string[]
-    placeholder: string
-  }
-  colors: readonly {
-    key: string
-    label: string
-    token: OcEditableThemeColorKey
-    value: string
-    overrideValue: string | null
-  }[]
-}
-
-export type SettingsContentNode = SettingsFieldViewModel | SettingsCompositeViewModel | {
-  type: 'preview'
-  key: 'appearance.preview'
-  glassIntensity: number
-} | {
-  type: 'action'
-  key: 'project-workspace.reset' | 'themes.reset'
-  label: string
-  actionLabel: string
-  icon: IconToken
-  disabled: boolean
-  disabledReason?: string
-}
-
-function decorateSettingsFields(content: readonly LegacySettingsContentNode[]): readonly SettingsContentNode[] {
-  return content.map((node) => {
-    if (node.type === 'options') return { ...node, type: 'field' as const, path: node.key, fieldType: 'string' as const, editor: 'options' as const }
-    if (node.type === 'switch') return { ...node, type: 'field' as const, path: node.key, fieldType: 'boolean' as const, editor: 'switch' as const }
-    if (node.type === 'range') return { ...node, type: 'field' as const, path: node.key, fieldType: 'number' as const, editor: 'slider' as const }
-    if (node.type === 'text') return { ...node, type: 'field' as const, path: node.key, fieldType: 'string' as const, editor: 'text' as const }
-    if (node.type === 'theme-color-panel') return { ...node, type: 'composite' as const }
-    return node
-  })
-}
-
 export interface SettingsCategoryViewModel {
   key: SettingsCategoryKey
   title: string
-  content: readonly SettingsContentNode[]
+  items: readonly EditorItem[]
+  preview?: {
+    glassIntensity: number
+  }
 }
 
 interface UseSettingsWorkspaceOptions {
@@ -232,6 +44,40 @@ interface UseSettingsWorkspaceOptions {
   projectOpen: Readonly<Ref<boolean>>
   systemFontFamilies?: Readonly<Ref<readonly string[]>>
   translate: (key: string, fallback: string) => string
+}
+
+function editorPart(
+  key: string,
+  definition: PropertyEditorFieldDefinition,
+  value: unknown,
+): EditorItemEditorPart {
+  return { type: 'editor', key, definition, value }
+}
+
+function fieldItem(
+  key: string,
+  definition: PropertyEditorFieldDefinition,
+  value: unknown,
+): EditorItem {
+  return { key, title: definition.title, content: [editorPart('value', definition, value)] }
+}
+
+function actionPart(
+  key: string,
+  title: string,
+  icon: EditorItemActionPart['icon'],
+  options?: { iconOnly?: boolean; disabled?: boolean },
+): EditorItemActionPart {
+  return {
+    type: 'action',
+    key,
+    title,
+    icon,
+    iconOnly: options?.iconOnly ?? false,
+    variant: 'outline',
+    size: 'sm',
+    disabled: options?.disabled,
+  }
 }
 
 const CATEGORY_KEYS: readonly SettingsCategoryKey[] = ['general', 'appearance', 'workspace']
@@ -267,47 +113,33 @@ export function useSettingsWorkspace(
       return {
         key: categoryKey,
         title: categoryLabels.value.general,
-        content: decorateSettingsFields([
-          {
-            type: 'options',
-            key: 'appearance.locale',
-            label: options.translate('settings.fields.language', 'Language'),
-            value: settings.appearance.locale,
-            options: [
-              { value: 'system', label: options.translate('settings.values.systemLanguage', 'System') },
-              { value: 'zh-CN', label: '简体中文' },
-              { value: 'en-US', label: 'English' },
-            ],
-          },
-          {
-            type: 'range',
-            key: 'shell.titleBarNoticeHistoryLimit',
-            label: options.translate('settings.fields.titleBarNoticeHistoryLimit', 'Instant message history limit'),
-            value: settings.shell.titleBarNoticeHistoryLimit,
-            min: MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT,
-            max: MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
-            step: 1,
+        items: [
+          fieldItem('appearance.locale', {
+            title: options.translate('settings.fields.language', 'Language'),
+            fieldType: 'string',
+            presentation: 'option-group',
+            options: ['system', 'zh-CN', 'en-US'],
+            optionLabels: {
+              system: options.translate('settings.values.systemLanguage', 'System'),
+              'zh-CN': '简体中文',
+              'en-US': 'English',
+            },
+          }, settings.appearance.locale),
+          fieldItem('shell.titleBarNoticeHistoryLimit', {
+            title: options.translate('settings.fields.titleBarNoticeHistoryLimit', 'Instant message history limit'),
+            fieldType: 'number', presentation: 'slider',
+            min: MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT, max: MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT, step: 1,
             suffix: options.translate('settings.values.messages', ' messages'),
-          },
-          {
-            type: 'switch',
-            key: 'updates.suppressReleaseNotesAfterUpdate',
-            label: options.translate(
-              'settings.fields.suppressReleaseNotesAfterUpdate',
-              'Do not show release notes after an update',
-            ),
-            checked: settings.updates.suppressReleaseNotesAfterUpdate,
-          },
-          {
-            type: 'switch',
-            key: 'exporting.openCdeWorkbookAfterExport',
-            label: options.translate(
-              'settings.fields.openCdeWorkbookAfterExport',
-              'Open CDE workbook after export',
-            ),
-            checked: settings.exporting.openCdeWorkbookAfterExport,
-          },
-        ]),
+          }, settings.shell.titleBarNoticeHistoryLimit),
+          fieldItem('updates.suppressReleaseNotesAfterUpdate', {
+            title: options.translate('settings.fields.suppressReleaseNotesAfterUpdate', 'Do not show release notes after an update'),
+            fieldType: 'boolean',
+          }, settings.updates.suppressReleaseNotesAfterUpdate),
+          fieldItem('exporting.openCdeWorkbookAfterExport', {
+            title: options.translate('settings.fields.openCdeWorkbookAfterExport', 'Open CDE workbook after export'),
+            fieldType: 'boolean',
+          }, settings.exporting.openCdeWorkbookAfterExport),
+        ],
       }
     }
 
@@ -331,242 +163,185 @@ export function useSettingsWorkspace(
         const [key, fallback] = labels[presetId]
         return options.translate(`settings.values.${key}`, fallback)
       }
-      const colorPanel = (themeId: OcThemeId): LegacySettingsFieldViewModel => ({
-        type: 'theme-color-panel',
-        key: `appearance.${themeId}ThemeColors`,
-        label: options.translate(`settings.fields.${themeId}ThemeColors`, themeId === 'dark' ? 'Dark theme' : 'Light theme'),
-        themeId,
-        preset: {
-          label: options.translate('settings.fields.themePreset', 'Preset'),
-          value: resolveThemePresetId(
-            themeId,
-            settings.appearance.themeOverrides[themeId],
-            settings.appearance.accentNeighborAngles[themeId],
-            settings.appearance.fontFamilies[themeId],
-            settings.appearance.userThemePresets[themeId],
-          ),
-          placeholder: options.translate('settings.values.selectThemePreset', 'Select preset'),
-          options: [
-            ...APP_THEME_PRESETS[themeId].map(presetId => ({
-              value: presetId,
-              label: presetLabel(themeId, presetId),
+      const fontCompletion: PropertyCompletionProvider = ({ value, cursor }) => {
+        const start = value.lastIndexOf(';', Math.max(0, cursor - 1)) + 1
+        const nextSeparator = value.indexOf(';', cursor)
+        const end = nextSeparator < 0 ? value.length : nextSeparator
+        const fragment = value.slice(start, cursor).trim().toLocaleLowerCase()
+        return {
+          replaceStart: start,
+          replaceEnd: end,
+          items: systemFontFamilies.value
+            .filter(font => !fragment || font.toLocaleLowerCase().includes(fragment))
+            .map(font => ({
+              key: font,
+              label: font,
+              labelStyle: { fontFamily: font },
+              insertText: start > 0 ? ` ${font}` : font,
             })),
-            ...settings.appearance.userThemePresets[themeId].map(preset => ({
-              value: `user:${preset.name}`,
-              label: `${preset.name} ${options.translate('settings.values.importedTheme', 'Imported')}`,
-            })),
-          ],
-          importLabel: options.translate('settings.actions.importTheme', 'Import theme'),
-          exportLabel: options.translate('settings.actions.exportTheme', 'Export theme'),
-          deleteLabel: options.translate('settings.actions.deleteThemePreset', 'Delete imported theme'),
-          canDelete: resolveThemePresetId(
-            themeId,
-            settings.appearance.themeOverrides[themeId],
-            settings.appearance.accentNeighborAngles[themeId],
-            settings.appearance.fontFamilies[themeId],
-            settings.appearance.userThemePresets[themeId],
-          ).startsWith('user:'),
-        },
-        accentNeighborAngle: {
-          label: options.translate('settings.fields.accentNeighborAngle', 'Secondary color phase angle'),
-          value: settings.appearance.accentNeighborAngles[themeId],
-          min: -180,
-          max: 180,
-          step: 1,
-          suffix: '°',
-        },
-        fontFamily: {
-          label: options.translate('settings.fields.uiFont', 'UI font'),
-          value: settings.appearance.fontFamilies[themeId],
-          fontFamilies: systemFontFamilies.value,
-          placeholder: options.translate('settings.values.systemFont', 'System'),
-        },
-        colors: [
+        }
+      }
+      const themeItem = (themeId: OcThemeId): EditorItem => {
+        const presetValue = resolveThemePresetId(
+          themeId,
+          settings.appearance.themeOverrides[themeId],
+          settings.appearance.accentNeighborAngles[themeId],
+          settings.appearance.fontFamilies[themeId],
+          settings.appearance.userThemePresets[themeId],
+        )
+        const presetOptions = [
+          ...APP_THEME_PRESETS[themeId].map(presetId => ({ value: presetId, label: presetLabel(themeId, presetId) })),
+          ...settings.appearance.userThemePresets[themeId].map(preset => ({
+            value: `user:${preset.name}`,
+            label: `${preset.name} ${options.translate('settings.values.importedTheme', 'Imported')}`,
+          })),
+        ]
+        const colorItems: EditorItem[] = [
           ['accentColor', 'Theme color', '--oc-accent'],
           ['baseBackgroundColor', 'Background', '--oc-bg-base'],
           ['primaryTextColor', 'Foreground', '--oc-fg-default'],
-        ].map(([key, fallback, token]) => ({
-          key,
-          label: options.translate(`settings.fields.${key}`, fallback),
-          token: token as OcEditableThemeColorKey,
-          value: settings.appearance.themeOverrides[themeId][token as OcEditableThemeColorKey]
-            ?? OC_THEME_REGISTRY[themeId][token as OcEditableThemeColorKey],
-          overrideValue: settings.appearance.themeOverrides[themeId][token as OcEditableThemeColorKey] ?? null,
-        })),
-      })
+        ].map(([key, fallback, token]) => {
+          const colorToken = token as OcEditableThemeColorKey
+          const title = options.translate(`settings.fields.${key}`, fallback)
+          return fieldItem(`color:${colorToken}`, {
+            title, fieldType: 'color', allowAlpha: false,
+            defaultValue: settings.appearance.themeOverrides[themeId][colorToken] ?? null,
+          }, settings.appearance.themeOverrides[themeId][colorToken] ?? OC_THEME_REGISTRY[themeId][colorToken])
+        })
+        return {
+          key: `theme:${themeId}`,
+          title: options.translate(`settings.fields.${themeId}ThemeColors`, themeId === 'dark' ? 'Dark theme' : 'Light theme'),
+          children: [
+            {
+              key: 'preset',
+              title: options.translate('settings.fields.themePreset', 'Preset'),
+              content: [
+                editorPart('value', {
+                  title: options.translate('settings.fields.themePreset', 'Preset'),
+                  fieldType: 'string', presentation: 'select',
+                  options: presetOptions.map(option => option.value),
+                  optionLabels: Object.fromEntries(presetOptions.map(option => [option.value, option.label])),
+                  placeholder: options.translate('settings.values.selectThemePreset', 'Select preset'),
+                }, presetValue),
+                actionPart('import', options.translate('settings.actions.importTheme', 'Import theme'), 'action.import', { iconOnly: true }),
+                actionPart('export', options.translate('settings.actions.exportTheme', 'Export theme'), 'action.export', { iconOnly: true }),
+                actionPart('delete', options.translate('settings.actions.deleteThemePreset', 'Delete imported theme'), 'action.delete', {
+                  iconOnly: true, disabled: !presetValue.startsWith('user:'),
+                }),
+              ],
+            },
+            ...colorItems,
+            fieldItem('font', {
+              title: options.translate('settings.fields.uiFont', 'UI font'),
+              fieldType: 'string', commitMode: 'blur',
+              placeholder: options.translate('settings.values.systemFont', 'System'),
+              completion: { provider: fontCompletion },
+            }, settings.appearance.fontFamilies[themeId] === 'system' ? '' : settings.appearance.fontFamilies[themeId]),
+            fieldItem('angle', {
+              title: options.translate('settings.fields.accentNeighborAngle', 'Secondary color phase angle'),
+              fieldType: 'number', presentation: 'slider', min: -180, max: 180, step: 1, suffix: '°',
+            }, settings.appearance.accentNeighborAngles[themeId]),
+          ],
+        }
+      }
 
       return {
         key: categoryKey,
         title: categoryLabels.value.appearance,
-        content: decorateSettingsFields([
-          { type: 'preview', key: 'appearance.preview', glassIntensity: settings.appearance.glassIntensity },
+        preview: { glassIntensity: settings.appearance.glassIntensity },
+        items: [
+          fieldItem('appearance.theme', {
+            title: options.translate('settings.fields.theme', 'Theme'),
+            fieldType: 'string', presentation: 'option-group',
+            options: ['system', 'dark', 'light'],
+            optionLabels: {
+              system: options.translate('settings.values.systemTheme', 'System'),
+              dark: options.translate('settings.values.dark', 'Dark'),
+              light: options.translate('settings.values.light', 'Light'),
+            },
+          }, settings.appearance.theme),
+          fieldItem('appearance.baseFontSize', {
+            title: options.translate('settings.fields.baseFontSize', 'Base font size'),
+            fieldType: 'number', presentation: 'slider', min: 10, max: 16, step: 1,
+            ticks: [10, 12, 14, 16], suffix: 'px',
+          }, settings.appearance.baseFontSize),
+          fieldItem('appearance.phaseImageSpeed', {
+            title: options.translate('settings.fields.phaseImageSpeed', 'Phase animation speed'),
+            fieldType: 'number', presentation: 'slider',
+            min: MIN_PHASE_IMAGE_SPEED, max: MAX_PHASE_IMAGE_SPEED, step: 5, suffix: '%',
+          }, settings.appearance.phaseImageSpeed),
+          themeItem('dark'),
+          themeItem('light'),
+          fieldItem('appearance.glassIntensity', {
+            title: options.translate('settings.fields.glassIntensity', 'Glass intensity'),
+            fieldType: 'number', presentation: 'slider', min: 0, max: 100, step: 1, suffix: '%',
+          }, settings.appearance.glassIntensity),
           {
-            type: 'options',
-            key: 'appearance.theme',
-            label: options.translate('settings.fields.theme', 'Theme'),
-            value: settings.appearance.theme,
-            options: [
-              { value: 'system', label: options.translate('settings.values.systemTheme', 'System') },
-              { value: 'dark', label: options.translate('settings.values.dark', 'Dark') },
-              { value: 'light', label: options.translate('settings.values.light', 'Light') },
-            ],
-          },
-          {
-            type: 'range',
-            key: 'appearance.baseFontSize',
-            label: options.translate('settings.fields.baseFontSize', 'Base font size'),
-            value: settings.appearance.baseFontSize,
-            min: 10,
-            max: 16,
-            step: 1,
-            ticks: [10, 12, 14, 16],
-            suffix: 'px',
-          },
-          {
-            type: 'range',
-            key: 'appearance.phaseImageSpeed',
-            label: options.translate('settings.fields.phaseImageSpeed', 'Phase animation speed'),
-            value: settings.appearance.phaseImageSpeed,
-            min: MIN_PHASE_IMAGE_SPEED,
-            max: MAX_PHASE_IMAGE_SPEED,
-            step: 5,
-            suffix: '%',
-          },
-          colorPanel('dark'),
-          colorPanel('light'),
-          {
-            type: 'range',
-            key: 'appearance.glassIntensity',
-            label: options.translate('settings.fields.glassIntensity', 'Glass intensity'),
-            value: settings.appearance.glassIntensity,
-            min: 0,
-            max: 100,
-            step: 1,
-            suffix: '%',
-          },
-          {
-            type: 'action',
             key: 'themes.reset',
-            label: options.translate('settings.fields.themeSettings', 'Theme settings'),
-            actionLabel: options.translate('settings.actions.resetThemes', 'Reset themes'),
-            icon: 'action.restart',
-            disabled: false,
+            title: options.translate('settings.fields.themeSettings', 'Theme settings'),
+            content: [actionPart('invoke', options.translate('settings.actions.resetThemes', 'Reset themes'), 'action.restart')],
           },
-        ]),
+        ],
       }
     }
 
     return {
       key: categoryKey,
       title: categoryLabels.value.workspace,
-      content: decorateSettingsFields([
-          {
-            type: 'switch',
-            key: 'workspace.autoSave',
-            label: options.translate('settings.fields.autoSave', 'Automatically save opened files'),
-            checked: settings.workspace.autoSave,
-          },
-          {
-            type: 'range',
-            key: 'workspace.autoSaveIntervalSeconds',
-            label: options.translate('settings.fields.autoSaveInterval', 'Auto-save interval'),
-            value: settings.workspace.autoSaveIntervalSeconds,
-            min: MIN_AUTO_SAVE_INTERVAL_SECONDS,
-            max: MAX_AUTO_SAVE_INTERVAL_SECONDS,
-            step: 1,
-            suffix: options.translate('settings.values.seconds', ' seconds'),
-          },
-          {
-            type: 'range',
-          key: 'workspace.historyEntryLimit',
-          label: options.translate('settings.fields.historyEntryLimit', 'History entries per editor'),
-          value: settings.workspace.historyEntryLimit,
-          min: 10,
-          max: 1000,
-          step: 10,
+      items: [
+        fieldItem('workspace.autoSave', {
+          title: options.translate('settings.fields.autoSave', 'Automatically save opened files'), fieldType: 'boolean',
+        }, settings.workspace.autoSave),
+        fieldItem('workspace.autoSaveIntervalSeconds', {
+          title: options.translate('settings.fields.autoSaveInterval', 'Auto-save interval'),
+          fieldType: 'number', presentation: 'slider',
+          min: MIN_AUTO_SAVE_INTERVAL_SECONDS, max: MAX_AUTO_SAVE_INTERVAL_SECONDS, step: 1,
+          suffix: options.translate('settings.values.seconds', ' seconds'),
+        }, settings.workspace.autoSaveIntervalSeconds),
+        fieldItem('workspace.historyEntryLimit', {
+          title: options.translate('settings.fields.historyEntryLimit', 'History entries per editor'),
+          fieldType: 'number', presentation: 'slider', min: 10, max: 1000, step: 10,
           suffix: options.translate('settings.values.historyEntries', ' entries'),
-        },
-        {
-          type: 'range',
-          key: 'workspace.customBlockMaxDepth',
-          label: options.translate('settings.fields.customBlockMaxDepth', 'Maximum custom block recursion depth'),
-          value: settings.workspace.customBlockMaxDepth,
-          min: MIN_CUSTOM_BLOCK_MAX_DEPTH,
-          max: MAX_CUSTOM_BLOCK_MAX_DEPTH,
-          step: 1,
+        }, settings.workspace.historyEntryLimit),
+        fieldItem('workspace.customBlockMaxDepth', {
+          title: options.translate('settings.fields.customBlockMaxDepth', 'Maximum custom block recursion depth'),
+          fieldType: 'number', presentation: 'slider',
+          min: MIN_CUSTOM_BLOCK_MAX_DEPTH, max: MAX_CUSTOM_BLOCK_MAX_DEPTH, step: 1,
           suffix: options.translate('settings.values.recursionLevels', ' levels'),
-        },
+        }, settings.workspace.customBlockMaxDepth),
+        fieldItem('workspace.structureTreeSelectionBehavior', {
+          title: options.translate('settings.fields.structureTreeSelectionBehavior', 'Structure tree selection'),
+          fieldType: 'string', presentation: 'option-group',
+          options: ['expand-exclusive', 'expand', 'none'],
+          optionLabels: {
+            'expand-exclusive': options.translate('settings.values.expandExclusive', 'Expand and collapse others'),
+            expand: options.translate('settings.values.expand', 'Expand ancestors'),
+            none: options.translate('settings.values.noAutoExpand', 'Do not expand'),
+          },
+        }, settings.workspace.structureTreeSelectionBehavior),
+        fieldItem('workspace.structureTreeScrollToSelection', {
+          title: options.translate('settings.fields.structureTreeScrollToSelection', 'Scroll to selected block'), fieldType: 'boolean',
+        }, settings.workspace.structureTreeScrollToSelection),
+        fieldItem('workspace.hideDotFiles', {
+          title: options.translate('settings.fields.hideDotFiles', 'Hide files and folders whose names start with a dot'), fieldType: 'boolean',
+        }, settings.workspace.hideDotFiles),
+        fieldItem('workspace.showSelectionPositionOnMove', {
+          title: options.translate('settings.fields.showSelectionPositionOnMove', 'Show anchor and X/Y guides while moving blocks'), fieldType: 'boolean',
+        }, settings.workspace.showSelectionPositionOnMove),
+        fieldItem('workspace.showSelectionSizeOnResize', {
+          title: options.translate('settings.fields.showSelectionSizeOnResize', 'Show width and height labels while resizing blocks'), fieldType: 'boolean',
+        }, settings.workspace.showSelectionSizeOnResize),
+        fieldItem('workspace.alignmentSnappingEnabledByDefault', {
+          title: options.translate('settings.fields.alignmentSnappingEnabledByDefault', 'Enable alignment snapping by default'), fieldType: 'boolean',
+        }, settings.workspace.alignmentSnappingEnabledByDefault),
         {
-          type: 'options',
-          key: 'workspace.structureTreeSelectionBehavior',
-          label: options.translate('settings.fields.structureTreeSelectionBehavior', 'Structure tree selection'),
-          value: settings.workspace.structureTreeSelectionBehavior,
-          options: [
-            {
-              value: 'expand-exclusive',
-              label: options.translate('settings.values.expandExclusive', 'Expand and collapse others'),
-            },
-            {
-              value: 'expand',
-              label: options.translate('settings.values.expand', 'Expand ancestors'),
-            },
-            {
-              value: 'none',
-              label: options.translate('settings.values.noAutoExpand', 'Do not expand'),
-            },
-          ],
-        },
-        {
-          type: 'switch',
-          key: 'workspace.structureTreeScrollToSelection',
-          label: options.translate('settings.fields.structureTreeScrollToSelection', 'Scroll to selected block'),
-          checked: settings.workspace.structureTreeScrollToSelection,
-        },
-        {
-          type: 'switch',
-          key: 'workspace.hideDotFiles',
-          label: options.translate('settings.fields.hideDotFiles', 'Hide files and folders whose names start with a dot'),
-          checked: settings.workspace.hideDotFiles,
-        },
-        {
-          type: 'switch',
-          key: 'workspace.showSelectionPositionOnMove',
-          label: options.translate(
-            'settings.fields.showSelectionPositionOnMove',
-            'Show anchor and X/Y guides while moving blocks',
-          ),
-          checked: settings.workspace.showSelectionPositionOnMove,
-        },
-        {
-          type: 'switch',
-          key: 'workspace.showSelectionSizeOnResize',
-          label: options.translate(
-            'settings.fields.showSelectionSizeOnResize',
-            'Show width and height labels while resizing blocks',
-          ),
-          checked: settings.workspace.showSelectionSizeOnResize,
-        },
-        {
-          type: 'switch',
-          key: 'workspace.alignmentSnappingEnabledByDefault',
-          label: options.translate(
-            'settings.fields.alignmentSnappingEnabledByDefault',
-            'Enable alignment snapping by default',
-          ),
-          checked: settings.workspace.alignmentSnappingEnabledByDefault,
-        },
-        {
-          type: 'action',
           key: 'project-workspace.reset',
-          label: options.translate('settings.fields.projectWorkspaceState', 'Project workspace state'),
-          actionLabel: options.translate('settings.actions.reset', 'Reset'),
-          icon: 'action.restart',
-          disabled: !options.projectOpen.value,
-          disabledReason: options.projectOpen.value
-            ? undefined
-            : options.translate('settings.reasons.openProjectFirst', 'Open a project first'),
+          title: options.translate('settings.fields.projectWorkspaceState', 'Project workspace state'),
+          content: [actionPart('invoke', options.translate('settings.actions.reset', 'Reset'), 'action.restart', {
+            disabled: !options.projectOpen.value,
+          })],
         },
-      ]),
+      ],
     }
   })
 

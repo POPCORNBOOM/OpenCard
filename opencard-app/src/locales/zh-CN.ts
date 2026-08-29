@@ -100,6 +100,7 @@ export default {
       dropFilesToOpen: '释放以在 OpenCard 中打开',
     },
     notifications: {
+      themeChanged: '已切换为{theme}主题。',
       renameRejected: '无法重命名这个文件或文件夹。',
       moveRejected: '无法将这个文件或文件夹移动到该位置。',
       fullscreenFailed: '无法切换全屏状态。',
@@ -182,6 +183,9 @@ export default {
       richTextCodes: {
         INVALID_HTML: '富文本 HTML 未通过安全检查，已保留原始内容',
         LIMIT_EXCEEDED: '富文本内嵌块超过安全限制，超出部分未渲染',
+      },
+      resourceCodes: {
+        REMOTE_BLOCKED: '字段“{fieldName}”使用的远程资源已被项目安全策略阻止',
       },
       storageCodes: {
         'field-defaulted': '字段值无法解释，已使用当前默认值',
@@ -316,6 +320,9 @@ export default {
     updater: {
       check: '检查更新',
       checking: '正在检查更新…',
+      checkFailed: '检查更新失败，请稍后重试。',
+      upToDate: 'OpenCard 已是最新版本',
+      updateFound: '发现 OpenCard {version} 更新',
       available: '下载 OpenCard {version}',
       downloadVersion: '下载 {version}',
       downloading: '正在下载更新…',
@@ -1000,6 +1007,12 @@ export default {
       resizeSidebarTooltip: '{label}[br]双击快速切换展开折叠',
       resizePreview: '调整预览大小',
     },
+    panels: {
+      cardTree: '卡牌树',
+      preview: '预览',
+      structureTree: '结构树',
+      properties: '属性',
+    },
     blockNames: {
       'text-block': '文本块',
       'markdown-text-block': 'Markdown 文本块',
@@ -1228,7 +1241,7 @@ export default {
       previewFallback: '未命名字段',
       constraints: {
         minLength: '最短长度', maxLength: '最长长度', multiline: '多行文本',
-        options: '候选值', enumMode: '候选值控件', min: '最小值', max: '最大值', step: '步长',
+        options: '候选值', presentation: '候选值控件', min: '最小值', max: '最大值', step: '步长',
       },
       richTextCodes: {
         INVALID_HTML: '富文本 HTML 未通过安全检查，已保留原始内容',
@@ -1247,7 +1260,7 @@ export default {
         lengthRange: '最短长度不能大于最长长度。',
         invalidOption: '候选值不能为空。',
         duplicateOption: '候选值不能重复。',
-        enumModeWithoutOptions: '配置候选值控件前请先添加候选值。',
+        presentationWithoutOptions: '配置候选值控件前请先添加候选值。',
         invalidNumber: '最小值和最大值必须是有效数字。',
         numberRange: '最小值不能大于最大值。',
         invalidStep: '步长必须是大于 0 的有效数字。',

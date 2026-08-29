@@ -100,6 +100,7 @@ export default {
       dropFilesToOpen: 'Drop to open in OpenCard',
     },
     notifications: {
+      themeChanged: 'Switched to the {theme} theme.',
       renameRejected: 'The file or folder could not be renamed.',
       moveRejected: 'The file or folder could not be moved there.',
       fullscreenFailed: 'Could not change the fullscreen state.',
@@ -182,6 +183,9 @@ export default {
       richTextCodes: {
         INVALID_HTML: 'Rich-text HTML failed safety validation; the original content was preserved',
         LIMIT_EXCEEDED: 'Rich-text embeds exceeded the safety limit; additional embeds were not rendered',
+      },
+      resourceCodes: {
+        REMOTE_BLOCKED: 'The remote resource used by field "{fieldName}" was blocked by the project security policy',
       },
       storageCodes: {
         'field-defaulted': 'The field value could not be interpreted, so the current default was used',
@@ -316,6 +320,9 @@ export default {
     updater: {
       check: 'Check for Updates',
       checking: 'Checking for updates...',
+      checkFailed: 'Could not check for updates. Try again later.',
+      upToDate: 'OpenCard is up to date',
+      updateFound: 'OpenCard {version} is available',
       available: 'Download OpenCard {version}',
       downloadVersion: 'Download {version}',
       downloading: 'Downloading update...',
@@ -1001,6 +1008,12 @@ export default {
       resizeSidebarTooltip: '{label}[br]Double-click to quickly toggle expand or collapse',
       resizePreview: 'Resize preview',
     },
+    panels: {
+      cardTree: 'Cards',
+      preview: 'Preview',
+      structureTree: 'Structure',
+      properties: 'Properties',
+    },
     blockNames: {
       'text-block': 'Text Block',
       'markdown-text-block': 'Markdown Text Block',
@@ -1229,7 +1242,7 @@ export default {
       previewFallback: 'Unnamed Field',
       constraints: {
         minLength: 'Minimum Length', maxLength: 'Maximum Length', multiline: 'Multiline',
-        options: 'Options', enumMode: 'Option Control', min: 'Minimum', max: 'Maximum', step: 'Step',
+        options: 'Options', presentation: 'Option Control', min: 'Minimum', max: 'Maximum', step: 'Step',
       },
       richTextCodes: {
         INVALID_HTML: 'Rich-text HTML failed safety validation; the original content was preserved',
@@ -1248,7 +1261,7 @@ export default {
         lengthRange: 'Minimum length cannot exceed maximum length.',
         invalidOption: 'Options cannot be empty.',
         duplicateOption: 'Options cannot be duplicated.',
-        enumModeWithoutOptions: 'Add options before configuring the option control.',
+        presentationWithoutOptions: 'Add options before configuring the option control.',
         invalidNumber: 'Minimum and maximum must be valid numbers.',
         numberRange: 'Minimum cannot exceed maximum.',
         invalidStep: 'Step must be a valid number greater than 0.',

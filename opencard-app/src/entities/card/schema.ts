@@ -33,7 +33,7 @@ export type PropertyConstraintMap = {
         maxLength?: number
         options?: readonly string[]
         optionLabelKeys?: Readonly<Record<string, string>>
-        enumMode?: 'select' | 'stepper'
+        presentation?: 'select' | 'stepper'
         autocomplete?: readonly string[]
         multiline?: boolean
         richText?: boolean
@@ -42,6 +42,7 @@ export type PropertyConstraintMap = {
         minLength?: number
         maxLength?: number
         filter?: FilePathFilter
+        allowRemote?: boolean
     }
     anchorPosition: {}
     alignPosition: {}
@@ -144,8 +145,8 @@ export function parseAdditionalFieldDefinitions(
                 ...(options ? { options } : {}),
                 ...(autocomplete ? { autocomplete } : {}),
                 ...(optionLabelKeys ? { optionLabelKeys } : {}),
-                ...(source.enumMode === 'select' || source.enumMode === 'stepper'
-                    ? { enumMode: source.enumMode } : {}),
+                ...(source.presentation === 'select' || source.presentation === 'stepper'
+                    ? { presentation: source.presentation } : {}),
             } as AdditionalFieldDefinition
         } else if (fieldType === 'filePath') {
             const minLength = parseNonNegativeInteger(source.minLength)
@@ -404,6 +405,7 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
         image: {
             fieldType: 'filePath',
             required: true,
+            allowRemote: true,
             minLength: 0,
             categoryId: 'content',
             filter: {
@@ -793,7 +795,7 @@ export type ResolvedPropertyEditorSchema = {
 }
 
 const editorConstraintKeys = [
-    'minLength', 'maxLength', 'options', 'optionLabelKeys', 'enumMode', 'autocomplete', 'multiline', 'richText',
+    'minLength', 'maxLength', 'options', 'optionLabelKeys', 'presentation', 'autocomplete', 'multiline', 'richText',
     'filter', 'min', 'max', 'step', 'objectType', 'isArray', 'defaultValue',
 ] as const
 
@@ -824,7 +826,7 @@ function applyAdditionalConstraints(
         if (Array.isArray(source.autocomplete)) target.autocomplete = parseStringOptions(source.autocomplete)
         const optionLabelKeys = parseStringRecord(source.optionLabelKeys)
         if (optionLabelKeys) target.optionLabelKeys = optionLabelKeys
-        if (source.enumMode === 'select' || source.enumMode === 'stepper') target.enumMode = source.enumMode
+        if (source.presentation === 'select' || source.presentation === 'stepper') target.presentation = source.presentation
         if (typeof source.multiline === 'boolean') target.multiline = source.multiline
         if (typeof source.richText === 'boolean') target.richText = source.richText
         return
