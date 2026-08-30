@@ -10,9 +10,15 @@ export type ResourcePackagePublicFont = {
   title: string
 }
 
+export type ResourcePackagePublicIconSeries = {
+  key: string
+  title: string
+  count: number
+}
+
 export type ResourcePackagePublicResources = {
   fonts: readonly ResourcePackagePublicFont[]
-  iconSeries: readonly string[]
+  iconSeries: readonly ResourcePackagePublicIconSeries[]
   assets: readonly string[]
 }
 
@@ -121,6 +127,40 @@ function normalizePublicFonts(
     }
     identities.add(key)
     result.push({ key, title })
+  }
+  return result
+}
+
+function normalizePublicIconSeries(
+  value: unknown,
+  issues: ResourcePackageManifestIssue[],
+): ResourcePackagePublicIconSeries[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) {
+    addIssue(issues, 'public.iconSeries', 'Expected an array; used an empty list')
+    return []
+  }
+  const result: ResourcePackagePublicIconSeries[] = []
+  const identities = new Set<string>()
+  for (const [index, candidate] of value.entries()) {
+    const path = `public.iconSeries[${index}]`
+    if (!isRecord(candidate)) {
+      addIssue(issues, path, 'Expected a public icon series object; ignored the entry')
+      continue
+    }
+    const key = typeof candidate.key === 'string' ? normalizeKeySlug(candidate.key) : null
+    const title = typeof candidate.title === 'string' ? candidate.title.trim() : ''
+    const count = candidate.count
+    if (!key || !title || !Number.isInteger(count) || (count as number) < 0) {
+      addIssue(issues, path, 'Public icon series Key, title, and non-negative count are required; ignored the entry')
+      continue
+    }
+    if (identities.has(key)) {
+      addIssue(issues, `${path}.key`, 'Duplicate public icon series Key was ignored')
+      continue
+    }
+    identities.add(key)
+    result.push({ key, title, count: count as number })
   }
   return result
 }
@@ -240,7 +280,7 @@ export function normalizeResourcePackageManifest(
       contentHash: normalizeHash(source.contentHash, issues, 'contentHash'),
       public: {
         fonts: normalizePublicFonts(publicSource.fonts, issues),
-        iconSeries: normalizeStringList(publicSource.iconSeries, issues, 'public.iconSeries'),
+        iconSeries: normalizePublicIconSeries(publicSource.iconSeries, issues),
         assets: normalizeStringList(publicSource.assets, issues, 'public.assets'),
       },
       dependencies: normalizeDependencies(source.dependencies, issues),

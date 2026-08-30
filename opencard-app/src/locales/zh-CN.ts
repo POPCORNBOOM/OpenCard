@@ -7,7 +7,7 @@ export default {
     builderTitle: '制作包',
     buildTitle: '制作包',
     builderDescription: '选择多个自定义块和共享资源，制作一个可安装的资源包。',
-    packageInfo: '包信息', contents: '包内容', contentsDescription: '选择要放入资源包的块和项目资源。',
+    packageInfo: '包信息', contents: '包内容', contentsDescription: '选择资源包提供的字体、图标等。',
     packagePreview: '包摘要', packagePreviewDescription: '制作前检查包的基本信息和内容数量。',
     selectedCount: '已选择 {count} 项', clearSelection: '清空选择', noCandidates: '当前项目没有可制作的资源。',
     unnamed: '未命名包', fonts: '字体', projectFonts: '项目字体', fontCompositions: '字体组合', icons: '图标', images: '图片', other: '其他资源',

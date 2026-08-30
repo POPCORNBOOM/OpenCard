@@ -92,13 +92,14 @@ const projectStore = useProjectStore()
 const name = ref('')
 const packageKey = ref('')
 const version = ref('1.0.0')
-const explicitlySelectedFamilyKeys = ref<Set<string>>(new Set())
+const selectedFamilyKeys = ref<Set<string>>(new Set())
 const selectedCompositionKeys = ref<Set<string>>(new Set())
+const selectedIconSeriesKeys = ref<Set<string>>(new Set())
 const selectedResourceIds = ref<Set<string>>(new Set())
 const busy = ref(false)
 const errorText = ref('')
 
-type ResourceKind = 'icons' | 'images'
+type ResourceKind = 'images'
 type PackageCandidate = {
   id: string
   kind: ResourceKind
@@ -107,10 +108,10 @@ type PackageCandidate = {
   paths: readonly string[]
 }
 const categoryLabels: Record<ResourceKind, string> = {
-  icons: 'resourcePackage.icons', images: 'resourcePackage.images',
+  images: 'resourcePackage.images',
 }
-const categoryIcons: Record<ResourceKind, 'file.project-icon' | 'file.image'> = {
-  icons: 'file.project-icon', images: 'file.image',
+const categoryIcons: Record<ResourceKind, 'file.image'> = {
+  images: 'file.image',
 }
 
 function relativePath(path: string): string {
@@ -121,16 +122,7 @@ function relativePath(path: string): string {
     : normalized
 }
 
-function projectInternalPath(source: string): string {
-  const normalized = source.replace(/\\/g, '/').replace(/^\/+/, '')
-  return normalized.toLocaleLowerCase().startsWith('.opencard/') ? normalized : `.opencard/${normalized}`
-}
-
 const candidates = computed<readonly PackageCandidate[]>(() => [
-  ...projectStore.projectIconSeries.value.map(series => ({
-    id: `icon:${series.key}`, kind: 'icons' as const, label: series.name, detail: series.key,
-    paths: [projectInternalPath(series.source)],
-  })),
   ...props.entries.map(path => ({ path, relative: relativePath(path) }))
     .filter(entry => {
       const lower = entry.relative.toLocaleLowerCase()
@@ -143,17 +135,10 @@ const candidates = computed<readonly PackageCandidate[]>(() => [
 const categories = computed(() => (Object.keys(categoryLabels) as ResourceKind[])
   .map(kind => ({ kind, entries: candidates.value.filter(entry => entry.kind === kind) }))
   .filter(group => group.entries.length > 0))
-const requiredFamilyKeys = computed(() => new Set(projectStore.projectFontCompositions.value
-  .filter(composition => selectedCompositionKeys.value.has(composition.key))
-  .flatMap(composition => composition.members.map(member => member.fontKey))))
-const selectedFamilyKeys = computed(() => new Set([
-  ...explicitlySelectedFamilyKeys.value,
-  ...requiredFamilyKeys.value,
-]))
 const expandedKeys = computed(() => [...expandedKeySet.value])
 const expandedKeySet = ref<Set<string>>(new Set())
 const selectedCount = computed(() => selectedFamilyKeys.value.size
-  + selectedCompositionKeys.value.size + selectedResourceIds.value.size)
+  + selectedCompositionKeys.value.size + selectedIconSeriesKeys.value.size + selectedResourceIds.value.size)
 const selectedResourceCount = selectedCount
 const generatedKey = computed(() => toKeySlug(name.value.trim(), ''))
 const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || generatedKey.value, ''))
@@ -210,6 +195,24 @@ const treeData = computed<OcTreeData>(() => {
       return key
     }))
   }
+  const iconSeries = projectStore.projectIconSeries.value
+  if (iconSeries.length > 0) {
+    const categoryKey = 'category:icons'
+    rootKeys.push(categoryKey)
+    items.set(categoryKey, {
+      label: t('resourcePackage.icons'), icon: 'file.project-icon', iconTone: 'config',
+      tail: `${selectedIconSeriesKeys.value.size}/${iconSeries.length}`,
+    })
+    children.set(categoryKey, iconSeries.map(series => {
+      const key = `icon-series:${series.key}`
+      const selected = selectedIconSeriesKeys.value.has(series.key)
+      items.set(key, {
+        label: series.name, tail: series.key, icon: 'file.project-icon', iconTone: selected ? 'active' : 'muted',
+        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+      })
+      return key
+    }))
+  }
   for (const group of categories.value) {
     const categoryKey = `category:${group.kind}`
     rootKeys.push(categoryKey)
@@ -249,11 +252,12 @@ watch(() => props.open, open => {
   name.value = props.projectName
   packageKey.value = ''
   version.value = '1.0.0'
-  explicitlySelectedFamilyKeys.value = new Set()
+  selectedFamilyKeys.value = new Set()
   selectedCompositionKeys.value = new Set()
+  selectedIconSeriesKeys.value = new Set()
   selectedResourceIds.value = new Set()
   expandedKeySet.value = new Set([
-    'category:fonts', 'font-group:families', 'font-group:compositions',
+    'category:fonts', 'font-group:families', 'font-group:compositions', 'category:icons',
     ...categories.value.map(group => `category:${group.kind}`),
   ])
   errorText.value = ''
@@ -263,8 +267,9 @@ function close(): void {
   if (!busy.value) emit('close')
 }
 function clearSelection(): void {
-  explicitlySelectedFamilyKeys.value = new Set()
+  selectedFamilyKeys.value = new Set()
   selectedCompositionKeys.value = new Set()
+  selectedIconSeriesKeys.value = new Set()
   selectedResourceIds.value = new Set()
 }
 function handleTreeIntent(intent: OcTreeIntent): void {
@@ -278,16 +283,10 @@ function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type !== 'action.invoke') return
   if (intent.key.startsWith('font-family:')) {
     const familyKey = intent.key.slice('font-family:'.length)
-    const nextFamilies = new Set(explicitlySelectedFamilyKeys.value)
+    const nextFamilies = new Set(selectedFamilyKeys.value)
     if (intent.actionKey === 'select') nextFamilies.add(familyKey)
-    if (intent.actionKey === 'deselect') {
-      nextFamilies.delete(familyKey)
-      selectedCompositionKeys.value = new Set([...selectedCompositionKeys.value].filter(compositionKey => {
-        const composition = projectStore.projectFontCompositions.value.find(entry => entry.key === compositionKey)
-        return !composition?.members.some(member => member.fontKey.toLocaleLowerCase() === familyKey.toLocaleLowerCase())
-      }))
-    }
-    explicitlySelectedFamilyKeys.value = nextFamilies
+    if (intent.actionKey === 'deselect') nextFamilies.delete(familyKey)
+    selectedFamilyKeys.value = nextFamilies
     return
   }
   if (intent.key.startsWith('font-composition:')) {
@@ -296,6 +295,14 @@ function handleTreeIntent(intent: OcTreeIntent): void {
     if (intent.actionKey === 'select') next.add(compositionKey)
     if (intent.actionKey === 'deselect') next.delete(compositionKey)
     selectedCompositionKeys.value = next
+    return
+  }
+  if (intent.key.startsWith('icon-series:')) {
+    const seriesKey = intent.key.slice('icon-series:'.length)
+    const next = new Set(selectedIconSeriesKeys.value)
+    if (intent.actionKey === 'select') next.add(seriesKey)
+    if (intent.actionKey === 'deselect') next.delete(seriesKey)
+    selectedIconSeriesKeys.value = next
     return
   }
   const next = new Set(selectedResourceIds.value)
@@ -323,6 +330,7 @@ async function build(): Promise<void> {
         familyKeys: [...selectedFamilyKeys.value],
         compositionKeys: [...selectedCompositionKeys.value],
       },
+      iconSelection: { seriesKeys: [...selectedIconSeriesKeys.value] },
       outputPath,
     })
     emit('built', result.outputPath ?? '')

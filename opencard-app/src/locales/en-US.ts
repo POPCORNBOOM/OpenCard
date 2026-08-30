@@ -7,7 +7,7 @@ export default {
     builderTitle: 'Create package',
     buildTitle: 'Create package',
     builderDescription: 'Choose custom blocks and shared project resources to create an installable package.',
-    packageInfo: 'Package information', contents: 'Package contents', contentsDescription: 'Choose blocks and project resources to include in the package.',
+    packageInfo: 'Package information', contents: 'Package contents', contentsDescription: 'Choose the fonts, icons, and other resources provided by the package.',
     packagePreview: 'Package summary', packagePreviewDescription: 'Review the package identity and content counts before creating it.',
     selectedCount: '{count} items selected', clearSelection: 'Clear selection', noCandidates: 'This project has no packageable resources.',
     unnamed: 'Unnamed package', fonts: 'Fonts', projectFonts: 'Project fonts', fontCompositions: 'Font compositions', icons: 'Icons', images: 'Images', other: 'Other resources',
