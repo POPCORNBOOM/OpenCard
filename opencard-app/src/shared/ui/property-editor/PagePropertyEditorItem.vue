@@ -14,6 +14,10 @@
           <PropertyFieldRenderer
             v-else-if="part.type === 'editor'"
             class="page-property-editor-item__editor"
+            :class="{
+              'is-expansive': part.definition.fieldType === 'number' && part.definition.presentation === 'slider',
+              'is-compact': !(part.definition.fieldType === 'number' && part.definition.presentation === 'slider'),
+            }"
             :definition="part.definition"
             :value="encodeValue(part)"
             editor-id="field"
@@ -143,14 +147,29 @@ function handleCommit(part: EditorItemEditorPart, value: unknown): void {
 
 .page-property-editor-item__content {
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
+  justify-self: end;
   gap: var(--oc-field-control-gap, var(--oc-space-2));
 }
 
 .page-property-editor-item__editor {
   min-width: 0;
+  width: max-content;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.page-property-editor-item__editor.is-expansive {
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.page-property-editor-item__editor.is-compact :deep(> *) {
+  width: max-content;
+  flex: 0 1 auto;
 }
 
 @media (max-width: 680px) {
@@ -162,7 +181,9 @@ function handleCommit(part: EditorItemEditorPart, value: unknown): void {
   }
 
   .page-property-editor-item__content {
+    width: 100%;
     justify-content: flex-start;
+    justify-self: stretch;
   }
 }
 

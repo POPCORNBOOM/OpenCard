@@ -7,7 +7,7 @@ describe('createOcMonacoTheme', () => {
 
     expect(theme.base).toBe('vs-dark')
     expect(theme.colors['editor.background']).toBe('#2d2d2d')
-    expect(theme.colors['editor.selectionBackground']).toBe('#A260FF29')
+    expect(theme.colors['editor.selectionBackground']).toBe('#9045F929')
   })
 
   it('uses the light Monaco base for the light OC theme', () => {

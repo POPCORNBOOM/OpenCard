@@ -154,7 +154,9 @@ function compileShader(gl: WebGLRenderingContext, type: number, source: string):
 }
 
 function parseThemeColor(token: string, fallback: [number, number, number]): [number, number, number] {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+  const root = document.documentElement
+  const value = root.style.getPropertyValue(token).trim()
+    || getComputedStyle(root).getPropertyValue(token).trim()
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(value)
   return match
     ? [Number.parseInt(match[1], 16) / 255, Number.parseInt(match[2], 16) / 255, Number.parseInt(match[3], 16) / 255]
@@ -244,7 +246,7 @@ onMounted(() => {
   })
   themeObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ['data-oc-theme', 'class', 'style'],
+    attributeFilter: ['data-oc-theme', 'style'],
   })
   windowResizeHandler = resizeAndRedraw
   window.addEventListener('resize', windowResizeHandler)

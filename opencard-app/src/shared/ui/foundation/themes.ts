@@ -5,10 +5,10 @@ import type { OcThemeId, OcThemeTokens } from './themeTokens'
 
 export const OC_SHARED_THEME_TOKENS = {
   '--oc-scrollbar-size': '8px',
-  '--oc-bg-accent': '#A260FF',
+  '--oc-bg-accent': '#9045F9',
   '--oc-bg-glass-blur': '18px',
   '--oc-bg-glass-saturate': '120%',
-  '--oc-border-accent': '#A260FF',
+  '--oc-border-accent': '#9045F9',
   '--oc-diff-added-border': '#35C759',
   '--oc-diff-removed-border': '#FF453A',
   '--oc-diff-changed-border': 'var(--oc-icon-warning)',
@@ -16,7 +16,7 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-diff-divider': 'color-mix(in srgb, var(--oc-border-strong) 68%, transparent)',
   '--oc-diff-divider-width': 'var(--oc-border-width)',
   '--oc-diff-version-label-max-width': 'min(38cqw, 280px)',
-  '--oc-accent': '#A260FF',
+  '--oc-accent': '#9045F9',
   '--oc-accent-neighbor': '#60A2FF',
   '--oc-accent-fg': '#f5f2ff',
   '--oc-icon-default': 'currentColor',

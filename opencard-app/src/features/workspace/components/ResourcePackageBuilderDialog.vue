@@ -39,7 +39,7 @@
             </label>
             <label>
               <OcText as="span" size="sm">{{ t('resourcePackage.key') }}</OcText>
-              <OcFieldInput full-width mono :value="packageKey" :disabled="busy"
+              <OcFieldInput full-width mono :value="packageKey" :placeholder="generatedKey" :disabled="busy"
                 @input="packageKey = ($event.target as HTMLInputElement).value" />
             </label>
             <label>
@@ -85,7 +85,7 @@ import { buildResourcePackageFromProject } from '../services/buildResourcePackag
 import { fileSystemService } from '../services/fileSystemService'
 import { useProjectStore } from '../store/projectStore'
 
-const props = defineProps<{ open: boolean, projectRootPath: string, entries: readonly string[] }>()
+const props = defineProps<{ open: boolean, projectRootPath: string, projectName: string, entries: readonly string[] }>()
 const emit = defineEmits<{ close: [], built: [path: string] }>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
@@ -150,7 +150,8 @@ const expandedKeys = computed(() => [...expandedKeySet.value])
 const expandedKeySet = ref<Set<string>>(new Set())
 const selectedCount = computed(() => selectedPaths.value.size)
 const selectedResourceCount = selectedCount
-const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || name.value.trim(), ''))
+const generatedKey = computed(() => toKeySlug(name.value.trim(), ''))
+const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || generatedKey.value, ''))
 const canBuild = computed(() => Boolean(name.value.trim() && normalizedKey.value && version.value.trim() && selectedResourceCount.value > 0))
 
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
@@ -201,7 +202,7 @@ const treeData = computed<OcTreeData>(() => {
 
 watch(() => props.open, open => {
   if (!open) return
-  name.value = ''
+  name.value = props.projectName
   packageKey.value = ''
   version.value = '1.0.0'
   selectedPaths.value = new Set()

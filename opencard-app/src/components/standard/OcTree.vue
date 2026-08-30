@@ -1049,6 +1049,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding: 0 var(--oc-space-3) 0 calc(var(--oc-space-3) + var(--oc-tree-indent, 0px));
   border: 0;
+  border-radius: var(--oc-radius-sm);
   outline: 0;
   background: transparent;
   color: var(--oc-fg-default);

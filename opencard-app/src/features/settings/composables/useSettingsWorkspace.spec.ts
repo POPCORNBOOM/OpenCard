@@ -31,7 +31,10 @@ describe('useSettingsWorkspace', () => {
     })
     expect(editor(activeCategory.value.items[1]!)).toMatchObject({
       value: 128,
-      definition: { fieldType: 'number', presentation: 'slider', min: 1, max: 512 },
+      definition: {
+        fieldType: 'number', presentation: 'slider', min: 1, max: 512,
+        ticks: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
+      },
     })
   })
 
@@ -57,7 +60,7 @@ describe('useSettingsWorkspace', () => {
 
     expect(activeCategory.value.preview).toEqual({ glassIntensity: 60 })
     expect(editor(activeCategory.value.items.find(item => item.key === 'appearance.baseFontSize')!))
-      .toMatchObject({ definition: { presentation: 'slider', ticks: [10, 12, 14, 16] } })
+      .toMatchObject({ definition: { presentation: 'slider', ticks: [10, 11, 12, 13, 14, 15, 16] } })
     const darkTheme = activeCategory.value.items.find(item => item.key === 'theme:dark')!
     const lightTheme = activeCategory.value.items.find(item => item.key === 'theme:light')!
     expect(darkTheme.children?.map(item => item.key)).toEqual([
@@ -84,5 +87,24 @@ describe('useSettingsWorkspace', () => {
     expect(activeCategory.value.items[activeCategory.value.items.length - 1]?.content?.[0]).toMatchObject({ type: 'action', disabled: true })
     projectOpen.value = true
     expect(activeCategory.value.items[activeCategory.value.items.length - 1]?.content?.[0]).toMatchObject({ type: 'action', disabled: false })
+  })
+
+  it('projects useful ticks for workspace numeric settings', () => {
+    const categoryKey = ref<SettingsCategoryKey>('workspace')
+    const { activeCategory } = useSettingsWorkspace({
+      settings: ref(createDefaultAppSettings()), categoryKey, projectOpen: ref(false),
+      translate: (_key, fallback) => fallback,
+    })
+
+    const definitionFor = (key: string) => editor(activeCategory.value.items.find(item => item.key === key)!).definition
+    expect(definitionFor('workspace.autoSaveIntervalSeconds')).toMatchObject({
+      ticks: [5, 15, 30, 60, 120, 300],
+    })
+    expect(definitionFor('workspace.historyEntryLimit')).toMatchObject({
+      ticks: [10, 50, 100, 250, 500, 1000],
+    })
+    expect(definitionFor('workspace.customBlockMaxDepth')).toMatchObject({
+      ticks: [1, 2, 4, 8, 16, 32, 64],
+    })
   })
 })

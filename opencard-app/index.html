@@ -2,6 +2,36 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>performance.mark("opencard:startup:html")</script>
+    <style>
+      #oc-startup-cover {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        z-index: calc(var(--oc-z-modal, 1000) + 1);
+        background: var(--oc-bg-base, #1e1e1e);
+        opacity: 1;
+        pointer-events: none;
+      }
+
+      #oc-startup-cover.is-leaving {
+        opacity: 0;
+        transition: opacity var(--oc-duration-normal, 150ms) var(--oc-ease, ease);
+      }
+
+      #oc-startup-cover img {
+        width: calc(var(--oc-icon-size-display, 40px) * 3);
+        height: auto;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #oc-startup-cover.is-leaving {
+          transition-duration: 0ms;
+        }
+      }
+    </style>
+    <link rel="preload" as="image" href="/opencard-logo.png" />
     <link rel="icon" type="image/png" href="/opencard-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCard</title>
@@ -9,6 +39,9 @@
 
   <body>
     <div id="app"></div>
+    <div id="oc-startup-cover" aria-hidden="true">
+      <img src="/opencard-logo.png" alt="" />
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

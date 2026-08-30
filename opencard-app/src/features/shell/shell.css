@@ -725,13 +725,19 @@
 .shell-sidebar-resizer::after {
   content: "";
   position: absolute;
-  top: 12px;
+  top: var(--oc-space-4);
   bottom: 0;
   left: 50%;
   width: 1px;
   transform: translateX(-50%);
   color: var(--oc-border-muted);
-  background: linear-gradient(to bottom, transparent 0, currentColor 12px, currentColor 100%);
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    currentColor calc(2 * var(--oc-space-8)),
+    currentColor calc(100% - 2 * var(--oc-space-8)),
+    transparent 100%
+  );
   opacity: 1;
   transition: color var(--oc-duration-fast, 100ms) var(--oc-ease, ease);
 }
@@ -745,7 +751,7 @@
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  border-radius: var(--radius-shell) 0 0 0;
+  border-radius: var(--radius-shell) 0 0 var(--radius-shell);
   border-left: 1px solid var(--oc-border-muted);
   background: var(--oc-bg-surface);
   overflow: hidden;

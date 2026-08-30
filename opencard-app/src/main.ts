@@ -9,15 +9,50 @@ import {
 } from "./shared/ui/foundation";
 import { useAppSettingsStore } from "./features/settings/store/appSettingsStore";
 import { installAppConsoleCapture } from "./features/logging/appConsole";
+import { addTitleBarNotice } from "./features/notifications/titlebarNotices";
 import "./features/shell/shell.css";
 import "./styles.css";
 
 installAppConsoleCapture();
 
+const startupStartedAt = performance.getEntriesByName("opencard:startup:html")[0]?.startTime
+  ?? performance.now();
+let startupPreviousAt = startupStartedAt;
+
+function recordStartupTiming(label: string): void {
+  const now = performance.now();
+  const segmentMs = now - startupPreviousAt;
+  const totalMs = now - startupStartedAt;
+  console.info(
+    `[OpenCard/Startup] ${label}: +${segmentMs.toFixed(1)}ms (${totalMs.toFixed(1)}ms total)`,
+  );
+  startupPreviousAt = now;
+}
+
+recordStartupTiming("main module ready");
+
+function dismissStartupCover(): void {
+  const cover = document.getElementById("oc-startup-cover");
+  if (!cover) return;
+
+  cover.classList.add("is-leaving");
+  cover.getBoundingClientRect();
+  const animations = cover.getAnimations();
+  if (animations.length === 0) {
+    cover.remove();
+    return;
+  }
+  void Promise.allSettled(animations.map(animation => animation.finished))
+    .then(() => cover.remove());
+}
+
 async function bootstrap(): Promise<void> {
   const settingsStore = useAppSettingsStore();
+  recordStartupTiming("settings load started");
   await settingsStore.initialize();
+  recordStartupTiming("settings ready");
   const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  let lastAppliedTheme: "dark" | "light" | null = null;
 
   const resolveTheme = () => {
     const appearance = settingsStore.settings.value.appearance;
@@ -34,6 +69,14 @@ async function bootstrap(): Promise<void> {
       baseFontSize: appearance.baseFontSize,
     });
     setOcGlassIntensity(appearance.glassIntensity);
+    if (lastAppliedTheme !== null && lastAppliedTheme !== theme) {
+      const themeName = i18n.global.t(`settings.values.${theme}`);
+      addTitleBarNotice({
+        message: i18n.global.t("app.notifications.themeChanged", { theme: themeName }),
+        icon: "data.symbol-color",
+      });
+    }
+    lastAppliedTheme = theme;
   };
 
   watch(
@@ -78,6 +121,11 @@ async function bootstrap(): Promise<void> {
     if (!event.defaultPrevented) event.preventDefault();
   });
   createApp(App).use(i18n).mount("#app");
+  recordStartupTiming("Vue mounted");
+  window.requestAnimationFrame(() => {
+    dismissStartupCover();
+    window.setTimeout(() => recordStartupTiming("first frame painted"), 0);
+  });
 }
 
 void bootstrap();

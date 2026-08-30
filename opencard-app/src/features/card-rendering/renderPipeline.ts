@@ -9,6 +9,7 @@ import { prepareRichText, type PreparedRichTextCatalog } from './prepareRichText
 import { parseRenderDocument } from './renderParser'
 import type { RenderReadyCardDocument } from './render.types'
 import { resolveReferences } from './resolveCardBindings'
+import { validateRenderResources } from './validateRenderResources'
 
 export type RenderPipelineResult = {
   document: RenderReadyCardDocument
@@ -25,6 +26,7 @@ export type RenderPipelineContext = {
 
 export type CardRenderEnvironment = RenderPipelineContext & {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
+  resolveRemoteResource?: (url: string) => string | null
   projectIconCatalog: ProjectIconCatalog
   resolveFontFamily?: (references: string) => string
 }
@@ -55,9 +57,14 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
     resourceScopes,
   })
   const parsed = parseRenderDocument(resolved.document, { instanceId: request.instance?.id ?? null })
+  const resourceIssues = validateRenderResources(
+    parsed.document,
+    request.environment.remoteResourcePolicy,
+    request.instance?.id ?? null,
+  )
   const result: RenderPipelineResult = {
     document: parsed.document,
-    issues: [...resolved.issues, ...parsed.issues, ...richText.issues],
+    issues: [...resolved.issues, ...parsed.issues, ...resourceIssues, ...richText.issues],
     richText: richText.catalog,
     resourceScopes,
   }
@@ -68,6 +75,7 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
       hostEnvironment: request.environment.projectResourceEnvironment,
       packageEnvironments: request.environment.projectResourceEnvironment?.packageEnvironments,
       remoteResourcePolicy: request.environment.remoteResourcePolicy,
+      resolveRemoteResource: request.environment.resolveRemoteResource,
       projectIconCatalog: request.environment.projectIconCatalog,
       resourceScopes,
       richText: richText.catalog,

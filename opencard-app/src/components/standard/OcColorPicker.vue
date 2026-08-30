@@ -22,7 +22,6 @@
         class="oc-color-picker__field-input"
         variant="plain"
         size="sm"
-        mono
         :value="hexDraft"
         :disabled="disabled"
         :aria-label="label"
@@ -127,7 +126,6 @@
               :maxlength="channel.maxLength"
               :aria-label="channel.ariaLabel"
               spellcheck="false"
-              mono
               @blur="commitChannel(channel.key, $event)"
               @keydown.enter.prevent="commitChannel(channel.key, $event)"
             />
@@ -657,7 +655,6 @@ function clamp(value: number, minimum: number, maximum: number): number {
 .oc-color-picker__field-input {
   height: 100%;
   padding: 0 var(--oc-space-2) 0 0;
-  font-family: var(--oc-font-mono);
   font-size: var(--oc-text-xs);
   text-align: right;
   text-transform: uppercase;

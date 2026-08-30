@@ -387,6 +387,7 @@ async function copyIssue(key: string): Promise<void> {
   justify-content: center;
   border: 1px solid var(--oc-border-default);
   border-radius: 50%;
+  border-bottom-right-radius: var(--oc-radius-sm);
   background: var(--oc-bg-surface);
   color: var(--oc-fg-muted);
   box-shadow: var(--oc-shadow-sm);
@@ -405,16 +406,21 @@ async function copyIssue(key: string): Promise<void> {
   outline: none;
 }
 
+.workspace-bottom-panel__toggle[data-issue-severity] {
+  border-color: currentColor;
+  background: var(--oc-bg-surface);
+}
+
 .workspace-bottom-panel__toggle[data-issue-severity='error'] {
-  background: var(--oc-bg-danger-subtle);
+  color: var(--oc-fg-danger);
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='warning'] {
-  background: var(--oc-bg-warning-subtle);
+  color: var(--oc-fg-warning);
 }
 
 .workspace-bottom-panel__toggle[data-issue-severity='info'] {
-  background: var(--oc-bg-accent-subtle);
+  color: var(--oc-fg-accent);
 }
 
 .workspace-bottom-panel__content {

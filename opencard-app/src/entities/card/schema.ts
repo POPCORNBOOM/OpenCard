@@ -372,7 +372,6 @@ function createTextContentBlockPropertyEditorSchema(richText: boolean): Record<s
         ...createBaseBlockPropertyEditorSchema(),
         content: {
             fieldType: 'string',
-            required: true,
             multiline: true,
             ...(richText ? { richText: true } : {}),
             categoryId: 'content',

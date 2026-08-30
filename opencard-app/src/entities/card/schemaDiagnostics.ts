@@ -102,7 +102,8 @@ export function validateCardSchemaField(
         return invalid('out-of-range')
       }
       if (definition.fieldType === 'color' && stringValue && !isCssColor(stringValue)) return invalid('invalid-color')
-      if (definition.fieldType === 'filePath' && stringValue && !isValidFilePath(stringValue, definition.filter?.extensions)) {
+      if (definition.fieldType === 'filePath' && stringValue
+        && !isValidFilePath(stringValue, definition.filter?.extensions, definition.allowRemote)) {
         return invalid('invalid-file-path')
       }
       if (options.cssLength && stringValue) {
@@ -152,8 +153,9 @@ export function isCssLength(value: string): boolean {
   return cssLength.test(candidate)
 }
 
-function isValidFilePath(value: string, extensions?: readonly string[]): boolean {
+function isValidFilePath(value: string, extensions?: readonly string[], allowRemote = false): boolean {
   const normalized = value.replace(/\\/g, '/')
+  if (allowRemote && /^https:\/\/[^\s]+$/i.test(value.trim())) return true
   if (normalized.includes('\0') || /(^|\/)\.\.(?:\/|$)/.test(normalized) || /[<>:"|?*]/.test(normalized)) return false
   if (!extensions?.length || normalized.endsWith('/')) return true
   const extension = normalized.split('.').pop()?.toLocaleLowerCase()

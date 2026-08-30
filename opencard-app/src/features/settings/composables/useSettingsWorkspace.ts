@@ -129,6 +129,7 @@ export function useSettingsWorkspace(
             title: options.translate('settings.fields.titleBarNoticeHistoryLimit', 'Instant message history limit'),
             fieldType: 'number', presentation: 'slider',
             min: MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT, max: MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT, step: 1,
+            ticks: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
             suffix: options.translate('settings.values.messages', ' messages'),
           }, settings.shell.titleBarNoticeHistoryLimit),
           fieldItem('updates.suppressReleaseNotesAfterUpdate', {
@@ -263,7 +264,7 @@ export function useSettingsWorkspace(
           fieldItem('appearance.baseFontSize', {
             title: options.translate('settings.fields.baseFontSize', 'Base font size'),
             fieldType: 'number', presentation: 'slider', min: 10, max: 16, step: 1,
-            ticks: [10, 12, 14, 16], suffix: 'px',
+            ticks: [10, 11, 12, 13, 14, 15, 16], suffix: 'px',
           }, settings.appearance.baseFontSize),
           fieldItem('appearance.phaseImageSpeed', {
             title: options.translate('settings.fields.phaseImageSpeed', 'Phase animation speed'),
@@ -296,17 +297,20 @@ export function useSettingsWorkspace(
           title: options.translate('settings.fields.autoSaveInterval', 'Auto-save interval'),
           fieldType: 'number', presentation: 'slider',
           min: MIN_AUTO_SAVE_INTERVAL_SECONDS, max: MAX_AUTO_SAVE_INTERVAL_SECONDS, step: 1,
+          ticks: [5, 15, 30, 60, 120, 300],
           suffix: options.translate('settings.values.seconds', ' seconds'),
         }, settings.workspace.autoSaveIntervalSeconds),
         fieldItem('workspace.historyEntryLimit', {
           title: options.translate('settings.fields.historyEntryLimit', 'History entries per editor'),
           fieldType: 'number', presentation: 'slider', min: 10, max: 1000, step: 10,
+          ticks: [10, 50, 100, 250, 500, 1000],
           suffix: options.translate('settings.values.historyEntries', ' entries'),
         }, settings.workspace.historyEntryLimit),
         fieldItem('workspace.customBlockMaxDepth', {
           title: options.translate('settings.fields.customBlockMaxDepth', 'Maximum custom block recursion depth'),
           fieldType: 'number', presentation: 'slider',
           min: MIN_CUSTOM_BLOCK_MAX_DEPTH, max: MAX_CUSTOM_BLOCK_MAX_DEPTH, step: 1,
+          ticks: [1, 2, 4, 8, 16, 32, 64],
           suffix: options.translate('settings.values.recursionLevels', ' levels'),
         }, settings.workspace.customBlockMaxDepth),
         fieldItem('workspace.structureTreeSelectionBehavior', {

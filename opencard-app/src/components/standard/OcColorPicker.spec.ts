@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 import { setOcTheme } from '../../shared/ui/foundation'
 import OcFieldFrame from '../base/OcFieldFrame.vue'
+import OcFieldInput from '../base/OcFieldInput.vue'
 import OcColorPicker from './OcColorPicker.vue'
 
 describe('OcColorPicker', () => {
@@ -18,6 +19,7 @@ describe('OcColorPicker', () => {
     expect(document.body.querySelector('[role="slider"][aria-label="Alpha"]')).not.toBeNull()
     expect(document.body.querySelector('input[aria-label="Alpha"]')).not.toBeNull()
     expect(document.body.querySelector('input[type="color"]')).toBeNull()
+    expect(wrapper.findAllComponents(OcFieldInput).every(input => input.props('mono') === false)).toBe(true)
     wrapper.unmount()
   })
 

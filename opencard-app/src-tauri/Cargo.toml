@@ -31,6 +31,9 @@ fontdb = "0.23"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 image-atlas = { version = "0.5", features = ["image"] }
 git2 = "0.21"
+futures-util = "0.3"
+reqwest = { version = "0.13", features = ["stream"] }
+tokio = { version = "1", features = ["fs", "io-util"] }
 
 [dev-dependencies]
 tempfile = "3"

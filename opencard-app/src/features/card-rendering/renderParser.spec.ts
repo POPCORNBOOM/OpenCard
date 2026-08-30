@@ -201,8 +201,9 @@ describe('renderParser', () => {
         type: 'card-designer.render-parse.invalid-css-length',
         location: expect.objectContaining({ blockId: 'text', fieldKey: 'width' }),
       }),
+    ]))
+    expect(result.issues).not.toEqual(expect.arrayContaining([
       expect.objectContaining({
-        type: 'card-designer.render-parse.required',
         location: expect.objectContaining({ blockId: 'text', fieldKey: 'content' }),
       }),
     ]))

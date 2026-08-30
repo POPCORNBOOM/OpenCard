@@ -122,7 +122,7 @@
           @update:top-size="updateDockTopSize('left', $event)" @toggle-collapse="toggleDockCollapsed('left')"
           @resize-start="handleDockResizeStart" @resize-end="handleDockResizeEnd('left', $event)">
           <template #top>
-            <OcCard fill variant="glass" title="卡牌树" :actions="props.mode === 'diff' ? [] : instanceCardActions"
+            <OcCard fill variant="glass" :title="t('cardDesigner.panels.cardTree')" :actions="props.mode === 'diff' ? [] : instanceCardActions"
               :collapsed="!isInstancePanelExpanded" @action="handleInstanceCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto" align="stretch">
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
@@ -134,7 +134,7 @@
             </OcCard>
           </template>
           <template #bottom>
-            <OcCard fill variant="glass" title="预览" :actions="previewCardActions" :collapsed="!isPreviewPanelExpanded"
+            <OcCard fill variant="glass" :title="t('cardDesigner.panels.preview')" :actions="previewCardActions" :collapsed="!isPreviewPanelExpanded"
               @action="handlePreviewCardAction">
               <OcPanel align="stretch" fill radius="none" tone="transparent" border="none" shadow="lg" padding="none">
                 <div ref="transformPreviewHostRef" class="card-design-editor__transform-preview-host"
@@ -172,7 +172,7 @@
           @update:top-size="updateDockTopSize('right', $event)" @toggle-collapse="toggleDockCollapsed('right')"
           @resize-start="handleDockResizeStart" @resize-end="handleDockResizeEnd('right', $event)">
           <template #top>
-            <OcCard fill variant="glass" title="结构树" :actions="props.mode === 'diff' ? [] : structureTreeCardActions"
+            <OcCard fill variant="glass" :title="t('cardDesigner.panels.structureTree')" :actions="props.mode === 'diff' ? [] : structureTreeCardActions"
               :collapsed="!isStructureTreePanelExpanded" @action="handleStructureTreeCardAction">
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree" tab-navigation="none"
@@ -187,7 +187,7 @@
             </OcCard>
           </template>
           <template #bottom>
-            <OcCard fill variant="glass" title="属性" :actions="props.mode === 'diff' ? [] : propertyCardActions"
+            <OcCard fill variant="glass" :title="t('cardDesigner.panels.properties')" :actions="props.mode === 'diff' ? [] : propertyCardActions"
               :collapsed="!isPropertyPanelExpanded" @action="handlePropertyCardAction">
               <OcPanel fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcEmpty v-if="isMultiBlockSelection" class="card-design-editor__multi-selection-summary">

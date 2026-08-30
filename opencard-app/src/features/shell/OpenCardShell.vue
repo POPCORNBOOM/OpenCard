@@ -192,6 +192,7 @@
     <ResourcePackageBuilderDialog
       :open="resourcePackageBuilderOpen"
       :project-root-path="projectPath ?? ''"
+      :project-name="projectName"
       :entries="resourcePackageBuilderEntries"
       @close="resourcePackageBuilderOpen = false"
       @built="handleResourcePackageBuilt"
@@ -2832,7 +2833,14 @@ async function runShellCommand(actionKey: string) {
   }
 
   if (actionKey === 'check-for-updates') {
-    await checkForUpdate()
+    const result = await checkForUpdate()
+    if (result === 'failed') {
+      notifyWarning(t('app.updater.checkFailed'))
+    } else if (result === 'up-to-date') {
+      notifySuccess(t('app.updater.upToDate'), 'action.check')
+    } else if (result === 'available') {
+      notifySuccess(t('app.updater.updateFound', { version: updateVersion.value }), 'action.download')
+    }
     return
   }
 
@@ -3392,7 +3400,8 @@ function isNativeHistoryTarget(target: EventTarget | null): boolean {
 
 async function startAppUpdater(): Promise<void> {
   await initializeAppUpdater()
-  await checkForUpdate()
+  const result = await checkForUpdate()
+  if (result === 'failed') notifyWarning(t('app.updater.checkFailed'))
 }
 
 async function loadSystemFontFamilies(): Promise<void> {

@@ -18,6 +18,15 @@
     <span class="oc-slider__rail">
       <span class="oc-slider__fill" :style="{ width: `${percentage}%` }" />
     </span>
+    <span v-if="tickMarks.length" class="oc-slider__ticks" aria-hidden="true">
+      <span
+        v-for="tick in tickMarks"
+        :key="tick.value"
+        class="oc-slider__tick"
+        :class="{ 'is-filled': tick.percentage <= percentage }"
+        :style="{ left: `${tick.percentage}%` }"
+      />
+    </span>
     <span class="oc-slider__thumb" :style="{ left: `${percentage}%` }" />
   </div>
 </template>
@@ -32,12 +41,14 @@ const props = withDefaults(defineProps<{
   min?: number
   max?: number
   step?: number
+  ticks?: readonly number[]
   disabled?: boolean
   valueText?: string
 }>(), {
   min: 0,
   max: 100,
   step: 1,
+  ticks: () => [],
   disabled: false,
   valueText: '',
 })
@@ -58,9 +69,27 @@ const controlAttrs = computed(() => {
   const { class: _class, style: _style, ...rest } = attrs
   return rest
 })
+const validTicks = computed(() => [...new Set(props.ticks.filter(value => (
+  Number.isFinite(value) && value >= props.min && value <= props.max
+)))].sort((left, right) => left - right))
 const percentage = computed(() => {
+  if (validTicks.value.length > 1) {
+    const nearestIndex = validTicks.value.reduce((closest, value, index) => (
+      Math.abs(value - draftValue.value) < Math.abs(validTicks.value[closest]! - draftValue.value)
+        ? index
+        : closest
+    ), 0)
+    return nearestIndex / (validTicks.value.length - 1) * 100
+  }
   const range = props.max - props.min
   return range <= 0 ? 0 : ((draftValue.value - props.min) / range) * 100
+})
+const tickMarks = computed(() => {
+  if (validTicks.value.length <= 1) return []
+  return validTicks.value.map((value, index) => ({
+    value,
+    percentage: index / (validTicks.value.length - 1) * 100,
+  }))
 })
 
 watch(() => props.modelValue, value => {
@@ -133,6 +162,11 @@ function updateFromPointer(event: PointerEvent): void {
   const rect = trackRef.value?.getBoundingClientRect()
   if (!rect || rect.width <= 0) return
   const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+  if (validTicks.value.length > 1) {
+    const index = Math.round(ratio * (validTicks.value.length - 1))
+    previewValue(validTicks.value[index]!)
+    return
+  }
   previewValue(props.min + ratio * (props.max - props.min))
 }
 
@@ -179,6 +213,28 @@ function handleKeydown(event: KeyboardEvent): void {
   inset: 0 auto 0 0;
   border-radius: inherit;
   background: var(--oc-slider-fill-background, var(--oc-accent));
+}
+
+.oc-slider__ticks {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: var(--oc-space-2);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.oc-slider__tick {
+  position: absolute;
+  top: 50%;
+  width: var(--oc-border-width);
+  height: 100%;
+  background: var(--oc-border-strong);
+  transform: translate(-50%, -50%);
+}
+
+.oc-slider__tick.is-filled {
+  background: var(--oc-accent-fg);
 }
 
 .oc-slider__thumb {

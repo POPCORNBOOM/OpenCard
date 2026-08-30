@@ -178,7 +178,9 @@ describe('CardDesignEditor issue navigation', () => {
     const viewport = wrapper.findComponent(CardViewportStub)
     expect(viewport.props('selectedBlockId')).toBeNull()
     expect(viewport.props('showInfo')).toBe(true)
-    const propertyCard = wrapper.findAllComponents(OcCardStub).find(card => card.props('title') === '属性')!
+    expect(wrapper.findAllComponents(OcCardStub).map(card => card.props('title')))
+      .toEqual(['Cards', 'Preview', 'Structure', 'Properties'])
+    const propertyCard = wrapper.findAllComponents(OcCardStub).find(card => card.props('title') === 'Properties')!
     expect(propertyCard.props('actions')).toMatchObject([{ key: 'toggle-property-panel' }])
 
     viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
@@ -1456,7 +1458,7 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
 
     const propertyCard = wrapper.findAllComponents(OcCardStub)
-      .find(card => card.props('title') === '属性')!
+      .find(card => card.props('title') === 'Properties')!
     const getAction = (key: string) => (propertyCard.props('actions') as Array<{
       key: string
       icon: IconToken

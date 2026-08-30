@@ -13,6 +13,7 @@ use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWN
 mod external_open;
 mod git_service;
 mod icon_spritesheet;
+mod network_resource;
 
 // 存储 watcher 的全局状态
 struct WatcherState {
@@ -266,6 +267,7 @@ pub fn run() {
             trash_path,
             reveal_path,
             open_path,
+            network_resource::download_network_resource,
             git_service::git_inspect,
             git_service::git_initialize,
             git_service::git_status,

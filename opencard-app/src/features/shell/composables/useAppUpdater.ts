@@ -5,6 +5,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import packageMetadata from '../../../../package.json'
 import bundledReleaseNotes from '../../../../RELEASE_NOTES.md?raw'
 import { notifyAppError } from '../../notifications/titlebarNotices'
+import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   createUpdateStatePersistence,
   type CurrentReleaseNotes,
@@ -21,6 +22,8 @@ type AppUpdaterOptions = {
   currentRelease?: ReleaseNotesSnapshot
   now?: () => string
 }
+
+export type AppUpdateCheckResult = 'available' | 'up-to-date' | 'failed' | 'skipped'
 
 export function useAppUpdater(options: AppUpdaterOptions = {}) {
   const persistence = options.persistence ?? createUpdateStatePersistence()
@@ -173,16 +176,20 @@ export function useAppUpdater(options: AppUpdaterOptions = {}) {
     }, PROGRESS_UPDATE_INTERVAL - elapsed)
   }
 
-  async function checkForUpdate(): Promise<void> {
-    if (!isTauri() || isChecking.value || isDownloading.value || isDownloaded.value || isInstalling.value) return
+  async function checkForUpdate(): Promise<AppUpdateCheckResult> {
+    if (!isTauri() || isChecking.value || isDownloading.value || isDownloaded.value || isInstalling.value) {
+      return 'skipped'
+    }
 
     isChecking.value = true
     try {
       await initialize()
       availableUpdate.value = await check()
       await savePendingReleaseNotes(availableReleaseNotes.value)
+      return availableUpdate.value ? 'available' : 'up-to-date'
     } catch (error) {
-      notifyAppError('OC-E6001', error)
+      reportAppError('OC-E6001', error)
+      return 'failed'
     } finally {
       isChecking.value = false
     }

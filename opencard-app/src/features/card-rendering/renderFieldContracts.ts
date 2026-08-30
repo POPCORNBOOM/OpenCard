@@ -16,6 +16,7 @@ export type RenderFieldContract = {
   max?: number
   options?: readonly string[]
   extensions?: readonly string[]
+  allowRemote?: boolean
   itemShape?: 'root-child'
   displayFieldKey?: string
 }
@@ -56,7 +57,7 @@ function baseBlockContracts(type: string): Record<string, RenderFieldContract> {
 function textContracts(type: 'text-block' | 'markdown-text-block'): Record<string, RenderFieldContract> {
   return {
     ...baseBlockContracts(type),
-    content: { kind: 'string', defaultValue: '', required: true },
+    content: { kind: 'string', defaultValue: '' },
     fontSize: { kind: 'css-length', defaultValue: '' },
     fontFamily: { kind: 'string', defaultValue: '' },
     fontWeight: { kind: 'option', defaultValue: 'normal', options: ['light', 'normal', 'bold'] },
@@ -93,7 +94,7 @@ const contractsByType: Readonly<Record<string, Readonly<Record<string, RenderFie
   'markdown-text-block': textContracts('markdown-text-block'),
   'image-block': {
     ...baseBlockContracts('image-block'),
-    image: { kind: 'file-path', defaultValue: '', required: true, extensions: imageExtensions },
+    image: { kind: 'file-path', defaultValue: '', required: true, extensions: imageExtensions, allowRemote: true },
     fit: { kind: 'option', defaultValue: 'cover', required: true, options: ['cover', 'contain', 'fill'] },
   },
   'qrcode-block': {

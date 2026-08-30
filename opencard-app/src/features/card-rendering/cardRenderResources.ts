@@ -24,6 +24,7 @@ import { toCssFontFamily } from '../workspace/model/projectFonts'
 export type CardRenderResourceContext = {
   readonly hostEnvironment: ProjectResourceEnvironment
   readonly remoteResourcePolicy?: ProjectRemoteResourcePolicy
+  readonly resolveRemoteResource?: (url: string) => string | null
   readonly projectIconCatalog: ProjectIconCatalog
   readonly resourceScopes: ProjectResourceScopeMap
   readonly packageEnvironments: ReadonlyMap<string, ProjectResourceEnvironment>
@@ -95,6 +96,7 @@ export function createCardRenderResourceContext(options: {
   resourceRootPath?: string | null
   hostEnvironment?: ProjectResourceEnvironment
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
+  resolveRemoteResource?: (url: string) => string | null
   projectIconCatalog?: ProjectIconCatalog
   resourceScopes?: ProjectResourceScopeMap
   packageEnvironments?: ReadonlyMap<string, ProjectResourceEnvironment>
@@ -109,6 +111,7 @@ export function createCardRenderResourceContext(options: {
     hostEnvironment: options.hostEnvironment
       ?? fallbackEnvironment(options.resourceRootPath ?? null, projectIconCatalog),
     remoteResourcePolicy: options.remoteResourcePolicy,
+    resolveRemoteResource: options.resolveRemoteResource,
     projectIconCatalog,
     resourceScopes: options.resourceScopes ?? new Map(),
     packageEnvironments: options.packageEnvironments ?? new Map(),
@@ -141,6 +144,9 @@ export function resolveCardAssetSrc(
     hostEnvironment: context.hostEnvironment,
     packageEnvironments: context.packageEnvironments,
   }, context.remoteResourcePolicy)
+  if (resolved.value && /^https:\/\//i.test(resolved.value) && context.resolveRemoteResource) {
+    return context.resolveRemoteResource(resolved.value) ?? ''
+  }
   return resolved.value ?? ''
 }
 

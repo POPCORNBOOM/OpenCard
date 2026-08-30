@@ -423,6 +423,7 @@ function dynamicRenderContract(
     ...(definition.required ? { required: true } : {}),
     ...(definition.min !== undefined ? { min: definition.min } : {}),
     ...(definition.max !== undefined ? { max: definition.max } : {}),
+    ...(definition.fieldType === 'filePath' && definition.allowRemote ? { allowRemote: true } : {}),
     ...(allowedValues ? { options: allowedValues } : {}),
   }
 }
@@ -576,7 +577,7 @@ function parseRenderField(
     return invalidRenderField('invalid-color')
   }
   if (contract.kind === 'file-path' && stringValue
-    && !isValidRenderFilePath(stringValue, contract.extensions)) {
+    && !isValidRenderFilePath(stringValue, contract.extensions, contract.allowRemote)) {
     return invalidRenderField('invalid-file-path')
   }
   const converted = contract.kind === 'css-length' ? normalizeRenderCssLength(stringValue) : stringValue
@@ -607,8 +608,9 @@ function cloneRenderValue(value: unknown): unknown {
   return value
 }
 
-function isValidRenderFilePath(value: string, extensions?: readonly string[]): boolean {
+function isValidRenderFilePath(value: string, extensions?: readonly string[], allowRemote = false): boolean {
   const normalized = value.replace(/\\/g, '/')
+  if (allowRemote && /^https:\/\/[^\s]+$/i.test(value.trim())) return true
   if (normalized.includes('\0') || /(^|\/)\.\.(?:\/|$)/.test(normalized) || /[<>:"|?*]/.test(normalized)) {
     return false
   }

@@ -13,6 +13,9 @@ describe('card schema diagnostics', () => {
     expect(validateCardSchemaField('../outside.exe', {
       fieldType: 'filePath', filter: { target: 'file', extensions: ['png'] },
     })).toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-file-path', path: [] }] })
+    expect(validateCardSchemaField('https://images.example.com/portrait', {
+      fieldType: 'filePath', allowRemote: true, filter: { target: 'file', extensions: ['png'] },
+    })).toMatchObject({ ok: true, value: 'https://images.example.com/portrait' })
     expect(validateCardSchemaField('wide-ish', { fieldType: 'string' }, { cssLength: true }))
       .toMatchObject({ ok: false, diagnostics: [{ code: 'invalid-css-length', path: [] }] })
   })

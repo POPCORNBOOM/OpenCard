@@ -96,6 +96,20 @@ describe('cardRenderResources', () => {
     expect(resolveCardAssetSrc('https://other.example.com/portrait.png', context)).toBe('')
   })
 
+  it('resolves an allowed remote asset through the project cache when provided', () => {
+    const resolveRemoteResource = vi.fn((url: string) => `asset://cached/${encodeURIComponent(url)}`)
+    const context = createCardRenderResourceContext({
+      remoteResourcePolicy: { mode: 'allowlist', allowedHosts: ['images.example.com'] },
+      resolveRemoteResource,
+    })
+
+    expect(resolveCardAssetSrc('https://images.example.com/portrait.png', context))
+      .toBe('asset://cached/https%3A%2F%2Fimages.example.com%2Fportrait.png')
+    expect(resolveRemoteResource).toHaveBeenCalledWith('https://images.example.com/portrait.png')
+    expect(resolveCardAssetSrc('https://other.example.com/portrait.png', context)).toBe('')
+    expect(resolveRemoteResource).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects runtime schemes supplied directly by a document', () => {
     const context = createCardRenderResourceContext({})
 

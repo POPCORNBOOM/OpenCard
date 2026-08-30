@@ -47,9 +47,27 @@ describe('useAppUpdater', () => {
     mocks.tauri = false
     const updater = createUpdater()
 
-    await updater.checkForUpdate()
+    const result = await updater.checkForUpdate()
 
     expect(mocks.check).not.toHaveBeenCalled()
+    expect(result).toBe('skipped')
+  })
+
+  it('returns an explicit result when the update check completes', async () => {
+    mocks.check.mockResolvedValue(null)
+    const updater = createUpdater()
+
+    await expect(updater.checkForUpdate()).resolves.toBe('up-to-date')
+  })
+
+  it('reports a failed update check without turning it into an update operation notification', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.check.mockRejectedValue(new Error('offline'))
+    const updater = createUpdater()
+
+    await expect(updater.checkForUpdate()).resolves.toBe('failed')
+    expect(consoleError).toHaveBeenCalledOnce()
+    consoleError.mockRestore()
   })
 
   it('downloads an available update in the background before installing and relaunching', async () => {

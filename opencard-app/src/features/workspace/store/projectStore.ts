@@ -68,6 +68,8 @@ import {
   type ProjectIconLoadError,
 } from '../services/projectIconCatalog'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
+import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
+import { networkResourceManager } from '../../network-resources/store/networkResourceManager'
 import {
   DEFAULT_PROJECT_ICON_DIRECTORY,
   findProjectIconKeyConflicts,
@@ -182,6 +184,15 @@ const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
   remoteResourcePolicy: projectProfile.value?.remoteResources,
+  resolveRemoteResource: url => {
+    const path = projectPath.value
+    if (!path || !isRemoteResourceAllowed(url, projectProfile.value?.remoteResources)) return null
+    const resource = networkResourceManager.forProject(
+      path,
+      source => isRemoteResourceAllowed(source, projectProfile.value?.remoteResources),
+    ).get(url)
+    return resource ? convertFileSrc(resource.path) : null
+  },
   projectIconCatalog: projectIconCatalog.value,
   projectResourceEnvironment: projectResourceEnvironment.value,
 }) as CardRenderEnvironment)

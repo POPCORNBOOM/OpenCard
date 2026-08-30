@@ -243,5 +243,7 @@ describe('property binding schema policy', () => {
       multiline: true,
     })
     expect(getTypePropertyEditorSchema('markdown-text-block').content?.richText).toBeUndefined()
+    expect(getTypePropertyEditorSchema('text-block').content?.required).toBeUndefined()
+    expect(getTypePropertyEditorSchema('markdown-text-block').content?.required).toBeUndefined()
   })
 })
