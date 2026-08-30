@@ -10,7 +10,7 @@ export default {
     packageInfo: '包信息', contents: '包内容', contentsDescription: '选择要放入资源包的块和项目资源。',
     packagePreview: '包摘要', packagePreviewDescription: '制作前检查包的基本信息和内容数量。',
     selectedCount: '已选择 {count} 项', clearSelection: '清空选择', noCandidates: '当前项目没有可制作的资源。',
-    unnamed: '未命名包', fonts: '字体', icons: '图标', images: '图片', other: '其他资源',
+    unnamed: '未命名包', fonts: '字体', projectFonts: '项目字体', fontCompositions: '字体组合', icons: '图标', images: '图片', other: '其他资源',
     select: '加入包', deselect: '移出包',
     build: '制作包',
     building: '正在构建…',

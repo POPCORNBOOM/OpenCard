@@ -5,8 +5,13 @@ export const RESOURCE_PACKAGE_MANIFEST_FILE_NAME = '.opencard/manifest.json'
 export const RESOURCE_PACKAGE_EXTENSION = 'ocpack'
 export const RESOURCE_PACKAGE_SUFFIX = `.${RESOURCE_PACKAGE_EXTENSION}`
 
+export type ResourcePackagePublicFont = {
+  key: string
+  title: string
+}
+
 export type ResourcePackagePublicResources = {
-  fonts: readonly string[]
+  fonts: readonly ResourcePackagePublicFont[]
   iconSeries: readonly string[]
   assets: readonly string[]
 }
@@ -83,6 +88,39 @@ function normalizeStringList(
     }
     identities.add(identity)
     result.push(normalized)
+  }
+  return result
+}
+
+function normalizePublicFonts(
+  value: unknown,
+  issues: ResourcePackageManifestIssue[],
+): ResourcePackagePublicFont[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) {
+    addIssue(issues, 'public.fonts', 'Expected an array; used an empty list')
+    return []
+  }
+  const result: ResourcePackagePublicFont[] = []
+  const identities = new Set<string>()
+  for (const [index, candidate] of value.entries()) {
+    const path = `public.fonts[${index}]`
+    if (!isRecord(candidate)) {
+      addIssue(issues, path, 'Expected a public font object; ignored the entry')
+      continue
+    }
+    const key = typeof candidate.key === 'string' ? normalizeKeySlug(candidate.key) : null
+    const title = typeof candidate.title === 'string' ? candidate.title.trim() : ''
+    if (!key || !title) {
+      addIssue(issues, path, 'Public font Key and title are required; ignored the entry')
+      continue
+    }
+    if (identities.has(key)) {
+      addIssue(issues, `${path}.key`, 'Duplicate public font Key was ignored')
+      continue
+    }
+    identities.add(key)
+    result.push({ key, title })
   }
   return result
 }
@@ -201,7 +239,7 @@ export function normalizeResourcePackageManifest(
       version,
       contentHash: normalizeHash(source.contentHash, issues, 'contentHash'),
       public: {
-        fonts: normalizeStringList(publicSource.fonts, issues, 'public.fonts'),
+        fonts: normalizePublicFonts(publicSource.fonts, issues),
         iconSeries: normalizeStringList(publicSource.iconSeries, issues, 'public.iconSeries'),
         assets: normalizeStringList(publicSource.assets, issues, 'public.assets'),
       },

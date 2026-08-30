@@ -92,11 +92,13 @@ const projectStore = useProjectStore()
 const name = ref('')
 const packageKey = ref('')
 const version = ref('1.0.0')
-const selectedPaths = ref<Set<string>>(new Set())
+const explicitlySelectedFamilyKeys = ref<Set<string>>(new Set())
+const selectedCompositionKeys = ref<Set<string>>(new Set())
+const selectedResourceIds = ref<Set<string>>(new Set())
 const busy = ref(false)
 const errorText = ref('')
 
-type ResourceKind = 'fonts' | 'icons' | 'images'
+type ResourceKind = 'icons' | 'images'
 type PackageCandidate = {
   id: string
   kind: ResourceKind
@@ -105,10 +107,10 @@ type PackageCandidate = {
   paths: readonly string[]
 }
 const categoryLabels: Record<ResourceKind, string> = {
-  fonts: 'resourcePackage.fonts', icons: 'resourcePackage.icons', images: 'resourcePackage.images',
+  icons: 'resourcePackage.icons', images: 'resourcePackage.images',
 }
-const categoryIcons: Record<ResourceKind, 'file.font' | 'file.project-icon' | 'file.image'> = {
-  fonts: 'file.font', icons: 'file.project-icon', images: 'file.image',
+const categoryIcons: Record<ResourceKind, 'file.project-icon' | 'file.image'> = {
+  icons: 'file.project-icon', images: 'file.image',
 }
 
 function relativePath(path: string): string {
@@ -125,11 +127,6 @@ function projectInternalPath(source: string): string {
 }
 
 const candidates = computed<readonly PackageCandidate[]>(() => [
-  ...projectStore.projectFontFamilies.value.map(font => ({
-    id: `font:${font.key}`, kind: 'fonts' as const, label: font.name, detail: font.key,
-    paths: Object.values(font.files).flatMap(weight => Object.values(weight ?? {}))
-      .filter((path): path is string => Boolean(path)).map(projectInternalPath),
-  })),
   ...projectStore.projectIconSeries.value.map(series => ({
     id: `icon:${series.key}`, kind: 'icons' as const, label: series.name, detail: series.key,
     paths: [projectInternalPath(series.source)],
@@ -146,9 +143,17 @@ const candidates = computed<readonly PackageCandidate[]>(() => [
 const categories = computed(() => (Object.keys(categoryLabels) as ResourceKind[])
   .map(kind => ({ kind, entries: candidates.value.filter(entry => entry.kind === kind) }))
   .filter(group => group.entries.length > 0))
+const requiredFamilyKeys = computed(() => new Set(projectStore.projectFontCompositions.value
+  .filter(composition => selectedCompositionKeys.value.has(composition.key))
+  .flatMap(composition => composition.members.map(member => member.fontKey))))
+const selectedFamilyKeys = computed(() => new Set([
+  ...explicitlySelectedFamilyKeys.value,
+  ...requiredFamilyKeys.value,
+]))
 const expandedKeys = computed(() => [...expandedKeySet.value])
 const expandedKeySet = ref<Set<string>>(new Set())
-const selectedCount = computed(() => selectedPaths.value.size)
+const selectedCount = computed(() => selectedFamilyKeys.value.size
+  + selectedCompositionKeys.value.size + selectedResourceIds.value.size)
 const selectedResourceCount = selectedCount
 const generatedKey = computed(() => toKeySlug(name.value.trim(), ''))
 const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || generatedKey.value, ''))
@@ -166,12 +171,51 @@ const treeData = computed<OcTreeData>(() => {
     const existing = children.get(parentKey) ?? []
     if (!existing.includes(childKey)) children.set(parentKey, [...existing, childKey])
   }
+  const families = projectStore.projectFontFamilies.value
+  const compositions = projectStore.projectFontCompositions.value
+  if (families.length > 0 || compositions.length > 0) {
+    const categoryKey = 'category:fonts'
+    const familyGroupKey = 'font-group:families'
+    const compositionGroupKey = 'font-group:compositions'
+    rootKeys.push(categoryKey)
+    items.set(categoryKey, {
+      label: t('resourcePackage.fonts'), icon: 'file.font', iconTone: 'config',
+      tail: `${selectedFamilyKeys.value.size + selectedCompositionKeys.value.size}/${families.length + compositions.length}`,
+    })
+    items.set(familyGroupKey, {
+      label: t('resourcePackage.projectFonts'), icon: 'file.font',
+      tail: `${selectedFamilyKeys.value.size}/${families.length}`,
+    })
+    items.set(compositionGroupKey, {
+      label: t('resourcePackage.fontCompositions'), icon: 'data.layers',
+      tail: `${selectedCompositionKeys.value.size}/${compositions.length}`,
+    })
+    children.set(categoryKey, [familyGroupKey, compositionGroupKey])
+    children.set(familyGroupKey, families.map(family => {
+      const key = `font-family:${family.key}`
+      const selected = selectedFamilyKeys.value.has(family.key)
+      items.set(key, {
+        label: family.name, tail: family.key, icon: 'file.font', iconTone: selected ? 'active' : 'muted',
+        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+      })
+      return key
+    }))
+    children.set(compositionGroupKey, compositions.map(composition => {
+      const key = `font-composition:${composition.key}`
+      const selected = selectedCompositionKeys.value.has(composition.key)
+      items.set(key, {
+        label: composition.name, tail: composition.key, icon: 'data.layers', iconTone: selected ? 'active' : 'muted',
+        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+      })
+      return key
+    }))
+  }
   for (const group of categories.value) {
     const categoryKey = `category:${group.kind}`
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
       label: t(categoryLabels[group.kind]), icon: categoryIcons[group.kind], iconTone: 'config',
-      tail: `${group.entries.filter(entry => selectedPaths.value.has(entry.id)).length}/${group.entries.length}`,
+      tail: `${group.entries.filter(entry => selectedResourceIds.value.has(entry.id)).length}/${group.entries.length}`,
     })
     for (const entry of group.entries) {
       const segments = (entry.detail ?? entry.label).split('/')
@@ -187,7 +231,7 @@ const treeData = computed<OcTreeData>(() => {
         addChild(parentKey, folderKey)
         parentKey = folderKey
       }
-      const selected = selectedPaths.value.has(entry.id)
+      const selected = selectedResourceIds.value.has(entry.id)
       items.set(entry.id, {
         label: displaySegments[displaySegments.length - 1] ?? entry.label,
         tail: entry.detail,
@@ -205,15 +249,24 @@ watch(() => props.open, open => {
   name.value = props.projectName
   packageKey.value = ''
   version.value = '1.0.0'
-  selectedPaths.value = new Set()
-  expandedKeySet.value = new Set(categories.value.map(group => `category:${group.kind}`))
+  explicitlySelectedFamilyKeys.value = new Set()
+  selectedCompositionKeys.value = new Set()
+  selectedResourceIds.value = new Set()
+  expandedKeySet.value = new Set([
+    'category:fonts', 'font-group:families', 'font-group:compositions',
+    ...categories.value.map(group => `category:${group.kind}`),
+  ])
   errorText.value = ''
 })
 
 function close(): void {
   if (!busy.value) emit('close')
 }
-function clearSelection(): void { selectedPaths.value = new Set() }
+function clearSelection(): void {
+  explicitlySelectedFamilyKeys.value = new Set()
+  selectedCompositionKeys.value = new Set()
+  selectedResourceIds.value = new Set()
+}
 function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'expansion.change') {
     const next = new Set(expandedKeySet.value)
@@ -223,10 +276,32 @@ function handleTreeIntent(intent: OcTreeIntent): void {
     return
   }
   if (intent.type !== 'action.invoke') return
-  const next = new Set(selectedPaths.value)
+  if (intent.key.startsWith('font-family:')) {
+    const familyKey = intent.key.slice('font-family:'.length)
+    const nextFamilies = new Set(explicitlySelectedFamilyKeys.value)
+    if (intent.actionKey === 'select') nextFamilies.add(familyKey)
+    if (intent.actionKey === 'deselect') {
+      nextFamilies.delete(familyKey)
+      selectedCompositionKeys.value = new Set([...selectedCompositionKeys.value].filter(compositionKey => {
+        const composition = projectStore.projectFontCompositions.value.find(entry => entry.key === compositionKey)
+        return !composition?.members.some(member => member.fontKey.toLocaleLowerCase() === familyKey.toLocaleLowerCase())
+      }))
+    }
+    explicitlySelectedFamilyKeys.value = nextFamilies
+    return
+  }
+  if (intent.key.startsWith('font-composition:')) {
+    const compositionKey = intent.key.slice('font-composition:'.length)
+    const next = new Set(selectedCompositionKeys.value)
+    if (intent.actionKey === 'select') next.add(compositionKey)
+    if (intent.actionKey === 'deselect') next.delete(compositionKey)
+    selectedCompositionKeys.value = next
+    return
+  }
+  const next = new Set(selectedResourceIds.value)
   if (intent.actionKey === 'select') next.add(intent.key)
   if (intent.actionKey === 'deselect') next.delete(intent.key)
-  selectedPaths.value = next
+  selectedResourceIds.value = next
 }
 
 async function build(): Promise<void> {
@@ -239,11 +314,16 @@ async function build(): Promise<void> {
       extensions: ['ocpack'], title: t('resourcePackage.buildTitle'),
     })
     if (!outputPath) return
-    const selected = candidates.value.filter(candidate => selectedPaths.value.has(candidate.id))
+    const selected = candidates.value.filter(candidate => selectedResourceIds.value.has(candidate.id))
     const result = await buildResourcePackageFromProject({
       fs: fileSystemService, projectRootPath: props.projectRootPath, key: normalizedKey.value,
       name: name.value.trim(), version: version.value.trim(),
-      resourcePaths: selected.flatMap(candidate => candidate.paths), outputPath,
+      resourcePaths: selected.flatMap(candidate => candidate.paths),
+      fontSelection: {
+        familyKeys: [...selectedFamilyKeys.value],
+        compositionKeys: [...selectedCompositionKeys.value],
+      },
+      outputPath,
     })
     emit('built', result.outputPath ?? '')
     emit('close')
