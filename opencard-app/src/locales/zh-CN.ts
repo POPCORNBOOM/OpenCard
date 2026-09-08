@@ -28,7 +28,7 @@ export default {
   packageManager: {
     title: '包', description: '查看和导入当前项目使用的包。',
     build: '导出包', refresh: '刷新', import: '导入本地包', choose: '选择包文件', empty: '当前项目尚未导入包。',
-    installed: '版本 {version}', confirmTitle: '替换包', confirm: '替换', confirmReplace: '项目中已有 {name} {previous}，是否替换为 {version}？',
+    installed: '版本 {version}', status: { ok: '正常', missing: '缺失', version: '版本不匹配', hash: '资源校验失败', extra: '未声明' }, confirmTitle: '替换包', confirm: '替换', confirmReplace: '项目中已有 {name} {previous}，是否替换为 {version}？',
   },
   packageManifest: {
     title: '包', description: '查看包信息和对外提供的资源。', unavailable: '这个包已不可用。',

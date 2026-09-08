@@ -47,13 +47,18 @@ const busy = ref(false)
 const error = ref('')
 const confirmRequest = ref<{ message: string; resolve: (accepted: boolean) => void } | null>(null)
 const rows = computed(() => [...projectStore.projectPackageManifests.value]
-  .map(([key, manifest]) => ({ key, manifest }))
+  .map(([key, manifest]) => {
+    const actual = projectStore.projectResourcePackages.value.get(key)
+    const status = !actual ? 'missing' : actual.manifest.version !== manifest.version ? 'version' : actual.manifest.contentHash !== manifest.contentHash ? 'hash' : 'ok'
+    return { key, manifest, status }
+  })
+  .concat([...projectStore.projectResourcePackages.value].filter(([key]) => !projectStore.projectPackageManifests.value.has(key)).map(([key, pkg]) => ({ key, manifest: { key, name: pkg.manifest.name, version: pkg.manifest.version, contentHash: pkg.manifest.contentHash }, status: 'extra' as const })))
   .sort((left, right) => left.key.localeCompare(right.key)))
 const treeData = computed<OcTreeData>(() => ({
   rootKeys: rows.value.map(row => row.key),
   items: new Map(rows.value.map(row => [row.key, {
     label: row.manifest.name,
-    tail: t('packageManager.installed', { version: row.manifest.version }),
+    tail: `${t('packageManager.installed', { version: row.manifest.version })} · ${t('packageManager.status.' + row.status)}`,
     icon: 'file.package',
     iconTone: 'config',
   }])),

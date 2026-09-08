@@ -6,8 +6,8 @@ import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../sha
 import type { IconToken } from '../../../shared/ui/icon/iconTokens'
 import {
   resolveInstalledResourcePackageManifestPath,
-  type ResourcePackageManifest,
 } from '../../workspace/model/resourcePackage'
+import type { RequiredPackage } from '../../workspace/model/projectPackageManifest'
 import { notifyAppError } from '../../notifications/titlebarNotices'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
@@ -87,7 +87,7 @@ type ProjectEntryView = {
 type UseShellFileTreeOptions = {
   projectPath: Readonly<Ref<string>>
   indexedEntries: Readonly<Ref<readonly IndexedEntry[]>>
-  packageManifests: Readonly<Ref<ReadonlyMap<string, ResourcePackageManifest>>>
+  packageManifests: Readonly<Ref<ReadonlyMap<string, RequiredPackage>>>
   openedEditorItems: Readonly<Ref<OpenedEditorItem[]>>
   activeSession: Readonly<Ref<EditorSession | null>>
   hideDotFiles?: Readonly<Ref<boolean>>

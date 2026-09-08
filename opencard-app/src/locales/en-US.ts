@@ -28,7 +28,7 @@ export default {
   packageManager: {
     title: 'Packages', description: 'View and import packages used by this project.',
     build: 'Export package', refresh: 'Refresh', import: 'Import local package', choose: 'Choose a package', empty: 'This project has no imported packages.',
-    installed: 'Version {version}', confirmTitle: 'Replace package', confirm: 'Replace', confirmReplace: 'This project already has {name} {previous}. Replace it with {version}?',
+    installed: 'Version {version}', status: { ok: 'Valid', missing: 'Missing', version: 'Version mismatch', hash: 'Resource hash mismatch', extra: 'Undeclared' }, confirmTitle: 'Replace package', confirm: 'Replace', confirmReplace: 'This project already has {name} {previous}. Replace it with {version}?',
   },
   packageManifest: {
     title: 'Package', description: 'View package information and the resources it provides.', unavailable: 'This package is no longer available.',

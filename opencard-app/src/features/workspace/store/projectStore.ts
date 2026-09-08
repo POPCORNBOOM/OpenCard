@@ -90,6 +90,7 @@ import {
   PROJECT_PACKAGE_MANIFEST_TYPE,
   reconcileProjectPackageManifest,
   serializeProjectPackageManifest,
+  type RequiredPackage,
 } from '../model/projectPackageManifest'
 import {
   resolveInstalledResourcePackageRootPath,
@@ -172,7 +173,7 @@ const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
 const projectResourcePackages = shallowRef<ProjectResourcePackageCatalog>(new Map())
-const projectPackageManifests = shallowRef<ReadonlyMap<string, ResourcePackageManifest>>(new Map())
+const projectPackageManifests = shallowRef<ReadonlyMap<string, RequiredPackage>>(new Map())
 const resourceEnvironmentSnapshot = shallowRef<ProjectResourceEnvironment | null>(null)
 const projectResourceEnvironments = shallowRef<ReadonlyMap<string, ProjectResourceEnvironment>>(new Map())
 const projectResourceEnvironmentIssues = shallowRef<readonly ProjectResourceEnvironmentIssue[]>([])
@@ -1126,12 +1127,12 @@ async function installResourcePackageFile(
 
 async function persistProjectPackageIndex(manifest: ResourcePackageInstallResult['manifest']): Promise<void> {
   const next = new Map(projectPackageManifests.value)
-  next.set(manifest.key, manifest)
+  next.set(manifest.key, { key: manifest.key, name: manifest.name, version: manifest.version, contentHash: manifest.contentHash })
   await writeProjectPackageIndex(next)
   projectPackageManifests.value = next
 }
 
-async function writeProjectPackageIndex(manifests: ReadonlyMap<string, ResourcePackageManifest>): Promise<void> {
+async function writeProjectPackageIndex(manifests: ReadonlyMap<string, RequiredPackage>): Promise<void> {
   const projectRootPath = ensureProjectOpen()
   await fileSystemService.writeFile(`${projectRootPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, serializeProjectPackageManifest({
     type: PROJECT_PACKAGE_MANIFEST_TYPE,
@@ -1559,6 +1560,7 @@ export function useProjectStore() {
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
     projectPackageManifests: readonly(projectPackageManifests),
+    projectResourcePackages: readonly(projectResourcePackages),
     projectResourceEnvironment,
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),

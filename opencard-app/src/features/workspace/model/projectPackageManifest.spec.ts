@@ -13,8 +13,8 @@ describe('project package manifest', () => {
   it('stores one complete manifest per package Key', () => {
     const result = normalizeProjectPackageManifest({ type: 'opencard-project-packages', packages: { theme: packageManifest } })
     expect(result.issues).toEqual([])
-    expect(result.manifest.packages.theme).toEqual(packageManifest)
-    expect(JSON.parse(serializeProjectPackageManifest(result.manifest)).packages).toEqual({ theme: packageManifest })
+    expect(result.manifest.packages.theme).toEqual({ key: 'theme', name: 'Theme', version: '1.2.0', contentHash: hash })
+    expect(JSON.parse(serializeProjectPackageManifest(result.manifest)).packages.theme).toEqual(result.manifest.packages.theme)
   })
 
   it('does not retain the old requirement-array shape', () => {
@@ -35,7 +35,7 @@ describe('project package manifest', () => {
       ['added', added],
     ]))).toEqual({
       type: 'opencard-project-packages',
-      packages: { theme: packageManifest, added },
+      packages: { theme: { key: 'theme', name: 'Theme', version: '1.2.0', contentHash: hash }, removed: { key: 'removed', name: 'Theme', version: '1.2.0', contentHash: hash } },
     })
   })
 })
