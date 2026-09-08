@@ -10,6 +10,11 @@ const hash = 'a'.repeat(64)
 const packageManifest = { type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.2.0', contentHash: hash, public: { fonts: [], iconSeries: [] } } satisfies ResourcePackageManifest
 
 describe('project package manifest', () => {
+  it('does not declare discovered packages when the required file is absent', () => {
+    expect(reconcileProjectPackageManifest(undefined, new Map([['theme', packageManifest]]))).toEqual({
+      type: 'opencard-project-packages', packages: {},
+    })
+  })
   it('stores one complete manifest per package Key', () => {
     const result = normalizeProjectPackageManifest({ type: 'opencard-project-packages', packages: { theme: packageManifest } })
     expect(result.issues).toEqual([])

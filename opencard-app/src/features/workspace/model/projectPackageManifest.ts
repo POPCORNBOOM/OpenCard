@@ -13,15 +13,10 @@ export type ProjectPackageManifestReadResult = { readonly manifest: ProjectPacka
 
 export function reconcileProjectPackageManifest(
   current: ProjectPackageManifest | undefined,
-  installed: ReadonlyMap<string, ResourcePackageManifest | null>,
+  _installed: ReadonlyMap<string, ResourcePackageManifest | null>,
 ): ProjectPackageManifest {
   const packages: Record<string, RequiredPackage> = {}
   for (const [key, required] of Object.entries(current?.packages ?? {})) packages[key] = required
-  for (const [key, manifest] of installed) {
-    if (!current && manifest) {
-      packages[key] = { key: manifest.key, name: manifest.name, version: manifest.version, contentHash: manifest.contentHash }
-    }
-  }
   return { type: PROJECT_PACKAGE_MANIFEST_TYPE, packages }
 }
 

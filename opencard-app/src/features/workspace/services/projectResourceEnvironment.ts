@@ -1,5 +1,6 @@
 import {
   normalizeProjectPackageManifest,
+  type RequiredPackage,
   type ProjectPackageManifest,
 } from '../model/projectPackageManifest'
 import { parseResourceReferenceList } from './resourceReference'
@@ -23,6 +24,8 @@ export type ProjectResourcePackage = {
   readonly rootPath: string
   readonly issues: readonly ResourcePackageManifestIssue[]
   readonly unavailable?: boolean
+  readonly required?: RequiredPackage
+  readonly requirementStatus?: 'ok' | 'missing' | 'version' | 'hash'
 }
 
 export type ProjectResourcePackageCatalog = ReadonlyMap<string, ProjectResourcePackage>
@@ -195,7 +198,14 @@ export async function loadProjectResourceEnvironment(options: {
       }
     }
   }
-  const packages = root ? await discoverProjectResourcePackages({ fs: options.fs, root }) : new Map()
+  const packages = root ? await discoverProjectResourcePackages({ fs: options.fs, root }) : new Map<string, ProjectResourcePackage>()
+  for (const [key, required] of Object.entries(packageIndex?.packages ?? {})) {
+    const pkg = packages.get(key)
+    if (!pkg) continue
+    const requirementStatus = pkg.manifest.version !== required.version ? 'version'
+      : pkg.manifest.contentHash !== required.contentHash ? 'hash' : 'ok'
+    packages.set(key, { ...pkg, required, requirementStatus })
+  }
   for (const [, pkg] of packages) {
     for (const issue of pkg.issues) {
       issues.push({ resource: 'packages', path: `${pkg.rootPath}/.opencard/manifest.json#${issue.path}`, message: issue.message })
