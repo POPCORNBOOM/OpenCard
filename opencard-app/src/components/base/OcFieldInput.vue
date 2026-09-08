@@ -31,7 +31,7 @@ interface OcFieldInputProps {
    * - plain: 透明无边框
    * @default 'filled'
    */
-  variant?: 'filled' | 'plain'
+  variant?: 'filled' | 'plain' | 'underline'
 
   /**
    * 字号尺寸。
@@ -172,6 +172,22 @@ defineExpose({
 .oc-field-input--plain:focus:not(:disabled):not(:read-only),
 .oc-field-input--plain:focus-visible:not(:disabled):not(:read-only) {
   border-color: var(--oc-field-surface-focus-border-color, var(--oc-border-accent));
+  outline: none;
+}
+
+.oc-field-input--underline {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--oc-border-default);
+  border-radius: 0;
+  padding: var(--oc-space-1) 0;
+  color: var(--oc-fg-default);
+  transition: border-color var(--oc-duration-fast) var(--oc-ease);
+}
+
+.oc-field-input--underline:focus:not(:disabled):not(:read-only),
+.oc-field-input--underline:focus-visible:not(:disabled):not(:read-only) {
+  border-bottom-color: var(--oc-border-accent);
   outline: none;
 }
 

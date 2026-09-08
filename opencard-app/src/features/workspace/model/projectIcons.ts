@@ -1,4 +1,5 @@
 import { createAvailableKey } from '../../../shared/model/keySlug'
+import { resolveResourcePath } from './scopedResourcePath'
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectIconSourcePattern = /\.(?:png|jpe?g|webp)$/i
 export const DEFAULT_PROJECT_ICON_DIRECTORY = 'icons'
@@ -79,11 +80,9 @@ function isProjectIconAtlasRotation(value: unknown): value is ProjectIconAtlasRo
 }
 
 export function normalizeProjectIconSource(value: string): string | null {
-  const source = value.trim().replace(/\\/g, '/')
-  const segments = source.split('/')
-  if (!source || source.startsWith('/') || /^[a-z]:\//i.test(source)
-    || segments.includes('..') || !projectIconSourcePattern.test(source)) return null
-  return source
+  const source = value.trim()
+  const resolved = resolveResourcePath('C:/project', 'C:/project/.opencard/icons/icons.json', source)
+  return resolved.ok && projectIconSourcePattern.test(source) ? source : null
 }
 
 export function parseProjectIconSeries(value: unknown): ProjectIconSeries[] | null {

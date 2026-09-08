@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   buildProjectIconCatalog,
+  createProjectIconBlockStyle,
   createProjectIconCssProperties,
   createProjectIconPreviewStyle,
   createProjectIconStyle,
@@ -99,6 +100,14 @@ describe('projectIconCatalog', () => {
     })
     expect(createProjectIconPreviewStyle(catalog.entries[0]!)).toMatchObject({
       width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
+    })
+    expect(createProjectIconBlockStyle(catalog.entries[0]!, 'fill')).toMatchObject({
+      '--oc-project-icon-display-width': '100cqw',
+      '--oc-project-icon-display-height': '100cqh',
+      '--oc-project-icon-source-width': 'var(--oc-project-icon-display-height)',
+      '--oc-project-icon-source-height': 'var(--oc-project-icon-display-width)',
+      '--oc-project-icon-background-size': `${100 * 64 / 24}% ${100 * 32 / 8}%`,
+      '--oc-project-icon-transform': 'rotate(90deg)',
     })
   })
 

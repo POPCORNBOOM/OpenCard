@@ -1,14 +1,11 @@
 import {
-  compareProjectPackageManifest,
   normalizeProjectPackageManifest,
-  type ProjectPackageDifference,
   type ProjectPackageManifest,
 } from '../model/projectPackageManifest'
 import { parseResourceReferenceList } from './resourceReference'
 import type { ResourcePackageManifest, ResourcePackageManifestIssue } from '../model/resourcePackage'
 import { normalizeResourcePackageManifest } from '../model/resourcePackage'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import type { ProjectRemoteResourcePolicy } from '../model/projectMetadata'
 import type { ProjectFontRegistry, ProjectFontRegistryDocument } from '../model/projectFontRegistry'
 import { buildProjectFontRegistry, parseProjectFontRegistryText } from '../model/projectFontRegistry'
 import type { ProjectIconRegistryDocument } from '../model/projectIconRegistry'
@@ -16,17 +13,10 @@ import { parseProjectIconRegistryText } from '../model/projectIconRegistry'
 import type { ProjectIconCatalog, ProjectImageDimensionLoader } from './projectIconCatalog'
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from './projectIconCatalog'
 import type { FileSystemService } from './fileSystemService'
-import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
+import { recoverResourcePackageTransactions } from './resourcePackageInstaller'
+import { resolveResourcePath } from '../model/scopedResourcePath'
 
 export type ProjectResourceScopeKind = 'project' | 'package'
-
-export type ProjectResourceAccessPolicy = {
-  readonly mode: 'allow-list'
-  readonly assetPaths: ReadonlySet<string>
-  readonly fontFiles: ReadonlyMap<string, ReadonlySet<string>>
-  readonly icons: ReadonlyMap<string, ReadonlySet<string>>
-  readonly packageIds: ReadonlySet<string>
-}
 
 export type ProjectResourcePackage = {
   readonly manifest: ResourcePackageManifest
@@ -47,11 +37,9 @@ export type ProjectResourceEnvironment = {
   readonly iconDocument: ProjectIconRegistryDocument
   readonly iconCatalog: ProjectIconCatalog
   readonly packages?: ProjectResourcePackageCatalog
-  readonly packageManifest?: ProjectPackageManifest
-  readonly packageDifferences?: readonly ProjectPackageDifference[]
+  readonly packageIndex?: ProjectPackageManifest
   readonly packageEnvironments?: ReadonlyMap<string, ProjectResourceEnvironment>
   readonly issues: readonly ProjectResourceEnvironmentIssue[]
-  readonly accessPolicy?: ProjectResourceAccessPolicy
 }
 
 export type ProjectResourceEnvironmentIssue = {
@@ -74,50 +62,6 @@ export function createProjectResourceNamespace(kind: ProjectResourceScopeKind, i
 
 export function createScopedProjectFontFamily(namespace: string, fontKey: string): string {
   return `OpenCardResource-${namespace}-${fontKey}`
-}
-
-export function normalizeProjectResourcePath(value: string): string | null {
-  const path = value.trim().replace(/\\/g, '/').replace(/^\.\//, '')
-  if (!path || path.startsWith('/') || /^[a-z]:\//i.test(path) || path.startsWith('//')) return null
-  const segments = path.split('/')
-  if (segments.some(segment => !segment || segment === '.' || segment === '..'
-    || /[\u0000-\u001f\u007f]/.test(segment))) return null
-  return path
-}
-
-export function resolveProjectResourceFilePath(
-  environment: Pick<ProjectResourceEnvironment, 'rootPath'>,
-  source: string,
-): string | null {
-  const relative = normalizeProjectResourcePath(source)
-  if (!environment.rootPath || !relative) return null
-  return `${environment.rootPath.replace(/[\\/]+$/, '')}/${relative}`
-}
-
-export function resolveProjectInternalResourceFilePath(
-  environment: Pick<ProjectResourceEnvironment, 'rootPath'>,
-  source: string,
-): string | null {
-  const relative = normalizeProjectResourcePath(source)
-  if (!environment.rootPath || !relative) return null
-  return `${environment.rootPath.replace(/[\\/]+$/, '')}/.opencard/${relative}`
-}
-
-export function resolveProjectEnvironmentAssetSrc(
-  source: string,
-  environment: Pick<ProjectResourceEnvironment, 'rootPath' | 'accessPolicy'>,
-  remoteResourcePolicy?: ProjectRemoteResourcePolicy,
-): string {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(source) && !/^[a-z]:[\\/]/i.test(source)) {
-    return isRemoteResourceAllowed(source, remoteResourcePolicy) ? source : ''
-  }
-  const relative = normalizeProjectResourcePath(source)
-  if (!relative) return ''
-  const allowed = environment.accessPolicy?.mode !== 'allow-list'
-    || environment.accessPolicy.assetPaths.has(relative.toLocaleLowerCase())
-  if (!allowed) return ''
-  const path = resolveProjectResourceFilePath(environment, relative)
-  return path ? convertFileSrc(path) : ''
 }
 
 export function resolveProjectEnvironmentFontFamily(
@@ -148,7 +92,7 @@ async function discoverProjectResourcePackages(options: {
   const entries = await options.fs.readDirectoryEntries(packagesRoot, 1)
   const packages = new Map<string, ProjectResourcePackage>()
   for (const entry of entries) {
-    if (!entry.isDirectory || entry.isSymlink || entry.name.includes('/')) continue
+    if (!entry.isDirectory || entry.isSymlink || entry.name.includes('/') || /\.(?:install|backup)-\d+$/.test(entry.name)) continue
     const key = entry.name.trim().toLocaleLowerCase()
     if (!key || packages.has(key)) continue
     const packageRoot = `${packagesRoot}/${entry.name}`
@@ -180,6 +124,7 @@ async function discoverProjectResourcePackages(options: {
 export async function loadProjectResourceEnvironment(options: {
   fs: Pick<FileSystemService, 'fileExists' | 'readFile'> & Partial<Pick<FileSystemService, 'readDirectoryEntries'>>
   rootPath: string | null
+  projectRootPath?: string | null
   kind: ProjectResourceScopeKind
   identity: string
   generation?: number
@@ -189,10 +134,16 @@ export async function loadProjectResourceEnvironment(options: {
   const namespace = createProjectResourceNamespace(options.kind, options.identity)
   const issues: ProjectResourceEnvironmentIssue[] = []
   const root = options.rootPath?.replace(/[\\/]+$/, '') ?? null
+  const projectRoot = options.projectRootPath?.replace(/[\\/]+$/, '') ?? root
   let fontDocument: ProjectFontRegistryDocument = {}
   let iconDocument: ProjectIconRegistryDocument = {}
 
   if (root) {
+    try {
+      await recoverResourcePackageTransactions(root)
+    } catch (cause) {
+      issues.push({ resource: 'packages', path: `${root}/.opencard/packages`, message: cause instanceof Error ? cause.message : String(cause) })
+    }
     const fontPath = `${root}/.opencard/fonts/fonts.json`
     if (await options.fs.fileExists(fontPath)) {
       try {
@@ -218,11 +169,12 @@ export async function loadProjectResourceEnvironment(options: {
 
   let iconCatalog = EMPTY_PROJECT_ICON_CATALOG
   if (root && (iconDocument.iconSeries?.length ?? 0) > 0) {
+    const iconRegistryPath = `${root}/.opencard/icons/icons.json`
     iconCatalog = await buildProjectIconCatalog(
       iconDocument.iconSeries,
       source => {
-        const path = resolveProjectInternalResourceFilePath({ rootPath: root }, source)
-        return path ? convertFileSrc(path) : ''
+        const path = projectRoot ? resolveResourcePath(projectRoot, iconRegistryPath, source) : null
+        return path?.ok ? convertFileSrc(path.value) : ''
       },
       options.loadDimensions,
     )
@@ -230,22 +182,20 @@ export async function loadProjectResourceEnvironment(options: {
       issues.push({ resource: 'icons', path: error.source, message: error.reason })
     }
   }
-  let packageManifest: ProjectPackageManifest | undefined
+  let packageIndex: ProjectPackageManifest | undefined
   if (root) {
     const packageManifestPath = `${root}/.opencard/packages/packages.json`
     if (await options.fs.fileExists(packageManifestPath)) {
       try {
-        packageManifest = normalizeProjectPackageManifest(JSON.parse(await options.fs.readFile(packageManifestPath))).manifest
+        const normalized = normalizeProjectPackageManifest(JSON.parse(await options.fs.readFile(packageManifestPath)))
+        packageIndex = normalized.manifest
+        for (const issue of normalized.issues) issues.push({ resource: 'packages', path: `${packageManifestPath}#${issue.path}`, message: issue.message })
       } catch (cause) {
         issues.push({ resource: 'packages', path: packageManifestPath, message: cause instanceof Error ? cause.message : String(cause) })
       }
     }
   }
   const packages = root ? await discoverProjectResourcePackages({ fs: options.fs, root }) : new Map()
-  const installedPackageVersions = new Map([...packages].map(([key, pkg]) => [key, { version: pkg.manifest.version }]))
-  const packageDifferences = packageManifest
-    ? compareProjectPackageManifest(packageManifest, installedPackageVersions)
-    : []
   for (const [, pkg] of packages) {
     for (const issue of pkg.issues) {
       issues.push({ resource: 'packages', path: `${pkg.rootPath}/.opencard/manifest.json#${issue.path}`, message: issue.message })
@@ -259,11 +209,12 @@ export async function loadProjectResourceEnvironment(options: {
       packageEnvironments.set(key, await loadProjectResourceEnvironment({
         fs: options.fs,
         rootPath: pkg.rootPath,
+        projectRootPath: projectRoot,
         kind: 'package',
         identity: pkg.manifest.key,
         generation: options.generation,
         loadDimensions: options.loadDimensions,
-        loadPackageEnvironments: false,
+        loadPackageEnvironments: true,
       }))
     }
   }
@@ -277,8 +228,7 @@ export async function loadProjectResourceEnvironment(options: {
     iconDocument,
     iconCatalog,
     packages,
-    packageManifest,
-    packageDifferences,
+    packageIndex,
     packageEnvironments,
     issues,
   }

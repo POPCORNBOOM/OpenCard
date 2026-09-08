@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createImageBlock, type CardDocument } from '../../entities/card/model'
+import { createImageBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 import { parseRenderDocument } from './renderParser'
 import { prepareCardRender } from './renderPipeline'
@@ -13,7 +13,7 @@ function documentWithImage(url: string): CardDocument {
       front: {
         type: 'card-face', id: 'front', background: '#fff',
         children: [{
-          block: createImageBlock({ id: 'image', name: 'Portrait', image: url }),
+          block: createImageBlock({ id: 'image', name: 'Portrait', source: url }),
           location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
         }],
       },
@@ -24,6 +24,15 @@ function documentWithImage(url: string): CardDocument {
 
 function readyImage(url: string) {
   return parseRenderDocument(documentWithImage(url), { instanceId: 'instance' }).document
+}
+
+function documentWithFont(fontFamily: string): CardDocument {
+  const document = documentWithImage('assets/portrait.png')
+  document.faces.front.children = [{
+    block: createTextBlock({ id: 'text', name: 'Title', fontFamily }),
+    location: { id: 'location', type: 'simple-container-location', anchor: 'lt' },
+  }]
+  return document
 }
 
 describe('validateRenderResources', () => {
@@ -38,9 +47,9 @@ describe('validateRenderResources', () => {
       type: 'card-designer.resource.remote-blocked',
       location: expect.objectContaining({
         documentId: 'document', instanceId: 'instance', faceKey: 'front',
-        owner: { kind: 'block', id: 'image' }, blockId: 'image', blockPath: 'Portrait', fieldKey: 'image',
+        owner: { kind: 'block', id: 'image' }, blockId: 'image', blockPath: 'Portrait', fieldKey: 'source',
       }),
-      parameters: { fieldName: 'image' },
+      parameters: { fieldName: 'source' },
       details: { url: 'https://images.example.com/portrait.png' },
     })])
   })
@@ -51,11 +60,34 @@ describe('validateRenderResources', () => {
     expect(validateRenderResources(readyImage('assets/portrait.png'), { mode: 'deny' }, null)).toEqual([])
   })
 
+  it('warns for named system fonts while allowing portable and scoped font families', () => {
+    const ready = parseRenderDocument(
+      documentWithFont('Arial; "Microsoft YaHei"; sans-serif; system-ui; font:body; theme@font:title; Arial'),
+      { instanceId: 'instance' },
+    ).document
+
+    expect(validateRenderResources(ready, undefined, 'instance')).toEqual([
+      expect.objectContaining({
+        type: 'card-designer.resource.system-font',
+        location: expect.objectContaining({
+          owner: { kind: 'block', id: 'text' }, blockId: 'text', fieldKey: 'fontFamily',
+        }),
+        parameters: { fieldName: 'fontFamily', fontName: 'Arial' },
+        details: { fontName: 'Arial' },
+      }),
+      expect.objectContaining({
+        type: 'card-designer.resource.system-font',
+        parameters: { fieldName: 'fontFamily', fontName: 'Microsoft YaHei' },
+      }),
+    ])
+  })
+
   it('adds the resource policy issue to the prepared render result', () => {
     const result = prepareCardRender({
       document: documentWithImage('https://images.example.com/portrait.png'),
       instance: null,
       resourceRootPath: 'D:/Cards',
+      sourceFilePath: 'D:/Cards/card.ocdocument',
       environment: {
         remoteResourcePolicy: { mode: 'deny' },
         projectIconCatalog: EMPTY_PROJECT_ICON_CATALOG,

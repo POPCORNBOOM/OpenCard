@@ -13,7 +13,7 @@
 <template>
     <div class="image-block" :data-block-id="block.id" :style="wrapStyle" @click.stop="handleClick">
         <div
-            v-if="imageLoadState !== 'loaded'"
+            v-if="resolvedSource.kind !== 'icon' && (resolvedSource.kind !== 'image' || imageLoadState !== 'loaded')"
             class="image-block__placeholder"
             role="img"
             :aria-label="imageLoadState === 'error' ? '图片加载失败' : '未配置图片'"
@@ -24,12 +24,18 @@
                 size="lg"
             />
         </div>
+        <ProjectIconGraphic
+            v-if="resolvedSource.kind === 'icon'"
+            :entry="resolvedSource.entry"
+            mode="block"
+            :fit="block.fit"
+        />
         <img
-            v-if="imageSrc"
-            :key="imageSrc"
+            v-if="resolvedSource.kind === 'image'"
+            :key="resolvedSource.src"
             class="image-block__image"
             :class="{ 'is-loaded': imageLoadState === 'loaded' }"
-            :src="imageSrc"
+            :src="resolvedSource.src"
             :alt="block.name"
             :style="imgStyle"
             @load="handleImageLoad($event)"
@@ -40,6 +46,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
+import ProjectIconGraphic from './ProjectIconGraphic.vue'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyImageBlock } from '../render.types'
 import { getBlockRenderPlacementStyles, type BlockRenderPlacement } from './blockRenderPlacement'
@@ -64,19 +71,35 @@ const wrapStyle = computed(() => {
 
 const imgStyle = computed(() => {
     const fit = props.block.fit
-    return `width: 100%; height: 100%; object-fit: ${fit}; display: block`
+    return [
+        'position: absolute',
+        'inset: 0',
+        'width: 100%',
+        'height: 100%',
+        `object-fit: ${fit}`,
+        'object-position: 50% 50%',
+        'display: block',
+    ].join('; ')
 })
 
-const imageSrc = computed(() => {
-    const imagePath = props.block.image
-    return editorContext.resources.resolveAsset(imagePath, props.block.id, 'image')
-})
+const resolvedSource = computed(() => (
+    editorContext.resources.resolveImageSource(props.block.source, props.block.id, 'source')
+))
 
-watch(imageSrc, (src) => {
+function resolvedSourceIdentity(source: typeof resolvedSource.value): string {
+    if (source.kind === 'empty' || source.kind === 'unavailable') return source.kind
+    if (source.kind === 'icon') return 'icon'
+    return `image:${source.src}`
+}
+
+watch(() => resolvedSourceIdentity(resolvedSource.value), () => {
+    const source = resolvedSource.value
     readinessTicket = readinessSlot?.begin() ?? null
-    expectedImageSrc = src
-    imageLoadState.value = src ? 'loading' : 'empty'
-    if (!src) readinessTicket?.settle()
+    expectedImageSrc = source.kind === 'image' ? source.src : ''
+    imageLoadState.value = source.kind === 'image'
+        ? 'loading'
+        : source.kind === 'unavailable' ? 'error' : 'empty'
+    if (source.kind !== 'image') readinessTicket?.settle()
 }, { immediate: true })
 
 function isCurrentImageEvent(event: Event): boolean {
@@ -116,6 +139,7 @@ function handleClick(event: MouseEvent) {
 
 .image-block {
     position: relative;
+    container-type: size;
 }
 
 .image-block__placeholder {
@@ -127,9 +151,8 @@ function handleClick(event: MouseEvent) {
 
 .image-block__image {
     display: block;
-    max-width: none;
-    max-height: none;
     opacity: 0;
+    object-position: 50% 50%;
 }
 
 .image-block__image.is-loaded {

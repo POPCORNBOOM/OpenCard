@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   APP_THEME_PRESETS,
-  APP_THEME_FILE_EXTENSION,
-  APP_THEME_FILE_SUFFIX,
   APP_SETTINGS_VERSION,
   createDefaultAppSettings,
   getThemePreset,
@@ -13,11 +11,6 @@ import {
 } from './appSettings'
 
 describe('appSettings', () => {
-  it('exposes the current theme exchange file suffix', () => {
-    expect(APP_THEME_FILE_EXTENSION).toBe('octheme')
-    expect(APP_THEME_FILE_SUFFIX).toBe('.octheme')
-  })
-
   it('returns independent defaults for missing or unsupported data', () => {
     const first = normalizeAppSettings(null)
     const second = normalizeAppSettings({ version: 99 })

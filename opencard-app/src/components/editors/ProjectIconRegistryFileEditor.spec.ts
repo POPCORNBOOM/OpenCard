@@ -17,12 +17,12 @@ vi.mock('../../features/workspace/services/projectIconCatalog', async (importOri
 describe('ProjectIconRegistryFileEditor', () => {
   it('owns icon-series edits', async () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocicons', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/icons/icons.json', modelValue: '{}' },
     })
     const registrationDialog = wrapper.getComponent(ProjectIconRegistrationDialog)
     expect(registrationDialog.props('defaultOpenPath')).toBe('D:/Demo/.opencard/icons')
     const getManagedIconSource = registrationDialog.props('getManagedIconSource') as (path: string) => string | null
-    expect(getManagedIconSource('D:/Demo/.opencard/icons/status.png')).toBe('icons/status.png')
+    expect(getManagedIconSource('D:/Demo/.opencard/icons/status.png')).toBe('.opencard/icons/status.png')
     expect(getManagedIconSource('D:/Demo/assets/status.png')).toBeNull()
     expect(getManagedIconSource('D:/Downloads/status.png')).toBeNull()
     wrapper.getComponent(ProjectIconRegistryWorkbench).vm.$emit('update:series', [{
@@ -40,7 +40,7 @@ describe('ProjectIconRegistryFileEditor', () => {
     const icon = { iconKey: 'same', name: '', x: 0, y: 0, width: 8, height: 8 }
     const wrapper = mount(ProjectIconRegistryFileEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocicons',
+        filePath: 'D:/Demo/.opencard/icons/icons.json',
         modelValue: JSON.stringify({
           iconSeries: [{ name: 'Status icons', key: 'status', source: 'status.png', icons: [icon, { ...icon, x: 8 }] }],
         }),
@@ -62,7 +62,7 @@ describe('ProjectIconRegistryFileEditor', () => {
 
   it('uses raw repair mode for invalid JSON', () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocicons', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.opencard/icons/icons.json', modelValue: '{broken' },
     })
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
   })

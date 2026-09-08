@@ -7,6 +7,7 @@ export { RESOURCE_PACKAGE_EXTENSION, RESOURCE_PACKAGE_SUFFIX } from './resourceP
  */
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 import { PROJECT_INTERNAL_DIRECTORY_NAME } from './projectStructure'
+import { INSTALLED_RESOURCE_PACKAGE_MANIFEST_GLOB } from './resourcePackage'
 
 export const CARD_DOCUMENT_EXTENSION = 'ocdocument'
 export const CARD_DOCUMENT_SUFFIX = `.${CARD_DOCUMENT_EXTENSION}`
@@ -121,9 +122,19 @@ const fileTypes: FileTypeDefinition[] = [
     icon: 'file.package',
     iconTone: iconTone.config,
     language: 'json',
-    editorId: 'external-package-manager',
+    editorId: 'package-manager',
     previewable: true,
     projectTreePriority: 5,
+  },
+  {
+    id: 'opencard-installed-package-manifest',
+    labelKey: 'fileTypes.opencardResourcePackage',
+    patterns: [INSTALLED_RESOURCE_PACKAGE_MANIFEST_GLOB],
+    icon: 'file.package',
+    iconTone: iconTone.config,
+    language: 'json',
+    editorId: 'package-manifest',
+    previewable: true,
   },
   {
     id: 'opencard-resource-package',

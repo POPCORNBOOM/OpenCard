@@ -33,6 +33,7 @@ export type PropertyCompletionResult = {
   replaceStart: number
   replaceEnd: number
   items: readonly PropertyCompletionItem[]
+  parent?: PropertyCompletionItem
 }
 
 export type PropertyCompletionProvider = (

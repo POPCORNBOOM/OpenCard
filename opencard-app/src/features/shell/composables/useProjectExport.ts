@@ -150,6 +150,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
     return {
       sourcePath: normalizedRelativePath,
       resourceRootPath: normalizePath(options.resolveProjectPath('')),
+      sourceFilePath: normalizePath(options.resolveProjectPath(normalizedRelativePath)),
       document,
     }
   }

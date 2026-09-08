@@ -25,16 +25,8 @@ export type FontCatalogEntry = {
   label: string
   source: 'system' | 'project'
   detail?: string
+  cssFamily?: string
 }
-
-export const SYSTEM_FONT_CATALOG: readonly FontCatalogEntry[] = [
-  { value: 'Arial', label: 'Arial', source: 'system' },
-  { value: 'Georgia', label: 'Georgia', source: 'system' },
-  { value: 'Impact', label: 'Impact', source: 'system' },
-  { value: 'Times New Roman', label: 'Times New Roman', source: 'system' },
-  { value: 'Microsoft YaHei', label: '微软雅黑', source: 'system' },
-  { value: 'SimSun', label: '宋体', source: 'system' },
-]
 
 let projectFamiliesByKey = new Map<string, ProjectFont>()
 let projectCompositionsByKey = new Map<string, ProjectFontComposition>()
@@ -190,7 +182,7 @@ export function buildFontCatalog(fonts: ProjectFontRegistry | null | undefined):
       ? projectFontSources(definition.family).join('; ')
       : definition.composition.members.map(member => member.fontKey).join(' → '),
   }))
-  return [...SYSTEM_FONT_CATALOG, ...projectEntries]
+  return projectEntries
 }
 
 export function unicodeRangeContains(ranges: readonly UnicodeRange[] | undefined, codePoint: number): boolean {

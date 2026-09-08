@@ -85,6 +85,7 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
       )),
     } as Record<string, unknown>
     const definition = enrichCardPropertyFieldDefinition({
+      translate: options.translate,
       definition: canOverride
         ? field.definition
         : { ...field.definition, isReadonly: true, resettable: false },

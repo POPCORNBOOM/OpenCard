@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeResourcePackageManifest } from './resourcePackage'
+import {
+  normalizeResourcePackageManifest,
+  resolveInstalledResourcePackageKey,
+  resolveInstalledResourcePackageManifestPath,
+} from './resourcePackage'
 
 function manifest(publicFonts: unknown, publicIconSeries: unknown = []) {
   return {
     type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.0.0',
-    contentHash: '0'.repeat(64), public: { fonts: publicFonts, iconSeries: publicIconSeries, assets: [] }, dependencies: [],
+    contentHash: '0'.repeat(64), public: { fonts: publicFonts, iconSeries: publicIconSeries },
   }
 }
 
-describe('resource package manifest public fonts', () => {
+describe('installed package manifest paths', () => {
+  it('constructs and reverses the single-Key package manifest location', () => {
+    const path = resolveInstalledResourcePackageManifestPath('D:\\Cards\\Demo', 'theme')
+    expect(path).toBe('D:/Cards/Demo/.opencard/packages/theme/.opencard/manifest.json')
+    expect(resolveInstalledResourcePackageKey(path)).toBe('theme')
+    expect(resolveInstalledResourcePackageKey('D:/Cards/Demo/.opencard/packages/group/theme/.opencard/manifest.json')).toBeNull()
+  })
+})
+
+describe('package manifest public fonts', () => {
   it('normalizes key and title objects and rejects the removed string shape', () => {
     const normalized = normalizeResourcePackageManifest(manifest([
       { key: 'body', title: ' Body ' },
@@ -31,7 +44,7 @@ describe('resource package manifest public fonts', () => {
   })
 })
 
-describe('resource package manifest public icon series', () => {
+describe('package manifest public icon series', () => {
   it('normalizes summaries and rejects duplicates, invalid counts, and the removed string shape', () => {
     const normalized = normalizeResourcePackageManifest(manifest([], [
       { key: 'status', title: ' Status ', count: 3 },

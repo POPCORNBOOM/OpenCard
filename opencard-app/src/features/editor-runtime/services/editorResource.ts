@@ -1,14 +1,5 @@
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
-export function resolveEditorResourcePath(rootPath: string | null, path: string): string | null {
-  const normalizedPath = normalizePath(path)
-  if (!normalizedPath) return null
-  if (isAbsolutePath(normalizedPath)) return normalizedPath
-
-  const normalizedRoot = normalizePath(rootPath ?? '')
-  return normalizedRoot ? `${normalizedRoot}/${normalizedPath}` : null
-}
-
 export function isRemoteResourceAllowed(
   source: string,
   policy: ProjectRemoteResourcePolicy | undefined,

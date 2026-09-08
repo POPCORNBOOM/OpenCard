@@ -1,14 +1,11 @@
 import {
-  type ResourcePackageDependency,
-  type ResourcePackageHostDependency,
   type ResourcePackagePublicFont,
   type ResourcePackagePublicIconSeries,
-  type ResourcePackagePublicResources,
 } from '../model/resourcePackage'
 import {
   parseProjectFontRegistryText,
-  projectFontSources,
   serializeProjectFontRegistry,
+  type ProjectFont,
   type ProjectFontRegistryDocument,
 } from '../model/projectFontRegistry'
 import {
@@ -21,6 +18,8 @@ import type { FileSystemService } from './fileSystemService'
 import { buildResourcePackageArchive, type ResourcePackageBuildResult } from './resourcePackageBuilder'
 import type { ResourcePackageContentFile } from './resourcePackageHash'
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
+import { resolveFileType } from '../model/fileTypes'
+import { resolveResourcePath } from '../model/scopedResourcePath'
 
 export type ResourcePackageProjectBuildOptions = {
   fs: Pick<FileSystemService, 'readBinaryFile' | 'readFile' | 'fileExists' | 'writeBinaryFile'>
@@ -28,7 +27,9 @@ export type ResourcePackageProjectBuildOptions = {
   key: string
   name: string
   version: string
-  resourcePaths?: readonly string[]
+  imageSelection?: {
+    paths: readonly string[]
+  }
   fontSelection?: {
     familyKeys: readonly string[]
     compositionKeys: readonly string[]
@@ -36,9 +37,6 @@ export type ResourcePackageProjectBuildOptions = {
   iconSelection?: {
     seriesKeys: readonly string[]
   }
-  public?: Partial<ResourcePackagePublicResources>
-  dependencies?: readonly ResourcePackageDependency[]
-  hostDependencies?: readonly ResourcePackageHostDependency[]
   outputPath?: string
 }
 
@@ -55,28 +53,69 @@ type ResourcePackageIconProjection = {
 }
 
 export type ResourcePackageProjectBuildResult = ResourcePackageBuildResult & {
-  resourcePaths: readonly string[]
+  imagePaths: readonly string[]
 }
 
-function normalizeProjectPath(root: string, path: string): string {
-  const normalizedRoot = root.replace(/[\\/]+$/, '').replace(/\\/g, '/')
-  const normalizedPath = path.replace(/\\/g, '/')
-  const rootIdentity = normalizedRoot.toLocaleLowerCase()
-  if (normalizedPath.toLocaleLowerCase().startsWith(`${rootIdentity}/`)
-    || normalizedPath.toLocaleLowerCase() === rootIdentity) return normalizedPath
-  return `${normalizedRoot}/${normalizedPath.replace(/^\/+/, '')}`
+function resolveSelectedImage(root: string, value: string): { absolutePath: string, relativePath: string } {
+  const path = value.trim().replace(/\\/g, '/')
+  const rootIdentity = root.toLocaleLowerCase()
+  const pathIdentity = path.toLocaleLowerCase()
+  const absolute = path.startsWith('/') || /^[a-z]:\//i.test(path)
+  const relativePath = absolute
+    ? pathIdentity.startsWith(`${rootIdentity}/`) ? path.slice(root.length + 1) : ''
+    : path
+  const segments = relativePath.split('/')
+  const identity = relativePath.toLocaleLowerCase()
+  if (!relativePath || /^[a-z]:/i.test(relativePath)
+    || segments.some(segment => !segment || segment === '.' || segment === '..'
+    || /[\u0000-\u001f\u007f]/.test(segment))) {
+    throw new Error(`Selected image path is outside the project or unsafe: ${value}`)
+  }
+  if (identity === '.git' || identity.startsWith('.git/')
+    || identity === '.opencard' || identity.startsWith('.opencard/')) {
+    throw new Error(`Selected image path is managed or internal: ${value}`)
+  }
+  if (resolveFileType(relativePath, root).id !== 'image') {
+    throw new Error(`Selected project file is not an image: ${value}`)
+  }
+  return { absolutePath: `${root}/${relativePath}`, relativePath }
 }
 
-function relativePath(root: string, path: string): string {
-  const normalizedRoot = root.replace(/[\\/]+$/, '').replace(/\\/g, '/')
-  const normalizedPath = path.replace(/\\/g, '/')
-  return normalizedPath.toLocaleLowerCase().startsWith(`${normalizedRoot.toLocaleLowerCase()}/`)
-    ? normalizedPath.slice(normalizedRoot.length + 1)
-    : normalizedPath
+function selectedImages(root: string, paths: readonly string[]): { absolutePath: string, relativePath: string }[] {
+  const result = new Map<string, { absolutePath: string, relativePath: string }>()
+  for (const path of paths) {
+    const image = resolveSelectedImage(root, path)
+    const identity = image.relativePath.toLocaleLowerCase()
+    if (!result.has(identity)) result.set(identity, image)
+  }
+  return [...result.values()]
 }
 
 function selectedIdentities(keys: readonly string[]): Set<string> {
   return new Set(keys.map(key => key.toLocaleLowerCase()))
+}
+
+function allocateDependencyPath(
+  directory: 'fonts' | 'icons',
+  absolutePath: string,
+  allocated: Map<string, string>,
+): string {
+  const identity = absolutePath.toLocaleLowerCase()
+  const existing = allocated.get(identity)
+  if (existing) return existing
+  const fileName = absolutePath.replace(/\\/g, '/').split('/').pop() ?? 'resource'
+  const dot = fileName.lastIndexOf('.')
+  const stem = dot > 0 ? fileName.slice(0, dot) : fileName
+  const extension = dot > 0 ? fileName.slice(dot) : ''
+  const used = new Set(Array.from(allocated.values(), path => path.toLocaleLowerCase()))
+  let candidate = `.opencard/${directory}/${fileName}`
+  let suffix = 2
+  while (used.has(candidate.toLocaleLowerCase())) {
+    candidate = `.opencard/${directory}/${stem} (${suffix})${extension}`
+    suffix += 1
+  }
+  allocated.set(identity, candidate)
+  return candidate
 }
 
 async function buildFontProjection(
@@ -117,24 +156,35 @@ async function buildFontProjection(
   const selectedFamilies = families.filter(family => includedFamilyKeys.has(family.key.toLocaleLowerCase()))
   const publicFamilies = selectedFamilies.filter(family => publicFamilyKeys.has(family.key.toLocaleLowerCase()))
   const selectedCompositions = compositions.filter(composition => selectedCompositionKeys.has(composition.key.toLocaleLowerCase()))
-  const projectedDocument: ProjectFontRegistryDocument = {
-    ...(selectedFamilies.length ? { families: selectedFamilies } : {}),
-    ...(selectedCompositions.length ? { compositions: selectedCompositions } : {}),
-  }
   const files = new Map<string, ResourcePackageContentFile>()
+  const allocated = new Map<string, string>()
+  const projectedFamilies: ProjectFont[] = []
   for (const family of selectedFamilies) {
-    for (const source of projectFontSources(family)) {
-      const sourcePath = `${root}/.opencard/${source}`
-      if (!await options.fs.fileExists(sourcePath)) {
-        throw new Error(`Project font file is missing: ${source}`)
+    const projectedFiles: ProjectFont['files'] = {}
+    for (const [weight, styles] of Object.entries(family.files)) {
+      if (!styles) continue
+      const projectedStyles: { upright?: string, italic?: string } = {}
+      for (const style of ['upright', 'italic'] as const) {
+        const source = styles[style]
+        if (!source) continue
+        const resolved = resolveResourcePath(root, registryPath, source)
+        if (!resolved.ok) throw new Error(`Project font file path is invalid: ${source}`)
+        if (!await options.fs.fileExists(resolved.value)) throw new Error(`Project font file is missing: ${source}`)
+        const packagePath = allocateDependencyPath('fonts', resolved.value, allocated)
+        projectedStyles[style] = packagePath
+        const identity = packagePath.toLocaleLowerCase()
+        if (!files.has(identity)) files.set(identity, {
+          path: packagePath,
+          bytes: await options.fs.readBinaryFile(resolved.value),
+        })
       }
-      const packagePath = `.opencard/${source}`
-      const identity = packagePath.toLocaleLowerCase()
-      if (!files.has(identity)) files.set(identity, {
-        path: packagePath,
-        bytes: await options.fs.readBinaryFile(sourcePath),
-      })
+      projectedFiles[weight as keyof ProjectFont['files']] = projectedStyles
     }
+    projectedFamilies.push({ ...family, files: projectedFiles })
+  }
+  const projectedDocument: ProjectFontRegistryDocument = {
+    ...(projectedFamilies.length ? { families: projectedFamilies } : {}),
+    ...(selectedCompositions.length ? { compositions: selectedCompositions } : {}),
   }
   files.set(PROJECT_FONT_REGISTRY_FILE_NAME.toLocaleLowerCase(), {
     path: PROJECT_FONT_REGISTRY_FILE_NAME,
@@ -168,20 +218,24 @@ async function buildIconProjection(
   }
 
   const selectedSeries = series.filter(entry => selectedSeriesKeys.has(entry.key.toLocaleLowerCase()))
-  const projectedDocument: ProjectIconRegistryDocument = { iconSeries: selectedSeries }
   const files = new Map<string, ResourcePackageContentFile>()
+  const allocated = new Map<string, string>()
+  const projectedSeries: typeof selectedSeries = []
   for (const entry of selectedSeries) {
-    const sourcePath = `${root}/.opencard/${entry.source}`
-    if (!await options.fs.fileExists(sourcePath)) {
+    const resolved = resolveResourcePath(root, registryPath, entry.source)
+    if (!resolved.ok) throw new Error(`Project icon spritesheet path is invalid: ${entry.source}`)
+    if (!await options.fs.fileExists(resolved.value)) {
       throw new Error(`Project icon spritesheet is missing: ${entry.source}`)
     }
-    const packagePath = `.opencard/${entry.source}`
+    const packagePath = allocateDependencyPath('icons', resolved.value, allocated)
+    projectedSeries.push({ ...entry, source: packagePath })
     const identity = packagePath.toLocaleLowerCase()
     if (!files.has(identity)) files.set(identity, {
       path: packagePath,
-      bytes: await options.fs.readBinaryFile(sourcePath),
+      bytes: await options.fs.readBinaryFile(resolved.value),
     })
   }
+  const projectedDocument: ProjectIconRegistryDocument = { iconSeries: projectedSeries }
   files.set(PROJECT_ICON_REGISTRY_FILE_NAME.toLocaleLowerCase(), {
     path: PROJECT_ICON_REGISTRY_FILE_NAME,
     bytes: new TextEncoder().encode(serializeProjectIconRegistry(projectedDocument)),
@@ -201,38 +255,34 @@ export async function buildResourcePackageFromProject(
   options: ResourcePackageProjectBuildOptions,
 ): Promise<ResourcePackageProjectBuildResult> {
   const key = normalizeKeySlug(options.key)
-  if (!key) throw new Error('Invalid resource package Key')
-  const root = options.projectRootPath.replace(/[\\/]+$/, '')
-  const selectedResources = [...new Set((options.resourcePaths ?? []).map(path => normalizeProjectPath(root, path)))]
+  if (!key) throw new Error('Invalid package Key')
+  const root = options.projectRootPath.replace(/\\/g, '/').replace(/[\\/]+$/, '')
+  if (!root) throw new Error('Project root path is required')
+  const images = selectedImages(root, options.imageSelection?.paths ?? [])
   const fontProjection = await buildFontProjection(options, root)
   const iconProjection = await buildIconProjection(options, root)
-  if (selectedResources.length === 0 && !fontProjection.document && !iconProjection.document) {
+  if (images.length === 0 && !fontProjection.document && !iconProjection.document) {
     throw new Error('Select at least one resource')
   }
-  const projectRelativePaths = selectedResources.map(path => relativePath(root, path).toLocaleLowerCase())
-  if (projectRelativePaths.some(path => path === '.git' || path.startsWith('.git/'))) {
-    throw new Error('Git metadata cannot be included in a resource package')
-  }
   const files: ResourcePackageContentFile[] = [...fontProjection.files, ...iconProjection.files]
-  for (const path of selectedResources) {
-    if (!await options.fs.fileExists(path)) throw new Error(`Selected resource is missing: ${path}`)
-    files.push({ path: relativePath(root, path), bytes: await options.fs.readBinaryFile(path) })
+  for (const image of images) {
+    if (!await options.fs.fileExists(image.absolutePath)) {
+      throw new Error(`Selected project image is missing: ${image.relativePath}`)
+    }
+    files.push({ path: image.relativePath, bytes: await options.fs.readBinaryFile(image.absolutePath) })
   }
-  const registryPaths = [`${root}/.opencard/locale.json`]
-  for (const path of registryPaths) {
-    if (await options.fs.fileExists(path)) files.push({ path: relativePath(root, path), bytes: new TextEncoder().encode(await options.fs.readFile(path)) })
+  const localePath = `${root}/.opencard/locale.json`
+  if (await options.fs.fileExists(localePath)) {
+    files.push({ path: '.opencard/locale.json', bytes: new TextEncoder().encode(await options.fs.readFile(localePath)) })
   }
   const result = await buildResourcePackageArchive({
     fs: options.fs,
     outputPath: options.outputPath,
     key, name: options.name, version: options.version, files,
     public: {
-      ...options.public,
       fonts: fontProjection.publicFonts,
       iconSeries: iconProjection.publicIconSeries,
     },
-    dependencies: options.dependencies,
-    hostDependencies: options.hostDependencies,
   })
-  return { ...result, resourcePaths: selectedResources }
+  return { ...result, imagePaths: images.map(image => image.absolutePath) }
 }

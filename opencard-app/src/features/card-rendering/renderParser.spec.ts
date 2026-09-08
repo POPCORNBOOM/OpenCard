@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createMarkdownTextBlock,
+  createImageBlock,
   createSimpleContainerBlock,
   createTextBlock,
   setBlockProperty,
@@ -78,6 +79,38 @@ describe('renderParser', () => {
 
     expect(parsed).toMatchObject({ notes: 'Shown beside the selection.', visible: false })
     expect(document).toEqual(sourceSnapshot)
+  })
+
+  it('accepts an empty image block without a required-field warning', () => {
+    const document = createDocument()
+    document.faces.front.children[0]!.block = createImageBlock({
+      id: 'image', name: 'Optional image', source: '',
+    })
+
+    const result = parseRenderDocument(document)
+
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({
+      type: 'image-block', source: '', fit: 'cover',
+    })
+    expect(result.issues).not.toContainEqual(expect.objectContaining({
+      type: 'card-designer.render-parse.required',
+      location: expect.objectContaining({ blockId: 'image', fieldKey: 'source' }),
+    }))
+  })
+
+  it('rejects project and package icon references for image sources', () => {
+    const document = createDocument()
+    document.faces.front.children[0]!.block = createImageBlock({
+      id: 'image', name: 'Icon image', source: 'theme@icon:status/warning',
+    })
+
+    const result = parseRenderDocument(document)
+
+    expect(result.document.faces.front.children[0]!.block).toMatchObject({ type: 'image-block', source: '' })
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      type: 'card-designer.render-parse.invalid-file-path',
+      location: expect.objectContaining({ blockId: 'image', fieldKey: 'source' }),
+    }))
   })
 
   it('uses schema defaults for invalid values without changing the source document', () => {

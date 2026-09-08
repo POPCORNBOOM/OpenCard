@@ -2,12 +2,152 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import OcAutocompletePopover from '../../../../components/standard/OcAutocompletePopover.vue'
 import FilePathPropertyField from './FilePathPropertyField.vue'
+import { createResourceDirectoryProvider } from '../../../../features/workspace/services/resourceDirectoryProvider'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
+import { normalizeResourcePackageManifest } from '../../../../features/workspace/model/resourcePackage'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }))
 
 describe('FilePathPropertyField', () => {
+  it('browses a package from its title, selects a file, and returns from the package root', async () => {
+    const readDirectoryEntries = vi.fn(async (path: string) => path === '/project'
+      ? [] : [{ name: 'image.png', isDirectory: false, isFile: true, isSymlink: false }])
+    const provider = createResourceDirectoryProvider('/project', 'card.ocdocument', {
+      kind: 'project', namespace: 'project', rootPath: '/project',
+      fonts: {}, fontDocument: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+      packages: new Map([['theme', {
+        manifest: { ...normalizeResourcePackageManifest({}, 'theme').manifest, name: 'Theme Pack' },
+        rootPath: '/project/.opencard/packages/theme', issues: [],
+      }]]),
+    }, { readDirectoryEntries })
+    const wrapper = mount(FilePathPropertyField, {
+      props: { definition: { title: 'Image', fieldType: 'filePath', directoryProvider: provider }, value: '',
+        'onUpdate:value': (value: string) => { void wrapper.setProps({ value }) },
+      },
+    })
+    try {
+      const input = wrapper.get('input')
+      await input.trigger('focus')
+      await flushPromises()
+      expect(wrapper.getComponent(OcAutocompletePopover).props('items')).toEqual([
+        expect.objectContaining({ label: 'Theme Pack', insertText: 'theme@', icon: 'file.package' }),
+      ])
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(readDirectoryEntries).toHaveBeenLastCalledWith('/project/.opencard/packages/theme', 1)
+      const menu = wrapper.getComponent(OcAutocompletePopover)
+      expect(menu.props('items').map(item => item.label)).toEqual(['image.png', '..'])
+      menu.vm.$emit('select', menu.props('items').find(item => item.label === '..')!.key)
+      await flushPromises()
+      expect(input.element.value).toBe('')
+      expect(menu.props('items')[0]?.label).toBe('Theme Pack')
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(input.element.value).toBe('theme@image.png')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('follows the workspace dot-file visibility setting', async () => {
+    const readDirectoryEntries = vi.fn(async () => [
+      { name: '.opencard', isDirectory: true, isFile: false, isSymlink: false },
+      { name: '.git', isDirectory: true, isFile: false, isSymlink: false },
+      { name: 'assets', isDirectory: true, isFile: false, isSymlink: false },
+    ])
+    const environment = {
+      kind: 'project' as const, namespace: 'project', rootPath: '/project',
+      fonts: {}, fontDocument: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+    }
+    const hidden = createResourceDirectoryProvider('/project', 'card.ocdocument', environment, { readDirectoryEntries }, { hideDotFiles: true })
+    const visible = createResourceDirectoryProvider('/project', 'card.ocdocument', environment, { readDirectoryEntries }, { hideDotFiles: false })
+
+    expect((await hidden('')).map(entry => entry.name)).toEqual(['assets'])
+    expect((await visible('')).map(entry => entry.name)).toEqual(['.opencard', '.git', 'assets'])
+  })
+
+  it('uses Shift+Tab for parent navigation without trapping focus at the root', async () => {
+    const directoryProvider = vi.fn(async (directory: string) => directory === 'assets'
+      ? [{ name: 'assets/card.png', isDirectory: false }]
+      : [{ name: 'assets', isDirectory: true }])
+    const wrapper = mount(FilePathPropertyField, {
+      props: {
+        definition: { title: 'Image', fieldType: 'filePath', directoryProvider },
+        value: 'assets/',
+        'onUpdate:value': (value: string) => { void wrapper.setProps({ value }) },
+      },
+    })
+    const input = wrapper.get('input')
+    await input.trigger('focus')
+    await flushPromises()
+
+    const parentEvent = new KeyboardEvent('keydown', {
+      key: 'Tab', shiftKey: true, bubbles: true, cancelable: true,
+    })
+    input.element.dispatchEvent(parentEvent)
+    await flushPromises()
+    expect(parentEvent.defaultPrevented).toBe(true)
+    expect(input.element.value).toBe('')
+
+    const rootEvent = new KeyboardEvent('keydown', {
+      key: 'Tab', shiftKey: true, bubbles: true, cancelable: true,
+    })
+    input.element.dispatchEvent(rootEvent)
+    expect(rootEvent.defaultPrevented).toBe(false)
+
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(input.element.value).toBe('assets/')
+    await input.trigger('keydown', { key: 'ArrowUp' })
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(input.element.value).toBe('')
+  })
+
+  it('opens virtual scoped-resource entries without appending a path separator', async () => {
+    const wrapper = mount(FilePathPropertyField, {
+      props: {
+        definition: {
+          title: 'Image',
+          fieldType: 'filePath',
+          directoryProvider: async () => [
+            { name: 'icon:', label: 'Icons', isDirectory: true, icon: 'file.project-icon' },
+            { name: 'portrait.png', isDirectory: false },
+          ],
+          completion: {
+            provider: ({ value }) => value === 'icon:'
+              ? {
+                  replaceStart: 0,
+                  replaceEnd: value.length,
+                  items: [{ key: 'series', label: 'Status', insertText: 'icon:status/', keepOpen: true }],
+                }
+              : null,
+          },
+        },
+        value: '',
+        'onUpdate:value': (value: string) => { void wrapper.setProps({ value }) },
+      },
+    })
+    const input = wrapper.get('input')
+    await input.trigger('focus')
+    await flushPromises()
+
+    expect(wrapper.getComponent(OcAutocompletePopover).props('items')[0]).toEqual(expect.objectContaining({
+      label: 'Icons', insertText: 'icon:', icon: 'file.project-icon',
+    }))
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    expect(input.element.value).toBe('icon:')
+    expect(wrapper.getComponent(OcAutocompletePopover).props('items')).toEqual([
+      expect.objectContaining({ label: 'Status', insertText: 'icon:status/' }),
+    ])
+  })
+
   afterEach(() => {
     document.body.innerHTML = ''
   })
@@ -149,6 +289,29 @@ describe('FilePathPropertyField', () => {
         label: 'propertyEditor.filePath.clearSelection',
         insertText: 'assets/icons/',
       }),
+    ])
+  })
+
+  it('browses a package root without inserting a slash after the package separator', async () => {
+    const directoryProvider = vi.fn(async () => [
+      { name: 'theme@images', isDirectory: true },
+      { name: 'theme@cover.png', isDirectory: false },
+    ])
+    const wrapper = mount(FilePathPropertyField, {
+      props: {
+        definition: { title: 'Image', fieldType: 'filePath', directoryProvider },
+        value: 'theme@',
+      },
+    })
+
+    await wrapper.get('input').trigger('focus')
+    await flushPromises()
+
+    expect(directoryProvider).toHaveBeenCalledWith('theme@')
+    expect(wrapper.getComponent(OcAutocompletePopover).props('items')).toEqual([
+      expect.objectContaining({ label: 'images', insertText: 'theme@images/' }),
+      expect.objectContaining({ label: 'cover.png', insertText: 'theme@cover.png' }),
+      expect.objectContaining({ label: '..' }),
     ])
   })
 

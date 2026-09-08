@@ -94,7 +94,12 @@ const contractsByType: Readonly<Record<string, Readonly<Record<string, RenderFie
   'markdown-text-block': textContracts('markdown-text-block'),
   'image-block': {
     ...baseBlockContracts('image-block'),
-    image: { kind: 'file-path', defaultValue: '', required: true, extensions: imageExtensions, allowRemote: true },
+    source: {
+      kind: 'file-path',
+      defaultValue: '',
+      extensions: imageExtensions,
+      allowRemote: true,
+    },
     fit: { kind: 'option', defaultValue: 'cover', required: true, options: ['cover', 'contain', 'fill'] },
   },
   'qrcode-block': {

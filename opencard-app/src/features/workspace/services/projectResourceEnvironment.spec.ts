@@ -3,11 +3,9 @@ vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: (path: string) => `asse
 import { EMPTY_PROJECT_ICON_CATALOG } from './projectIconCatalog'
 import {
   createProjectResourceNamespace,
-  normalizeProjectResourcePath,
+  loadProjectResourceEnvironment,
   projectResourceScopeIdentity,
   resolveProjectEnvironmentFontFamily,
-  resolveProjectEnvironmentAssetSrc,
-  resolveProjectResourceFilePath,
   type ProjectResourceEnvironment,
 } from './projectResourceEnvironment'
 
@@ -26,15 +24,6 @@ function packageEnvironment(packageId: string): ProjectResourceEnvironment {
 }
 
 describe('ProjectResourceEnvironment', () => {
-  it('resolves only safe project-relative paths beneath the environment root', () => {
-    expect(normalizeProjectResourcePath('assets/card/a.png')).toBe('assets/card/a.png')
-    expect(resolveProjectResourceFilePath({ rootPath: '/project' }, 'assets/card/a.png'))
-      .toBe('/project/assets/card/a.png')
-    for (const unsafe of ['../secret.png', '/absolute.png', 'C:/absolute.png', 'a/../../secret.png', 'a//b.png']) {
-      expect(normalizeProjectResourcePath(unsafe)).toBeNull()
-    }
-  })
-
   it('isolates same-key package fonts by Package ID namespace', () => {
     const alice = packageEnvironment('alice/badge')
     const bob = packageEnvironment('bob/badge')
@@ -46,24 +35,30 @@ describe('ProjectResourceEnvironment', () => {
     expect(aliceFamily).not.toBe(bobFamily)
   })
 
-  it('treats local assets outside an environment allow-list as unavailable', () => {
-    const environment = {
-      rootPath: '/project',
-      accessPolicy: {
-        mode: 'allow-list' as const,
-        assetPaths: new Set(['assets/allowed.png']),
-        fontFiles: new Map<string, ReadonlySet<string>>(),
-        icons: new Map<string, ReadonlySet<string>>(),
-        packageIds: new Set<string>(),
-      },
-    }
-    expect(resolveProjectEnvironmentAssetSrc('assets/allowed.png', environment)).not.toBe('')
-    expect(resolveProjectEnvironmentAssetSrc('assets/excluded.png', environment)).toBe('')
-    expect(resolveProjectEnvironmentAssetSrc('../secret.png', environment)).toBe('')
-  })
-
   it('keeps field-level scope identities distinct for the same block', () => {
     expect(projectResourceScopeIdentity('block', 'image')).not.toBe(projectResourceScopeIdentity('block', 'fontFamily'))
     expect(projectResourceScopeIdentity('block', 'image')).not.toBe(projectResourceScopeIdentity('other', 'image'))
+  })
+
+  it('loads an icon spritesheet through a child-package shorthand path', async () => {
+    const files = new Map<string, string>([[
+      '/project/.opencard/icons/icons.json',
+      JSON.stringify({ iconSeries: [{ name: 'Theme', key: 'theme', source: 'assets@icons/theme.png', icons: [] }] }),
+    ]])
+    const loadDimensions = vi.fn(async () => ({ width: 16, height: 16 }))
+    await loadProjectResourceEnvironment({
+      rootPath: '/project',
+      kind: 'project',
+      identity: 'project',
+      fs: {
+        fileExists: async path => files.has(path),
+        readFile: async path => files.get(path) ?? '',
+      },
+      loadDimensions,
+    })
+
+    expect(loadDimensions).toHaveBeenCalledWith(
+      'asset:///project/.opencard/packages/assets/icons/theme.png',
+    )
   })
 })

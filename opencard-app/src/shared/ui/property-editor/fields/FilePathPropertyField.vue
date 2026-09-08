@@ -156,7 +156,9 @@ function applyCompletionResult(
 ): void {
   sessionState.value = state
   completionResult.value = result
-  items.value = result?.items ?? []
+  items.value = result
+    ? [...result.items, ...(result.parent ? [result.parent] : [])]
+    : []
   isMenuOpen.value = isFocused.value && items.value.length > 0
 }
 
@@ -215,7 +217,10 @@ function applySuggestionByKey(key: string): void {
   const currentValue = activeInput.value?.value.replace(/\\/g, '/') ?? stringValue.value
   const nextValue = `${currentValue.slice(0, result.replaceStart)}${item.insertText}${currentValue.slice(result.replaceEnd)}`
   const nextCursor = result.replaceStart + item.insertText.length
-  if (item.key.startsWith('clear-file:') || item.insertText.endsWith('/')) {
+  if (item.key.startsWith('clear-file:')
+    || item.insertText.endsWith('/')
+    || item.insertText.endsWith('@')
+    || item.insertText.endsWith(':')) {
     sessionState.value = 'browsing-directory'
   } else if (item.key.startsWith('path:')) {
     sessionState.value = 'committed'
@@ -251,6 +256,14 @@ function handleKeydown(event: KeyboardEvent): void {
   }
   if (items.value.length === 0) return
 
+  if (event.key === 'Tab' && event.shiftKey) {
+    const parent = completionResult.value?.parent
+    if (!parent) return
+    event.preventDefault()
+    applySuggestionByKey(parent.key)
+    return
+  }
+
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     const currentIndex = Math.max(0, items.value.findIndex((item) => item.key === activeKey.value))
@@ -275,6 +288,9 @@ function resolveBrowseContext(
 
   const withoutTrailingSlash = normalizedValue.replace(/\/+$/, '')
   if (!withoutTrailingSlash) return { directory: '', fragment: '' }
+  if (normalizedValue.endsWith('@')) {
+    return { directory: normalizedValue, fragment: '' }
+  }
   if (normalizedValue.endsWith('/')) {
     return { directory: withoutTrailingSlash, fragment: '' }
   }
@@ -325,7 +341,8 @@ function createPathCompletionResult(
   }
 
   const candidates = preparedCandidates
-    .filter(candidate => !context.fragment || candidate.label.toLocaleLowerCase().startsWith(context.fragment))
+    .filter(candidate => !context.fragment || candidate.label.toLocaleLowerCase().startsWith(context.fragment)
+      || candidate.insertText.toLocaleLowerCase().startsWith(context.fragment))
     .sort((left, right) => {
       if (left.isDirectory !== right.isDirectory) return left.isDirectory ? -1 : 1
       const leftStarts = left.label.toLocaleLowerCase().startsWith(context.fragment)
@@ -335,11 +352,10 @@ function createPathCompletionResult(
     })
     .map(({ isDirectory: _isDirectory, ...item }) => item)
 
-  const parentItem = createParentCompletionItem(context.directory)
-  const items = parentItem ? [...candidates, parentItem] : candidates
+  const parent = createParentCompletionItem(context.directory)
   return {
-    result: items.length > 0
-      ? { replaceStart: 0, replaceEnd: value.length, items }
+    result: candidates.length > 0 || parent
+      ? { replaceStart: 0, replaceEnd: value.length, items: candidates, ...(parent ? { parent } : {}) }
       : null,
     state: context.fragment ? 'filtering' : 'browsing-directory',
   }
@@ -347,19 +363,20 @@ function createPathCompletionResult(
 
 function toPathCompletionItem(entry: FilePathDirectoryEntry, directory: string) {
   const normalizedEntry = entry.name.replace(/\\/g, '/').replace(/\/+$/, '')
+  const directoryPrefix = directory.endsWith('@') ? directory : `${directory}/`
   const path = directory
     && normalizedEntry !== directory
-    && !normalizedEntry.startsWith(`${directory}/`)
-    ? `${directory}/${normalizedEntry}`
+    && !normalizedEntry.startsWith(directoryPrefix)
+    ? `${directory}${directory.endsWith('@') ? '' : '/'}${normalizedEntry}`
     : normalizedEntry
-  const label = getPathBasename(path)
+  const label = entry.label ?? (path.endsWith('@') ? path.slice(0, -1) : getPathBasename(path))
   if (!label) return null
   const isDirectory = Boolean(entry.isDirectory)
   return {
     key: `path:${path}`,
     label,
-    icon: isDirectory ? 'folder.generic' as const : 'file.generic' as const,
-    insertText: isDirectory ? `${path}/` : path,
+    icon: entry.icon ?? (isDirectory ? 'folder.generic' as const : 'file.generic' as const),
+    insertText: isDirectory && !path.endsWith('@') && !path.endsWith(':') ? `${path}/` : path,
     keepOpen: true,
     isDirectory,
   }
@@ -367,7 +384,7 @@ function toPathCompletionItem(entry: FilePathDirectoryEntry, directory: string) 
 
 function createParentCompletionItem(directory: string): PropertyCompletionItem | null {
   if (!directory || /^[a-z]:\/?$/i.test(directory)) return null
-  const parent = getPathDirectory(directory)
+  const parent = directory.endsWith('@') ? '' : getPathDirectory(directory)
   return {
     key: `parent:${directory}`,
     label: '..',
@@ -379,14 +396,17 @@ function createParentCompletionItem(directory: string): PropertyCompletionItem |
 
 function getPathDirectory(path: string): string {
   const slashIndex = path.lastIndexOf('/')
-  if (slashIndex < 0) return ''
+  if (slashIndex < 0) {
+    const packageSeparator = path.indexOf('@')
+    return packageSeparator >= 0 ? path.slice(0, packageSeparator + 1) : ''
+  }
   if (slashIndex === 2 && /^[a-z]:\//i.test(path)) return path.slice(0, 3)
   return path.slice(0, slashIndex)
 }
 
 function getPathBasename(path: string): string {
-  const slashIndex = path.lastIndexOf('/')
-  return path.slice(slashIndex + 1)
+  const separatorIndex = Math.max(path.lastIndexOf('/'), path.lastIndexOf('@'))
+  return path.slice(separatorIndex + 1)
 }
 
 onBeforeUnmount(() => {

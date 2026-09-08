@@ -401,24 +401,11 @@ const rawPropertyEditorSchemaByType: TypePropertyDefinitions = {
     'markdown-text-block': createTextContentBlockPropertyEditorSchema(false),
     'image-block': {
         ...createBaseBlockPropertyEditorSchema(),
-        image: {
+        source: {
             fieldType: 'filePath',
-            required: true,
             allowRemote: true,
             minLength: 0,
             categoryId: 'content',
-            filter: {
-                target: 'file',
-                extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'],
-            },
-        },
-        imagePath: {
-            fieldType: 'filePath',
-            minLength: 0,
-            isHidden: true,
-            acceptsBinding: false,
-            exposesReference: false,
-            categoryId: 'data',
             filter: {
                 target: 'file',
                 extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'],
@@ -561,8 +548,7 @@ const schemaDefaultValuesByType: Record<string, Record<string, unknown>> = {
         borderRadius: '',
         background: '',
         customCss: '',
-        image: '',
-        imagePath: '',
+        source: '',
         fit: 'cover',
     },
     'qrcode-block': {

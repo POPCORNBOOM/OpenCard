@@ -47,10 +47,10 @@ export function normalizeResourcePackageContent(
   const normalized = new Map<string, ResourcePackageContentProjection>()
   for (const file of files) {
     const path = normalizeContentPath(file.path)
-    if (!path) throw new Error(`Unsafe resource package path: ${file.path}`)
+    if (!path) throw new Error(`Unsafe package path: ${file.path}`)
     if (excludeManifest && path.toLocaleLowerCase() === RESOURCE_PACKAGE_MANIFEST_FILE_NAME) continue
     const identity = path.toLocaleLowerCase()
-    if (normalized.has(identity)) throw new Error(`Duplicate resource package path: ${path}`)
+    if (normalized.has(identity)) throw new Error(`Duplicate package path: ${path}`)
     normalized.set(identity, { path, bytes: new Uint8Array(file.bytes) })
   }
   return [...normalized.values()].sort((left, right) => (

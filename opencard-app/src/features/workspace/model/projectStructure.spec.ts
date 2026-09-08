@@ -5,6 +5,7 @@ import {
   PROJECT_FONT_REGISTRY_FILE_NAME,
   PROJECT_ICON_REGISTRY_FILE_NAME,
   PROJECT_INTERNAL_DIRECTORIES,
+  PROJECT_PACKAGE_MANIFEST_FILE_NAME,
   PROJECT_PROFILE_FILE_NAME,
   resolveProjectInternalRelativePath,
 } from './projectStructure'
@@ -16,15 +17,16 @@ describe('projectStructure', () => {
       PROJECT_FONT_REGISTRY_FILE_NAME,
       PROJECT_ICON_REGISTRY_FILE_NAME,
       PROJECT_DICTIONARY_FILE_NAME,
+      PROJECT_PACKAGE_MANIFEST_FILE_NAME,
       ...PROJECT_INTERNAL_DIRECTORIES,
     ]).toEqual([
       '.opencard/project.json',
       '.opencard/fonts/fonts.json',
       '.opencard/icons/icons.json',
       '.opencard/locale.json',
+      '.opencard/packages/packages.json',
       '.opencard/fonts',
       '.opencard/icons',
-      '.opencard/blocks',
       '.opencard/packages',
     ])
   })

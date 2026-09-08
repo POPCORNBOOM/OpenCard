@@ -79,6 +79,6 @@ describe('ExportTemplateWorkspace', () => {
       covers: ['cover.png'],
       excludedPaths: ['notes'],
     }])
-    expect(wrapper.text()).toContain('/exports/Portable.octemplate')
+    expect(wrapper.emitted('exported')).toEqual([['/exports/Portable.octemplate']])
   })
 })

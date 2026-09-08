@@ -124,6 +124,7 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
               : definition.fieldType === 'object' ? 'object' : 'string',
         } : undefined
         return [fieldKey, enrichCardPropertyFieldDefinition({
+          translate: options.translate,
           definition,
           fieldKey,
           record: input.record,

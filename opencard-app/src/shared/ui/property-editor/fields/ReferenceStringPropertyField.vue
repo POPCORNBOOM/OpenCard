@@ -103,7 +103,12 @@ const isMenuOpen = ref(false)
 const activeKey = ref<string | null>(null)
 const autocompleteId = useId()
 
-const suggestions = computed(() => completionState.value?.items ?? [])
+const suggestions = computed(() => {
+  const result = completionState.value
+  return result
+    ? [...result.items, ...(result.parent ? [result.parent] : [])]
+    : []
+})
 const activeDescendantId = computed(() => {
   if (!activeKey.value) return undefined
   return autocompleteId + '-option-' + activeKey.value.replace(/[^a-zA-Z0-9_-]/g, '-')
@@ -170,7 +175,7 @@ async function refreshCompletion(
   const result = await completion.provider({ value, cursor })
   if (requestId !== completionRequestId) return
   completionState.value = result
-  isMenuOpen.value = Boolean(result?.items.length)
+  isMenuOpen.value = suggestions.value.length > 0
   activeKey.value = suggestions.value[0]?.key ?? null
 }
 
@@ -266,6 +271,13 @@ function acceptSuggestion(suggestion: PropertyCompletionItem): void {
 
 function handleKeydown(event: KeyboardEvent): void {
   if (isMenuOpen.value && suggestions.value.length > 0) {
+    if (event.key === 'Tab' && event.shiftKey) {
+      const parent = completionState.value?.parent
+      if (!parent) return
+      event.preventDefault()
+      acceptSuggestion(parent)
+      return
+    }
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       const currentIndex = Math.max(0, suggestions.value.findIndex((item) => item.key === activeKey.value))
@@ -292,7 +304,7 @@ function handleKeydown(event: KeyboardEvent): void {
     }
   }
 
-  if (event.key === 'Tab' && autocompleteMatch.value) {
+  if (event.key === 'Tab' && !event.shiftKey && autocompleteMatch.value) {
     event.preventDefault()
     emitValue(autocompleteMatch.value)
   }

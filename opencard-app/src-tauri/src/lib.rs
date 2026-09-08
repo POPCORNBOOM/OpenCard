@@ -14,6 +14,7 @@ mod external_open;
 mod git_service;
 mod icon_spritesheet;
 mod network_resource;
+mod resource_package;
 
 // 存储 watcher 的全局状态
 struct WatcherState {
@@ -316,6 +317,9 @@ pub fn run() {
             git_service::git_abort_operation,
             external_open::take_external_open_requests,
             icon_spritesheet::compose_project_icon_spritesheet,
+            resource_package::recover_resource_package_transactions,
+            resource_package::inspect_resource_package,
+            resource_package::install_resource_package,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

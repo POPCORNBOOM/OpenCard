@@ -73,7 +73,6 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
     if (target.cardId === options.blueprintCardId) {
       const record = block as unknown as Record<string, unknown>
       if (!setCardFieldValue(record, target.fieldKey, value)) record[target.fieldKey] = value
-      if (block.type === 'image-block' && target.fieldKey === 'image') delete record.imagePath
     } else {
       if (!instance || !isInstanceBlockFieldOverridable(target.fieldKey)) return false
       const overrides = instance.data[block.id] ?? (instance.data[block.id] = {})
@@ -94,7 +93,6 @@ export function useCdeBlockFieldCommands(options: UseCdeBlockFieldCommandsOption
       const defaultValue = getDefault(block.type, target.fieldKey)
       if (defaultValue === undefined) delete record[target.fieldKey]
       else record[target.fieldKey] = defaultValue
-      if (block.type === 'image-block' && target.fieldKey === 'image') delete record.imagePath
     } else {
       if (!instance || !resetInstanceOverrideField(instance.data, block.id, target.fieldKey)) return false
     }

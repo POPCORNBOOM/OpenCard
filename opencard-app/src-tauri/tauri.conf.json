@@ -82,7 +82,7 @@
           "ocpack"
         ],
         "name": "OpenCard Resource Package",
-        "description": "OpenCard resource package",
+        "description": "OpenCard package",
         "mimeType": "application/vnd.opencard.resource-package+zip",
         "role": "Editor",
         "rank": "Owner",

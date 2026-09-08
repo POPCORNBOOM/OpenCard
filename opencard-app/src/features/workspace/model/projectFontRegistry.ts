@@ -1,8 +1,9 @@
 export { PROJECT_FONT_REGISTRY_FILE_NAME } from './projectStructure'
+import { resolveResourcePath } from './scopedResourcePath'
 
 export const projectFontKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 export const projectFontIdPattern = projectFontKeyPattern
-export const projectFontSourcePattern = /^fonts\/.+\.(?:woff2?|ttf|otf)$/i
+export const projectFontSourcePattern = /\.(?:woff2?|ttf|otf)$/i
 
 export const projectFontWeights = ['light', 'normal', 'bold'] as const
 export const projectFontStyles = ['upright', 'italic'] as const
@@ -70,15 +71,9 @@ function normalizeName(value: unknown): string | null {
 
 function normalizeSource(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  const source = value.trim().replace(/\\/g, '/')
-  const segments = source.split('/')
-  return projectFontSourcePattern.test(source)
-    && segments.every(segment => Boolean(segment)
-      && segment !== '.'
-      && segment !== '..'
-      && !/[<>:"|?*\u0000-\u001f\u007f]/.test(segment))
-    ? source
-    : null
+  const source = value.trim()
+  const resolved = resolveResourcePath('C:/project', 'C:/project/.opencard/fonts/fonts.json', source)
+  return resolved.ok && projectFontSourcePattern.test(source) ? source : null
 }
 
 export function projectFontSources(font: Pick<ProjectFont, 'files'>): string[] {

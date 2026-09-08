@@ -13,15 +13,20 @@ import {
   type ProjectResourceScopeMap,
 } from '../workspace/services/projectResourceEnvironment'
 import {
+  parseResourceReference,
   parseResourceReferenceList,
-  resolveAssetReferenceSource,
   resolveResourceReferenceText,
   type ResourceReferenceResolutionOptions,
 } from '../workspace/services/resourceReference'
 import type { ProjectFontRegistryEntry } from '../workspace/model/projectFontRegistry'
 import { toCssFontFamily } from '../workspace/model/projectFonts'
+import { convertFileSrc } from '@tauri-apps/api/core'
+import { isRemoteResourceAllowed } from '../editor-runtime/services/editorResource'
+import { resolveResourcePath } from '../workspace/model/scopedResourcePath'
 
 export type CardRenderResourceContext = {
+  readonly resourceRootPath: string | null
+  readonly sourceFilePath: string | null
   readonly hostEnvironment: ProjectResourceEnvironment
   readonly remoteResourcePolicy?: ProjectRemoteResourcePolicy
   readonly resolveRemoteResource?: (url: string) => string | null
@@ -37,9 +42,16 @@ export type CardRenderResourceContext = {
 export type CardRenderResourceContextSource = CardRenderResourceContext | (() => CardRenderResourceContext)
 export type CardRenderResourceScopeSource = ProjectResourceScopeMap | (() => ProjectResourceScopeMap)
 
+export type ResolvedImageSource =
+  | { kind: 'empty' }
+  | { kind: 'image', src: string }
+  | { kind: 'icon', entry: ProjectIconCatalog['entries'][number] }
+  | { kind: 'unavailable' }
+
 export interface CardResourceResolver {
   readonly hostEnvironment: ProjectResourceEnvironment
   resolveAsset: (source: string, blockId?: string, fieldKey?: string) => string
+  resolveImageSource: (source: string, blockId?: string, fieldKey?: string) => ResolvedImageSource
   resolveFont: (value: string, blockId?: string, fieldKey?: string) => string
   resolveIcon: (source: string, blockId?: string, fieldKey?: string) => ProjectIconCatalog['entries'][number] | null
   withScopes: (scopes: CardRenderResourceScopeSource) => CardResourceResolver
@@ -68,10 +80,32 @@ export function createCardResourceResolver(
   return {
     get hostEnvironment() { return context().hostEnvironment },
     resolveAsset: (source, blockId, fieldKey) => resolveCardAssetSrc(source, context(), blockId, fieldKey),
+    resolveImageSource: (source, blockId, fieldKey) => resolveCardImageSource(source, context(), blockId, fieldKey),
     resolveFont: (value, blockId, fieldKey) => resolveCardFontFamily(value, context(), blockId, fieldKey),
     resolveIcon: (source, blockId, fieldKey) => resolveCardIconReference(source, context(), blockId, fieldKey),
     withScopes: scopes => createCardResourceResolver(contextSource, [...scopeSources, scopes]),
   }
+}
+
+export function resolveCardImageSource(
+  source: string,
+  context: CardRenderResourceContext,
+  blockId?: string,
+  fieldKey = 'source',
+): ResolvedImageSource {
+  const value = source.trim()
+  if (!value) return { kind: 'empty' }
+
+  const parsed = parseResourceReference(value)
+  if (parsed.reference?.kind === 'icon') {
+    const entry = resolveCardIconReference(value, context, blockId, fieldKey)
+    return entry ? { kind: 'icon', entry } : { kind: 'unavailable' }
+  }
+  if (parsed.reference) return { kind: 'unavailable' }
+  if (/^(?:[a-z0-9._-]+@|@)?(?:font|icon):/i.test(value)) return { kind: 'unavailable' }
+
+  const src = resolveCardAssetSrc(value, context, blockId, fieldKey)
+  return src ? { kind: 'image', src } : { kind: 'unavailable' }
 }
 
 function fallbackEnvironment(
@@ -94,6 +128,7 @@ function fallbackEnvironment(
 
 export function createCardRenderResourceContext(options: {
   resourceRootPath?: string | null
+  sourceFilePath?: string | null
   hostEnvironment?: ProjectResourceEnvironment
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   resolveRemoteResource?: (url: string) => string | null
@@ -107,7 +142,14 @@ export function createCardRenderResourceContext(options: {
 }): CardRenderResourceContext {
   const projectIconCatalog = options.projectIconCatalog ?? options.hostEnvironment?.iconCatalog
     ?? EMPTY_PROJECT_ICON_CATALOG
+  const resourceRootPath = options.resourceRootPath ?? options.hostEnvironment?.rootPath ?? null
+  const sourceFilePath = options.sourceFilePath && resourceRootPath
+    && !/^[a-z]:[\\/]/i.test(options.sourceFilePath) && !options.sourceFilePath.startsWith('/')
+    ? `${resourceRootPath.replace(/[\\/]+$/, '')}/${options.sourceFilePath.replace(/^[\\/]+/, '')}`
+    : options.sourceFilePath ?? null
   return {
+    resourceRootPath,
+    sourceFilePath,
     hostEnvironment: options.hostEnvironment
       ?? fallbackEnvironment(options.resourceRootPath ?? null, projectIconCatalog),
     remoteResourcePolicy: options.remoteResourcePolicy,
@@ -136,18 +178,39 @@ export function resolveCardAssetSrc(
   source: string,
   context: CardRenderResourceContext,
   blockId?: string,
-  fieldKey = 'image',
+  fieldKey = 'source',
   ): string {
   const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
-  const resolved = resolveAssetReferenceSource(source, {
-    environment,
-    hostEnvironment: context.hostEnvironment,
-    packageEnvironments: context.packageEnvironments,
-  }, context.remoteResourcePolicy)
-  if (resolved.value && /^https:\/\//i.test(resolved.value) && context.resolveRemoteResource) {
-    return context.resolveRemoteResource(resolved.value) ?? ''
+  const value = source.trim()
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-z]:[\\/]/i.test(value)) {
+    if (!isRemoteResourceAllowed(value, context.remoteResourcePolicy)) return ''
+    return context.resolveRemoteResource?.(value) ?? value
   }
-  return resolved.value ?? ''
+  const projectRootPath = context.resourceRootPath ?? context.hostEnvironment.rootPath ?? environment.rootPath
+  if (!projectRootPath) return ''
+  const sourceFilePath = resolveAssetScopeSourceFile(context, environment, projectRootPath)
+  const resolved = resolveResourcePath(projectRootPath, sourceFilePath, value)
+  return resolved.ok ? convertFileSrc(resolved.value) : ''
+}
+
+function resolveAssetScopeSourceFile(
+  context: CardRenderResourceContext,
+  environment: ProjectResourceEnvironment,
+  projectRootPath: string,
+): string {
+  if (environment === context.hostEnvironment || environment.rootPath === context.hostEnvironment.rootPath) {
+    return context.sourceFilePath ?? `${projectRootPath.replace(/[\\/]+$/, '')}/.opencard/project.json`
+  }
+
+  const environmentRoot = environment.rootPath?.replace(/\\/g, '/').replace(/\/+$/, '')
+  const hostRoot = context.hostEnvironment.rootPath?.replace(/\\/g, '/').replace(/\/+$/, '')
+  const renderRoot = projectRootPath.replace(/\\/g, '/').replace(/\/+$/, '')
+  if (environmentRoot && hostRoot && environmentRoot.toLocaleLowerCase().startsWith(`${hostRoot.toLocaleLowerCase()}/`)) {
+    return `${renderRoot}/${environmentRoot.slice(hostRoot.length + 1)}/.opencard/manifest.json`
+  }
+  return environmentRoot
+    ? `${environmentRoot}/.opencard/manifest.json`
+    : context.sourceFilePath ?? `${renderRoot}/.opencard/project.json`
 }
 
 export function resolveCardFontFamily(
@@ -215,5 +278,6 @@ export function resolveCardIconReference(
   return resolveResourceReferenceText<ProjectIconCatalog['entries'][number]>(source, {
     environment,
     hostEnvironment: context.hostEnvironment,
+    packageEnvironments: context.packageEnvironments,
   }).value
 }

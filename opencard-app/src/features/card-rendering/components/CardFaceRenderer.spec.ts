@@ -53,7 +53,7 @@ describe('CardFaceRenderer resources', () => {
   it('does not expose a package-local path to an ordinary native block', () => {
     const image = parseRenderReadyBlockForTest(createBlock('image-block', {
       id: 'picture',
-      image: 'assets/a.png',
+      source: 'assets/a.png',
     }))
     const face: RenderReadyCardFace = {
       type: 'card-face', id: 'front', faceKey: 'front', width: 100, height: 100,

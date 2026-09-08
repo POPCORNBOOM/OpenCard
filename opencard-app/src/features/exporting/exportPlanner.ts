@@ -91,6 +91,7 @@ export async function prepareExportTask(options: PrepareExportTaskOptions): Prom
           document: snapshot.document,
           instance: projection.instance,
           resourceRootPath: snapshot.resourceRootPath,
+          sourceFilePath: snapshot.sourceFilePath,
           environment: options.environment,
         })
         for (const faceKey of ['front', 'back'] as const) {

@@ -64,8 +64,7 @@ export type MarkdownTextBlock = TextContentBlock & {
 
 export type ImageBlock = BlockIdentity & {
     type: "image-block"
-    image: string
-    imagePath?: string
+    source: string
     fit: "cover" | "contain" | "fill"
 }
 
@@ -346,7 +345,7 @@ type TextBlockInit = BlockInit & {
     lineHeight?: CssValue; writingMode?: TextWritingMode
 }
 type MarkdownTextBlockInit = TextBlockInit
-type ImageBlockInit = BlockInit & { image?: string; imagePath?: string; fit?: 'cover' | 'contain' | 'fill' }
+type ImageBlockInit = BlockInit & { source?: string; fit?: 'cover' | 'contain' | 'fill' }
 type QrCodeBlockInit = BlockInit & { content?: string; errorCorrection?: 'L' | 'M' | 'Q' | 'H'; foreground?: string; backgroundColor?: string; quietZone?: string }
 type ShapeBlockInit = BlockInit & { shape?: ShapeBlock['shape']; fill?: string; stroke?: string; strokeWidth?: string; strokeStyle?: ShapeBlock['strokeStyle']; strokeAlignment?: ShapeBlock['strokeAlignment']; strokeJoin?: ShapeBlock['strokeJoin']; strokeCap?: ShapeBlock['strokeCap']; strokeMiterLimit?: string }
 type SimpleContainerBlockInit = BlockInit & { packaged?: string; clip?: string; children?: SimpleContainerBlock['children'] }
@@ -451,11 +450,9 @@ export function createImageBlock(init: ImageBlockInit = {}): ImageBlock {
             ...init,
         }),
         type: 'image-block',
-        image: init.image ?? init.imagePath ?? '',
+        source: init.source ?? '',
         fit: init.fit ?? 'cover',
     }
-
-    setIfDefined(block, 'imagePath', init.imagePath)
 
     return block as ImageBlock
 }

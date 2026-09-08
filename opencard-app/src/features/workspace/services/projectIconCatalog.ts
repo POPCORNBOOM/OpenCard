@@ -207,6 +207,53 @@ export function createProjectIconPreviewStyle(entry: ProjectIconCatalogEntry): R
   }
 }
 
+export type ProjectIconBlockFit = 'contain' | 'cover' | 'fill'
+
+function projectIconBlockDimensions(
+  entry: ProjectIconCatalogEntry,
+  fit: ProjectIconBlockFit,
+): { width: string; height: string } {
+  if (fit === 'fill') return { width: '100cqw', height: '100cqh' }
+  const dimensions = displayDimensions(entry)
+  const operation = fit === 'cover' ? 'max' : 'min'
+  return {
+    width: `${operation}(100cqw, ${100 * dimensions.width / dimensions.height}cqh)`,
+    height: `${operation}(${100 * dimensions.height / dimensions.width}cqw, 100cqh)`,
+  }
+}
+
+function projectIconCropPosition(offset: number, imageSize: number, cropSize: number): string {
+  const available = imageSize - cropSize
+  return available > 0 ? `${100 * offset / available}%` : '0%'
+}
+
+export function createProjectIconBlockStyle(
+  entry: ProjectIconCatalogEntry,
+  fit: ProjectIconBlockFit,
+): Record<string, string> {
+  const dimensions = projectIconBlockDimensions(entry, fit)
+  const rotation = effectiveRotation(entry)
+  const quarterTurn = isQuarterTurn(rotation)
+  return {
+    backgroundImage: 'none',
+    imageRendering: entry.pixelated === true ? 'pixelated' : 'auto',
+    '--oc-project-icon-renderer': 'atlas-crop',
+    '--oc-project-icon-display-width': dimensions.width,
+    '--oc-project-icon-display-height': dimensions.height,
+    '--oc-project-icon-background-image': `url(${JSON.stringify(entry.src)})`,
+    '--oc-project-icon-background-size': `${100 * entry.imageWidth / entry.width}% ${100 * entry.imageHeight / entry.height}%`,
+    '--oc-project-icon-background-position': `${projectIconCropPosition(entry.x, entry.imageWidth, entry.width)} ${projectIconCropPosition(entry.y, entry.imageHeight, entry.height)}`,
+    '--oc-project-icon-source-width': quarterTurn
+      ? 'var(--oc-project-icon-display-height)'
+      : 'var(--oc-project-icon-display-width)',
+    '--oc-project-icon-source-height': quarterTurn
+      ? 'var(--oc-project-icon-display-width)'
+      : 'var(--oc-project-icon-display-height)',
+    '--oc-project-icon-image-rendering': entry.pixelated === true ? 'pixelated' : 'auto',
+    '--oc-project-icon-transform': `rotate(${rotation}deg)`,
+  }
+}
+
 export function createProjectIconCssProperties(entry: ProjectIconCatalogEntry): Record<string, string> {
   return Object.fromEntries(
     Object.entries(createProjectIconStyle(entry)).map(([property, value]) => [toCssPropertyName(property), value]),

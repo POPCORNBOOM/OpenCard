@@ -15,7 +15,6 @@ describe('resourcePackageBuilder', () => {
   it('builds a self-contained archive with a stable manifest hash', async () => {
     const result = await buildResourcePackageArchive({
       key: 'theme', name: 'Theme', version: '1.0.0', files: files(),
-      public: { assets: ['assets/card.png'] },
     })
     expect(result.manifest.contentHash).toBe(await createResourcePackageContentHash(result.files))
     const archive = unzipSync(result.archive)

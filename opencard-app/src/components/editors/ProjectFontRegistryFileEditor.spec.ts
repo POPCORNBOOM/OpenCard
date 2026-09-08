@@ -26,9 +26,9 @@ describe('ProjectFontRegistryFileEditor', () => {
   it('owns independent family and composition edits and targets family configuration', async () => {
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocfonts',
+        filePath: 'D:/Demo/.opencard/fonts/fonts.json',
         modelValue: JSON.stringify({
-          families: [{ key: 'brand-regular', name: 'Regular', ...fontFiles('fonts/Brand.woff2') }],
+          families: [{ key: 'brand-regular', name: 'Regular', ...fontFiles('.opencard/fonts/Brand.woff2') }],
           compositions: [{ key: 'body', name: 'Body', members: [{ fontKey: 'brand-regular' }] }],
         }),
       },
@@ -63,18 +63,18 @@ describe('ProjectFontRegistryFileEditor', () => {
 
   it('uses raw repair mode for invalid JSON, ignores unknown fields, and saves current content', async () => {
     const invalid = mount(ProjectFontRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocfonts', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.opencard/fonts/fonts.json', modelValue: '{broken' },
     })
     expect(invalid.find('.monaco-stub').exists()).toBe(true)
 
     const unknownShape = mount(ProjectFontRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocfonts', modelValue: JSON.stringify({ fonts: [] }) },
+      props: { filePath: 'D:/Demo/.opencard/fonts/fonts.json', modelValue: JSON.stringify({ fonts: [] }) },
       global: { stubs: { ProjectFontRegistryEditor: true } },
     })
     expect(unknownShape.find('.monaco-stub').exists()).toBe(false)
 
     const empty = mount(ProjectFontRegistryFileEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocfonts', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/fonts/fonts.json', modelValue: '{}' },
       global: { stubs: { ProjectFontRegistryEditor: true } },
     })
     expect(empty.getComponent(ProjectFontRegistryEditor).props('families')).toEqual([])
@@ -86,7 +86,7 @@ describe('ProjectFontRegistryFileEditor', () => {
   it('reports empty compositions and missing font references without blocking save', async () => {
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocfonts',
+        filePath: 'D:/Demo/.opencard/fonts/fonts.json',
         modelValue: JSON.stringify({
           compositions: [
             { key: 'unused', name: 'Unused', members: [] },
@@ -109,7 +109,7 @@ describe('ProjectFontRegistryFileEditor', () => {
   it('updates composition references when a family key changes', async () => {
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocfonts',
+        filePath: 'D:/Demo/.opencard/fonts/fonts.json',
         modelValue: JSON.stringify({
           families: [{ key: 'latin', name: 'Latin', ...fontFiles('fonts/Latin.woff2') }],
           compositions: [{ key: 'body', name: 'Body', members: [{ fontKey: 'latin' }] }],
@@ -139,11 +139,11 @@ describe('ProjectFontRegistryFileEditor', () => {
     mocks.stageProjectFontFiles.mockResolvedValue(mocks.historyResource)
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocfonts',
+        filePath: 'D:/Demo/.opencard/fonts/fonts.json',
         modelValue: JSON.stringify({
           families: [
-            { key: 'a', name: 'A', files: { normal: { upright: 'fonts/Shared.woff2' }, bold: { upright: 'fonts/A.woff2' } } },
-            { key: 'b', name: 'B', ...fontFiles('fonts/Shared.woff2') },
+            { key: 'a', name: 'A', files: { normal: { upright: '.opencard/fonts/Shared.woff2' }, bold: { upright: '.opencard/fonts/A.woff2' } } },
+            { key: 'b', name: 'B', ...fontFiles('.opencard/fonts/Shared.woff2') },
           ],
         }),
       },

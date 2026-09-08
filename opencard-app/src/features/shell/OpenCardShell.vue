@@ -87,6 +87,7 @@
               ref="exportTemplateWorkspaceRef"
               :project-path="projectPath"
               @selection-change="exportTemplateSelection = $event"
+              @exported="path => notifySuccess(`${t('templateExport.status.exported')}: ${path}`)"
               @update:busy="isExportTemplateBusy = $event"
             />
             <SettingsWorkspace
@@ -268,6 +269,24 @@
       @close="feedbackCenterPage = null"
     />
 
+    <OcDialog :open="themeExchangeDialog !== null"
+      :title="t('settings.actions.importTheme')"
+      :description="t('settings.themeExchange.description')"
+      size="lg" height-mode="fixed" height="md" :scrollable="false"
+      close-on-backdrop @request-close="closeThemeExchangeDialog">
+      <label class="theme-exchange-dialog__field">
+        <span>{{ t('settings.themeExchange.pasteLabel') }}</span>
+        <OcFieldInput class="theme-exchange-dialog__input" as="textarea" full-width mono resize="none"
+          :value="themeExchangeText" spellcheck="false"
+          @input="themeExchangeText = ($event.target as HTMLTextAreaElement).value" />
+      </label>
+      <p v-if="themeExchangeError" class="theme-exchange-dialog__error">{{ themeExchangeError }}</p>
+      <template #footer>
+        <OcButton type="button" @click="closeThemeExchangeDialog">{{ t('settings.themeExchange.cancel') }}</OcButton>
+        <OcButton type="button" variant="solid" @click="confirmThemeExchange">{{ t('settings.themeExchange.importButton') }}</OcButton>
+      </template>
+    </OcDialog>
+
     <FloatingMenuHost />
   </main>
 </template>
@@ -287,6 +306,9 @@ import {
 import FloatingMenuHost from '../../components/ui/FloatingMenuHost.vue'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 import OcIcon from '../../components/base/OcIcon.vue'
+import OcButton from '../../components/base/OcButton.vue'
+import OcFieldInput from '../../components/base/OcFieldInput.vue'
+import OcDialog from '../../components/standard/OcDialog.vue'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
 import {
   MAX_SIDEBAR_WIDTH,
@@ -330,8 +352,6 @@ import { useProjectIconPackStore } from '../workspace/store/projectIconPackStore
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import {
-  APP_THEME_FILE_EXTENSION,
-  APP_THEME_FILE_SUFFIX,
   parseAppTheme,
   serializeAppTheme,
   type SettingsCategoryKey,
@@ -343,6 +363,7 @@ import type {
   SessionIssueNavigationRequest,
 } from '../editor-runtime/model/editorIssue'
 import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
+import { resolveInstalledResourcePackageRootPath } from '../workspace/model/resourcePackage'
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
 import ResourcePackageBuilderDialog from '../workspace/components/ResourcePackageBuilderDialog.vue'
@@ -373,6 +394,7 @@ import {
   projectEntryConfirmDeleteActionKey,
   projectEntryDeleteActionKey,
   projectEntryMoreActionKey,
+  projectPackageDeleteActionKey,
   useShellFileTree,
 } from './composables/useShellFileTree'
 import ShellSidebar from './components/ShellSidebar.vue'
@@ -440,6 +462,7 @@ const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
 const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
 const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.ocdocument'
 const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
+const PROJECT_REVEAL_ACTION_KEY = 'project.reveal'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
 const CARD_DATA_TABLE_IMPORT_ACTION_KEY = 'card-designer.data-table.import'
 const CARD_DATA_TABLE_EXPORT_ACTION_KEY = 'card-designer.data-table.export'
@@ -458,6 +481,7 @@ const {
   projectProfile,
   projectInformation,
   projectFontFamilies,
+  projectPackageManifests,
   fontRegistryReady,
   renderEnvironment: projectRenderEnvironment,
   indexedEntries,
@@ -473,6 +497,7 @@ const {
   setDirectoryExpanded,
   resetProjectWorkspaceState,
   createEntryWithAvailableName,
+  removeResourcePackage,
   trashFile,
   revealEntryInFileManager,
   getRelativeProjectPath,
@@ -679,6 +704,9 @@ const {
 const releaseNotesDialogMode = ref<'current' | 'available' | null>(null)
 const feedbackDialogKind = ref<FeedbackKind>('suggestion')
 const feedbackCenterPage = ref<FeedbackPage | null>(null)
+const themeExchangeDialog = ref<{ themeId: 'dark' | 'light' } | null>(null)
+const themeExchangeText = ref('')
+const themeExchangeError = ref('')
 const commitVersionDialogOpen = ref(false)
 const isCommittingVersion = ref(false)
 const commitVersionError = ref('')
@@ -723,6 +751,19 @@ const {
   cancelTask: cancelShellProgressTask,
 } = useShellProgressTasks()
 const UPDATE_PROGRESS_TASK_KEY = 'app-update'
+const EXPORT_TEMPLATE_PROGRESS_TASK_KEY = 'export-template'
+watch(isExportTemplateBusy, busy => {
+  if (busy) {
+    setShellProgressTask({
+      key: EXPORT_TEMPLATE_PROGRESS_TASK_KEY,
+      title: t('templateExport.status.exporting'),
+      progress: 0,
+      weight: 1,
+    })
+  } else {
+    removeShellProgressTask(EXPORT_TEMPLATE_PROGRESS_TASK_KEY)
+  }
+})
 const titleBarBrandLabel = computed(() => {
   if (titleBarTasks.value.length === 0) return 'OPENCARD'
   const activeTasks = titleBarTasks.value.filter(task => task.active !== false)
@@ -1083,17 +1124,20 @@ const {
   projectManagementExpandedKeys,
   projectExpandedKeys,
   openedEditorTreeData,
-  selectedFileKeys,
+  selectedProjectEntryKeys,
+  selectedManagementKeys,
   openedEditorSelectedKeys,
   handleOpenedEditorsSelect,
   handleFileTreeSelect,
   handleProjectManagementSelect,
   setProjectManagementEntryExpanded,
   findProjectEntryByKey,
+  findProjectPackageKeyByNodeKey,
   setProjectEntryExpanded,
 } = useShellFileTree({
   projectPath,
   indexedEntries,
+  packageManifests: projectPackageManifests,
   hideDotFiles: computed(() => settingsStore.settings.value.workspace.hideDotFiles),
   openedEditorItems: localizedOpenedEditorItems,
   activeSession,
@@ -1468,7 +1512,18 @@ const updateOperationTask = computed<{
   return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
 
-const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map())
+const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
+  const actions = new Map<string, OcTreeActionDefinition>()
+  for (const packageKey of projectPackageManifests.value.keys()) {
+    const deleteActionKey = projectPackageDeleteActionKey(packageKey)
+    actions.set(deleteActionKey, {
+      title: t('resourcePackage.delete'),
+      icon: 'action.delete',
+      iconTone: 'danger',
+    })
+  }
+  return actions
+})
 const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
 watch([updateOperationTask, locale], ([task]) => {
@@ -1651,7 +1706,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       type: 'tree' as const,
       data: exportTemplateTreeData.value,
       actions: exportTemplateTreeActions.value,
-      selectedKeys: selectedFileKeys.value,
+      selectedKeys: selectedProjectEntryKeys.value,
       expandedKeys: exportTemplateExpandedKeys.value,
       role: 'tree' as const,
       selectionMode: 'single' as const,
@@ -1748,7 +1803,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         type: 'tree',
         data: projectManagementTreeData.value,
         actions: projectManagementActions.value,
-        selectedKeys: selectedFileKeys.value,
+        selectedKeys: selectedManagementKeys.value,
         expandedKeys: projectManagementExpandedKeys.value,
         role: 'tree',
         selectionMode: 'single',
@@ -1763,6 +1818,12 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         ? t('sidebar.emptyProject', 'Folder is empty')
         : t('sidebar.openProject', 'Open Project Folder'),
       actions: [
+        {
+          key: PROJECT_REVEAL_ACTION_KEY,
+          icon: 'status.folder-open',
+          hoverTip: t('sidebar.fileActions.reveal'),
+          disabled: !projectPath.value,
+        },
         {
           key: PROJECT_NEW_FILE_ACTION_KEY,
           icon: 'action.file-plus',
@@ -1785,7 +1846,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         type: 'tree',
         data: projectTreeData.value,
         actions: projectEntryActions.value,
-        selectedKeys: selectedFileKeys.value,
+        selectedKeys: selectedProjectEntryKeys.value,
         expandedKeys: projectExpandedKeys.value,
         role: 'tree',
         selectionMode: 'single',
@@ -2312,6 +2373,18 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
     return
   }
   if (shellPage.value.type === 'workbench' && listKey === PROJECT_FILES_LIST_KEY) {
+    if (actionKey === PROJECT_REVEAL_ACTION_KEY) {
+      try {
+        await revealEntryInFileManager('')
+      } catch (error) {
+        notifyAppError('OC-E2004', {
+          actionKey,
+          path: projectPath.value,
+          error,
+        }, locale.value)
+      }
+      return
+    }
     if (actionKey === PROJECT_NEW_OPENCARD_ACTION_KEY) {
       await createProjectEntry('opencard')
       return
@@ -2339,7 +2412,7 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
 }
 
 function getProjectEntryParentPath(): string {
-  const selectedKey = selectedFileKeys.value[0]
+  const selectedKey = selectedProjectEntryKeys.value[0]
   const selectedEntry = selectedKey ? findProjectEntryByKey(selectedKey) : null
   if (!selectedEntry) return projectPath.value
   if (selectedEntry.isDirectory) return selectedEntry.key
@@ -2368,7 +2441,7 @@ async function createProjectEntry(kind: 'folder' | 'opencard'): Promise<void> {
     content,
   )
 
-  selectedFileKeys.value = [path]
+  selectedProjectEntryKeys.value = [path]
   await nextTick()
   await projectTreeRef.value?.beginRename(path)
 }
@@ -2383,45 +2456,37 @@ function handleSettingsCategoryTreeIntent(intent: OcTreeIntent): void {
   }
 }
 
-async function importThemeFile(themeId: 'dark' | 'light'): Promise<void> {
-  try {
-    const path = await fileSystemService.pickFile({
-      title: t('settings.actions.importTheme'),
-      fileTypeName: t('settings.files.themeFile'),
-      extensions: [APP_THEME_FILE_EXTENSION],
-    })
-    if (!path) return
-    const definition = parseAppTheme(await fileSystemService.readFile(path))
-    if (!definition) throw new Error(t('settings.errors.invalidThemeFile'))
-    const fileName = path.split(/[\\/]/).pop() ?? ''
-    const presetName = fileName.toLocaleLowerCase().endsWith(APP_THEME_FILE_SUFFIX)
-      ? fileName.slice(0, -APP_THEME_FILE_SUFFIX.length).trim()
-      : fileName.trim()
-      || t('settings.values.importedTheme')
-    settingsStore.importThemePreset(themeId, presetName, definition)
-  } catch (cause) {
-    notifyError(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'))
+function openThemeImportDialog(themeId: 'dark' | 'light'): void {
+  themeExchangeDialog.value = { themeId }
+  themeExchangeText.value = ''
+  themeExchangeError.value = ''
+}
+function closeThemeExchangeDialog(): void {
+  themeExchangeDialog.value = null
+  themeExchangeText.value = ''
+  themeExchangeError.value = ''
+}
+function confirmThemeExchange(): void {
+  const dialog = themeExchangeDialog.value
+  if (!dialog) return
+  const definition = parseAppTheme(themeExchangeText.value)
+  if (!definition) {
+    themeExchangeError.value = t('settings.errors.invalidThemeJson')
+    return
   }
+  settingsStore.importThemePreset(dialog.themeId, t('settings.values.importedTheme'), definition)
+  notifySuccess(t('settings.themeExchange.imported'), 'action.import')
+  closeThemeExchangeDialog()
 }
 
-async function exportThemeFile(themeId: 'dark' | 'light'): Promise<void> {
+async function copyThemeJson(themeId: 'dark' | 'light'): Promise<void> {
+  const appearance = settingsStore.settings.value.appearance
+  const text = serializeAppTheme(themeId, appearance.themeOverrides[themeId], appearance.accentNeighborAngles[themeId], appearance.fontFamilies[themeId])
   try {
-    const path = await fileSystemService.pickSavePath({
-      defaultPath: `opencard-${themeId}${APP_THEME_FILE_SUFFIX}`,
-      title: t('settings.actions.exportTheme'),
-      fileTypeName: t('settings.files.themeFile'),
-      extensions: [APP_THEME_FILE_EXTENSION],
-    })
-    if (!path) return
-    const appearance = settingsStore.settings.value.appearance
-    await fileSystemService.writeFile(path, serializeAppTheme(
-      themeId,
-      appearance.themeOverrides[themeId],
-      appearance.accentNeighborAngles[themeId],
-      appearance.fontFamilies[themeId],
-    ))
-  } catch (cause) {
-    notifyError(cause instanceof Error ? cause.message : t('settings.errors.themeFileOperationFailed'))
+    await navigator.clipboard.writeText(text)
+    notifySuccess(t('settings.themeExchange.copied'), 'action.copy')
+  } catch {
+    notifyError(t('settings.themeExchange.copyFailed'))
   }
 }
 
@@ -2472,12 +2537,12 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
   }
 
   if (intent.type === 'theme.import') {
-    await importThemeFile(intent.themeId)
+    openThemeImportDialog(intent.themeId)
     return
   }
 
   if (intent.type === 'theme.export') {
-    await exportThemeFile(intent.themeId)
+    await copyThemeJson(intent.themeId)
     return
   }
 
@@ -2508,7 +2573,7 @@ function performSessionClose(sessionIds: readonly string[]): void {
 async function performPathTrash(path: string): Promise<void> {
   await trashFile(path)
   closeSessionsByPath(path)
-  selectedFileKeys.value = selectedFileKeys.value.filter(key => key !== path)
+  selectedProjectEntryKeys.value = selectedProjectEntryKeys.value.filter(key => key !== path)
 }
 
 async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
@@ -2533,6 +2598,22 @@ async function handleOpenedEditorAuxClick(event: MouseEvent): Promise<void> {
 }
 
 async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
+  if (intent.type === 'action.invoke') {
+    const packageKey = findProjectPackageKeyByNodeKey(intent.key)
+    if (!packageKey || intent.actionKey !== projectPackageDeleteActionKey(packageKey)) return
+    const manifest = projectPackageManifests.value.get(packageKey)
+    if (!manifest) return
+    const packageRootPath = resolveInstalledResourcePackageRootPath(projectPath.value, packageKey)
+    try {
+      if (!await removeResourcePackage(packageKey)) return
+      closeSessionsByPath(packageRootPath)
+      selectedManagementKeys.value = []
+      notifySuccess(t('resourcePackage.deleted', { name: manifest.name }))
+    } catch (error) {
+      notifyAppError('OC-E3016', { path: packageRootPath, error }, locale.value)
+    }
+    return
+  }
   if (intent.type === 'selection.change') {
     await handleProjectManagementSelect(intent.selectedKeys)
     return
@@ -2682,7 +2763,6 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
           continue
         }
         const installed = await projectStore.installResourcePackageFile(normalizedPath, async (next, previous) => {
-          if (!previous) return true
           return await showConfirm(t('resourcePackage.confirmUpgrade', {
             name: next.name, version: next.version, previousVersion: previous.version,
           }), { title: t('resourcePackage.title'), kind: 'warning' })
@@ -3461,6 +3541,24 @@ async function handleResourcePackageBuilt(path: string): Promise<void> {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
+}
+
+.theme-exchange-dialog__field {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  gap: var(--oc-space-2);
+  color: var(--oc-fg-muted);
+}
+
+.theme-exchange-dialog__input {
+  height: 100%;
+  min-height: 0;
+}
+
+.theme-exchange-dialog__error {
+  margin: var(--oc-space-2) 0 0;
+  color: var(--oc-fg-danger);
 }
 
 .open-card-shell__workbench {

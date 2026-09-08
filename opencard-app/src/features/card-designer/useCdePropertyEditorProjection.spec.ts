@@ -1,4 +1,6 @@
 import { computed, ref } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import ReferenceStringPropertyField from '../../shared/ui/property-editor/fields/ReferenceStringPropertyField.vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createSimpleContainerBlock,
@@ -10,8 +12,11 @@ import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
 import type { CardPropertyEditorInput } from '../card-properties/cardPropertyFieldDefinitions'
 import { useCdePropertyEditorProjection } from './useCdePropertyEditorProjection'
 import { setProjectFonts } from '../workspace/model/projectFonts'
+import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import { normalizeResourcePackageManifest } from '../workspace/model/resourcePackage'
 
-function createHarness() {
+function createHarness(resourceEnvironment = ref<ProjectResourceEnvironment>()) {
   const text = createTextBlock({
     id: 'text',
     name: 'Text',
@@ -54,11 +59,11 @@ function createHarness() {
   }
   const rawPropertyInputs = ref<readonly CardPropertyEditorInput[]>([{
     key: text.id,
-    record: { ...text, image: '' } as unknown as Record<string, unknown>,
+    record: { ...text, source: '' } as unknown as Record<string, unknown>,
     fields: {
       content: { fieldType: 'string', title: 'Content', richText: true },
       fontFamily: { fieldType: 'string', title: 'Font family' },
-      image: { fieldType: 'filePath', title: 'Image' },
+      source: { fieldType: 'filePath', title: 'Source' },
       optional: { fieldType: 'string', title: 'Optional' },
     },
   }])
@@ -72,6 +77,7 @@ function createHarness() {
     parentLookup: ref(buildParentLookup(document)),
     rawPropertyInputs,
     projectContext: computed(() => ({
+      resourceEnvironment: resourceEnvironment.value,
       fonts: {
         body: {
           kind: 'family' as const,
@@ -94,18 +100,88 @@ function createHarness() {
   return { directoryProvider, state }
 }
 
+async function completionResult(
+  provider: ((request: { value: string; cursor: number }) => unknown) | undefined,
+  value: string,
+  cursor: number,
+) {
+  return await Promise.resolve(provider?.({ value, cursor })) as {
+    items: Array<{ insertText: string; value?: unknown; labelStyle?: Readonly<Record<string, string>> }>
+    parent?: { label: string; insertText: string; keepOpen?: boolean }
+  } | null
+}
+
 async function completionItems(
   provider: ((request: { value: string; cursor: number }) => unknown) | undefined,
   value: string,
   cursor: number,
 ) {
-  const result = await Promise.resolve(provider?.({ value, cursor })) as {
-    items?: Array<{ insertText: string; value?: unknown; labelStyle?: Readonly<Record<string, string>> }>
-  } | null
+  const result = await completionResult(provider, value, cursor)
   return result?.items ?? []
 }
 
 describe('useCdePropertyEditorProjection', () => {
+  it('refreshes package font completion and previews from the environment snapshot', async () => {
+    const child: ProjectResourceEnvironment = {
+      kind: 'package', namespace: 'package-theme', rootPath: '/project/.opencard/packages/theme',
+      fonts: { body: { kind: 'family', name: 'Body', family: { key: 'body', name: 'Body', files: {} } } },
+      fontDocument: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+    }
+    const environment = ref<ProjectResourceEnvironment>({ ...child, kind: 'project', namespace: 'project', fonts: {} })
+    const { state } = createHarness(environment)
+    const fields = () => state.propertyEditorInputs.value[0]!.fields
+    expect(await completionItems(fields().fontFamily?.completion?.provider, 'theme@', 6)).toEqual([])
+    environment.value = {
+      ...environment.value,
+      packages: new Map([['theme', { manifest: normalizeResourcePackageManifest({}, 'theme').manifest, rootPath: child.rootPath!, issues: [] }]]),
+      packageEnvironments: new Map([['theme', child], ['invisible', child]]),
+    }
+    expect(await completionItems(fields().fontFamily?.completion?.provider, 'theme@', 6)).toEqual([
+      expect.objectContaining({ insertText: 'theme@font:', keepOpen: true }),
+    ])
+    const completion = await completionResult(fields().fontFamily?.completion?.provider, 'theme@font:', 11)
+    expect(completion?.items).toEqual([expect.objectContaining({
+      insertText: 'theme@font:body', value: 'theme@font:body',
+      labelStyle: { fontFamily: '"OpenCardResource-package-theme-body"' },
+    })])
+    expect(completion?.parent).toEqual(expect.objectContaining({ label: '..', insertText: '', keepOpen: true }))
+    expect(fields().content?.fontOptions).toContainEqual(expect.objectContaining({
+      value: 'theme@font:body', cssFamily: '"OpenCardResource-package-theme-body"',
+    }))
+    expect(fields().content?.fontOptions?.some(font => font.value.startsWith('invisible@'))).toBe(false)
+    expect(await completionItems(fields().fontFamily?.completion?.provider, 'Ar', 2)).toEqual([])
+    const definition = fields().fontFamily!
+    if (definition.fieldType !== 'string') throw new Error('Expected a string font field')
+    const wrapper = mount(ReferenceStringPropertyField, {
+      attachTo: document.body,
+      props: { definition, value: 'Arial; theme@; Georgia' },
+    })
+    try {
+      const input = wrapper.get('input')
+      input.element.setSelectionRange(13, 13)
+      await input.trigger('focus')
+      await flushPromises()
+      expect(document.body.querySelector('[role="option"]')?.textContent?.trim()).toBe('theme')
+      await input.trigger('keydown', { key: 'Tab' })
+      await flushPromises()
+      expect(input.element.value).toBe('Arial; theme@font:; Georgia')
+      expect(document.body.querySelector('[role="option"]')?.textContent?.trim()).toBe('Body')
+      await input.trigger('keydown', { key: 'ArrowDown' })
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(input.element.value).toBe('Arial; ; Georgia')
+      expect(document.body.querySelector('[role="option"]')?.textContent?.trim()).toBe('theme')
+      await input.trigger('keydown', { key: 'Tab' })
+      await flushPromises()
+      await input.trigger('keydown', { key: 'Enter' })
+      await flushPromises()
+      expect(wrapper.emitted('update:value')?.slice(-1)[0]).toEqual(['Arial; theme@font:body; Georgia'])
+    } finally {
+      wrapper.unmount()
+    }
+    environment.value = { ...environment.value, packageEnvironments: new Map() }
+    expect(await completionItems(fields().fontFamily?.completion?.provider, 'theme@', 6)).toEqual([])
+  })
   it('builds instance, parent, project, and dictionary binding scopes', async () => {
     const { state } = createHarness()
     const definition = state.propertyEditorInputs.value[0]!.fields.content!
@@ -131,7 +207,10 @@ describe('useCdePropertyEditorProjection', () => {
     }])
     const { state } = createHarness()
     const fields = state.propertyEditorInputs.value[0]!.fields
-    const fontItems = await completionItems(fields.fontFamily?.completion?.provider, 'Body', 4)
+    const rootItems = await completionItems(fields.fontFamily?.completion?.provider, '', 0)
+    expect(rootItems).toContainEqual(expect.objectContaining({ insertText: 'font:', keepOpen: true }))
+    expect(rootItems.map(item => item.value)).not.toContain('font:body')
+    const fontItems = await completionItems(fields.fontFamily?.completion?.provider, 'font:Body', 9)
 
     expect(fontItems.map(item => item.value)).toContain('font:body')
     expect(fontItems.find(item => item.value === 'font:body')?.labelStyle)
@@ -142,18 +221,18 @@ describe('useCdePropertyEditorProjection', () => {
       fontSize: '18px',
     })
 
-    const fallbackValue = 'font:body; Ar'
+    const fallbackValue = 'font:body; font:Bo'
     const completion = await fields.fontFamily?.completion?.provider?.({
       value: fallbackValue,
       cursor: fallbackValue.length,
     })
     expect(completion).toMatchObject({ replaceStart: 10, replaceEnd: fallbackValue.length })
-    expect(completion?.items.find(item => item.value === ' Arial')?.insertText).toBe(' Arial')
+    expect(completion?.items.find(item => item.value === ' font:body')?.insertText).toBe(' font:body')
   })
 
   it('passes file-path directory reads through the injected provider', async () => {
     const { directoryProvider, state } = createHarness()
-    const definition = state.propertyEditorInputs.value[0]!.fields.image
+    const definition = state.propertyEditorInputs.value[0]!.fields.source
     expect(definition?.fieldType).toBe('filePath')
     if (!definition || definition.fieldType !== 'filePath') return
     const entries = await definition.directoryProvider?.('images')

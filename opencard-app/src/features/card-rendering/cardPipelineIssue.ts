@@ -45,6 +45,7 @@ export type CardRichTextIssueType =
   | 'card-designer.rich-text.limit-exceeded'
 export type CardResourceIssueType =
   | 'card-designer.resource.remote-blocked'
+  | 'card-designer.resource.system-font'
 
 export type CardIssueType = CardBindingIssueType | CardRenderParseIssueType | CardRichTextIssueType | CardResourceIssueType
 
@@ -68,6 +69,7 @@ const cardIssueMessageKeys: Readonly<Record<CardIssueType, string>> = {
   'card-designer.rich-text.invalid-html': 'app.problems.richTextCodes.INVALID_HTML',
   'card-designer.rich-text.limit-exceeded': 'app.problems.richTextCodes.LIMIT_EXCEEDED',
   'card-designer.resource.remote-blocked': 'app.problems.resourceCodes.REMOTE_BLOCKED',
+  'card-designer.resource.system-font': 'app.problems.resourceCodes.SYSTEM_FONT',
 }
 
 export function cardIssueMessageKey(type: CardIssueType): string {

@@ -14,6 +14,7 @@ import {
   isProjectInternalRelativePath,
   PROJECT_INTERNAL_DIRECTORIES,
   PROJECT_INTERNAL_DIRECTORY_NAME,
+  PROJECT_PACKAGE_MANIFEST_FILE_NAME,
   resolveProjectInternalRelativePath,
 } from '../model/projectStructure'
 import {
@@ -80,10 +81,20 @@ import {
   DEFAULT_PROJECT_FONT_DIRECTORY,
 } from '../model/projectFonts'
 import {
+  previewResourcePackage,
+  decideResourcePackageInstallation,
   installResourcePackage,
-  uninstallResourcePackage,
   type ResourcePackageInstallResult,
 } from '../services/resourcePackageInstaller'
+import {
+  PROJECT_PACKAGE_MANIFEST_TYPE,
+  reconcileProjectPackageManifest,
+  serializeProjectPackageManifest,
+} from '../model/projectPackageManifest'
+import {
+  resolveInstalledResourcePackageRootPath,
+  type ResourcePackageManifest,
+} from '../model/resourcePackage'
 import {
   createProjectResourceNamespace,
   loadProjectResourceEnvironment,
@@ -91,6 +102,10 @@ import {
   type ProjectResourceEnvironmentIssue,
   type ProjectResourcePackageCatalog,
 } from '../services/projectResourceEnvironment'
+import {
+  relativizeResourcePath,
+  resolveResourcePath as resolveScopedResourcePath,
+} from '../model/scopedResourcePath'
 
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
@@ -157,6 +172,7 @@ const projectDictionary = ref<ProjectDictionary | null>(null)
 const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
 const projectResourcePackages = shallowRef<ProjectResourcePackageCatalog>(new Map())
+const projectPackageManifests = shallowRef<ReadonlyMap<string, ResourcePackageManifest>>(new Map())
 const resourceEnvironmentSnapshot = shallowRef<ProjectResourceEnvironment | null>(null)
 const projectResourceEnvironments = shallowRef<ReadonlyMap<string, ProjectResourceEnvironment>>(new Map())
 const projectResourceEnvironmentIssues = shallowRef<readonly ProjectResourceEnvironmentIssue[]>([])
@@ -175,8 +191,7 @@ const projectResourceEnvironment = computed<ProjectResourceEnvironment>(() => ({
   iconDocument: { iconSeries: projectIconSeries.value },
   iconCatalog: projectIconCatalog.value,
   packages: projectResourcePackages.value,
-  packageManifest: resourceEnvironmentSnapshot.value?.packageManifest,
-  packageDifferences: resourceEnvironmentSnapshot.value?.packageDifferences,
+  packageIndex: { type: PROJECT_PACKAGE_MANIFEST_TYPE, packages: Object.fromEntries(projectPackageManifests.value) },
   packageEnvironments: projectResourceEnvironments.value,
   issues: projectResourceEnvironmentIssues.value,
 }))
@@ -240,8 +255,28 @@ function resolveProjectInternalPath(path = ''): string {
   return resolveProjectPath(resolveProjectInternalRelativePath(path))
 }
 
-function resolveProjectInternalAssetSrc(path: string): string {
-  return convertFileSrc(resolveProjectInternalPath(path))
+function resolveResourcePathFromFile(sourceFilePath: string, reference: string): string {
+  const resolved = resolveScopedResourcePath(
+    ensureProjectOpen(),
+    resolveProjectPath(sourceFilePath),
+    reference,
+  )
+  if (!resolved.ok) throw new Error(resolved.message)
+  return resolved.value
+}
+
+function resolveResourceAssetSrcFromFile(sourceFilePath: string, reference: string): string {
+  return convertFileSrc(resolveResourcePathFromFile(sourceFilePath, reference))
+}
+
+function createResourceReferenceFromFile(sourceFilePath: string, targetPath: string): string {
+  const resolved = relativizeResourcePath(
+    ensureProjectOpen(),
+    resolveProjectPath(sourceFilePath),
+    resolveProjectPath(targetPath),
+  )
+  if (!resolved.ok) throw new Error(resolved.message)
+  return resolved.value
 }
 
 function toRelativeProjectPath(path: string): string {
@@ -364,10 +399,10 @@ async function syncRegisteredProjectFonts(
 ): Promise<void> {
   const result = await syncProjectFonts(
     fonts,
-    resolveProjectInternalAssetSrc,
+    source => resolveResourceAssetSrcFromFile(PROJECT_FONT_REGISTRY_FILE_NAME, source),
     compositions,
     async source => readProjectFontCharacterSet(
-      await fileSystemService.readBinaryFile(resolveProjectInternalPath(source)),
+      await fileSystemService.readBinaryFile(resolveResourcePathFromFile(PROJECT_FONT_REGISTRY_FILE_NAME, source)),
     ),
   )
   if (result.current) projectFontLoadErrors.value = result.errors
@@ -375,7 +410,10 @@ async function syncRegisteredProjectFonts(
 
 async function syncRegisteredProjectIcons(iconSeries: readonly ProjectIconSeries[]): Promise<void> {
   const version = ++projectIconLoadVersion
-  const catalog = await buildProjectIconCatalog(iconSeries, resolveProjectInternalAssetSrc)
+  const catalog = await buildProjectIconCatalog(
+    iconSeries,
+    source => resolveResourceAssetSrcFromFile(PROJECT_ICON_REGISTRY_FILE_NAME, source),
+  )
   if (version !== projectIconLoadVersion) return
   projectIconCatalog.value = catalog
   projectIconLoadErrors.value = catalog.errors
@@ -392,6 +430,7 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
   const expectedProjectPath = projectPath.value
   if (!expectedProjectPath) {
     projectResourcePackages.value = new Map()
+    projectPackageManifests.value = new Map()
     resourceEnvironmentSnapshot.value = null
     projectResourceEnvironments.value = new Map()
     projectResourceEnvironmentIssues.value = []
@@ -406,18 +445,43 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
       generation: fileChangeRevision.value,
     })
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
+    const installedPackages = new Map<string, ResourcePackageManifest | null>(
+      [...(environment.packages ?? new Map())].map(([key, pkg]) => [
+        key,
+        pkg.unavailable ? null : pkg.manifest,
+      ]),
+    )
+    const packageIndex = reconcileProjectPackageManifest(environment.packageIndex, installedPackages)
+    const packageIndexText = serializeProjectPackageManifest(packageIndex)
+    const previousPackageIndexText = serializeProjectPackageManifest(environment.packageIndex ?? {
+      type: PROJECT_PACKAGE_MANIFEST_TYPE,
+      packages: {},
+    })
+    const issues = [...environment.issues]
+    if ((environment.packageIndex || installedPackages.size > 0) && packageIndexText !== previousPackageIndexText) {
+      try {
+        await fileSystemService.writeFile(`${expectedProjectPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, packageIndexText)
+      } catch (cause) {
+        const error = cause instanceof Error ? cause : new Error(String(cause))
+        issues.push({ resource: 'packages', path: `${expectedProjectPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, message: error.message })
+        reportAppError('OC-E3016', { path: `${expectedProjectPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, error })
+      }
+    }
+    if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
     projectResourcePackages.value = environment.packages ?? new Map()
-    resourceEnvironmentSnapshot.value = environment
+    projectPackageManifests.value = new Map(Object.entries(packageIndex.packages))
+    resourceEnvironmentSnapshot.value = { ...environment, packageIndex, issues }
     projectResourceEnvironments.value = environment.packageEnvironments ?? new Map()
-    projectResourceEnvironmentIssues.value = environment.issues
+    projectResourceEnvironmentIssues.value = issues
     return true
   } catch (error) {
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
     projectResourcePackages.value = new Map()
+    projectPackageManifests.value = new Map()
     resourceEnvironmentSnapshot.value = null
     projectResourceEnvironments.value = new Map()
     projectResourceEnvironmentIssues.value = [{ resource: 'packages', path: `${expectedProjectPath}/.opencard/packages`, message: error instanceof Error ? error.message : String(error) }]
-    reportAppError('OC-E3011', { path: `${expectedProjectPath}/.opencard/packages`, error })
+    reportAppError('OC-E3016', { path: `${expectedProjectPath}/.opencard/packages`, error })
     return false
   }
 }
@@ -677,11 +741,13 @@ async function startWatching() {
       }
       const fontSources = projectFontFamilies.value.flatMap(font => Object.values(font.files)
         .flatMap(styles => Object.values(styles ?? {}))
-        .map(source => resolveProjectInternalPath(source)))
+        .map(source => resolveResourcePathFromFile(PROJECT_FONT_REGISTRY_FILE_NAME, source)))
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectFonts(projectFontFamilies.value)
       }
-      const iconSources = projectIconSeries.value.map(series => resolveProjectInternalPath(series.source))
+      const iconSources = projectIconSeries.value.map(series => (
+        resolveResourcePathFromFile(PROJECT_ICON_REGISTRY_FILE_NAME, series.source)
+      ))
       if (changedPaths.some(path => iconSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectIcons(projectIconSeries.value)
       }
@@ -806,6 +872,7 @@ async function createFile(relativePath: string, content: string = '') {
 async function importProjectAssetFile(
   sourcePath: string,
   targetDirectoryPath: string,
+  registryFilePath: string,
   supportedExtensions: ReadonlySet<string>,
   unsupportedMessage: string,
   conflictResolution?: ProjectAssetImportResolution,
@@ -821,7 +888,7 @@ async function importProjectAssetFile(
   const targetIdentity = pathIdentity(targetDirectory)
   if (sourceIdentity.startsWith(`${targetIdentity}/`)) {
     return {
-      source: `${targetDirectoryPath}/${normalizedSourcePath.slice(targetDirectory.length + 1)}`,
+      source: createResourceReferenceFromFile(registryFilePath, normalizedSourcePath),
       copied: false,
     }
   }
@@ -829,7 +896,7 @@ async function importProjectAssetFile(
   let candidateName = fileName
   const targetExists = await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)
   if (targetExists && conflictResolution === 'use-existing') {
-    return { source: `${targetDirectoryPath}/${fileName}`, copied: false }
+    return { source: createResourceReferenceFromFile(registryFilePath, `${targetDirectory}/${fileName}`), copied: false }
   }
   if (!targetExists && conflictResolution === 'use-existing') {
     throw new Error('The selected existing project asset is no longer available')
@@ -840,7 +907,7 @@ async function importProjectAssetFile(
   await fileSystemService.copyFile(normalizedSourcePath, `${targetDirectory}/${candidateName}`)
   await refreshIndexedEntries()
   return {
-    source: `${targetDirectoryPath}/${candidateName}`,
+    source: createResourceReferenceFromFile(registryFilePath, `${targetDirectory}/${candidateName}`),
     copied: true,
   }
 }
@@ -859,6 +926,7 @@ async function findAvailableProjectAssetName(targetDirectory: string, fileName: 
 async function getProjectAssetImportConflict(
   sourcePath: string,
   targetDirectoryPath: string,
+  registryFilePath: string,
   supportedExtensions: ReadonlySet<string>,
   unsupportedMessage: string,
 ): Promise<ProjectAssetImportConflict | null> {
@@ -873,8 +941,8 @@ async function getProjectAssetImportConflict(
   if (!await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)) return null
   const availableName = await findAvailableProjectAssetName(targetDirectory, fileName)
   return {
-    existingSource: `${targetDirectoryPath}/${fileName}`,
-    availableCopySource: `${targetDirectoryPath}/${availableName}`,
+    existingSource: createResourceReferenceFromFile(registryFilePath, `${targetDirectory}/${fileName}`),
+    availableCopySource: createResourceReferenceFromFile(registryFilePath, `${targetDirectory}/${availableName}`),
   }
 }
 
@@ -892,6 +960,10 @@ async function importProjectFontFiles(
 
   const sourceIdentity = pathIdentity(normalizedSourcePath)
   const targetAbsoluteDirectory = resolveProjectInternalPath(targetDirectory)
+  const fontReference = (name: string) => createResourceReferenceFromFile(
+    PROJECT_FONT_REGISTRY_FILE_NAME,
+    `${targetAbsoluteDirectory}/${name}`,
+  )
   const sourceInsideManagedDirectory = sourceIdentity.startsWith(`${pathIdentity(targetAbsoluteDirectory)}/`)
   const sourceBytes = await fileSystemService.readBinaryFile(normalizedSourcePath)
   if (extension === 'ttc' || extension === 'otc') {
@@ -909,7 +981,7 @@ async function importProjectFontFiles(
       const prepared = await ensureLoadableProjectFont(face.bytes, extractedName)
       const duplicateName = await findMatchingProjectFontFile(targetAbsoluteDirectory, prepared.bytes)
       if (duplicateName) {
-        sources.push(`${targetDirectory}/${duplicateName}`)
+        sources.push(fontReference(duplicateName))
         continue
       }
       const desiredName = prepared.repaired ? createRepairedFontName(extractedName) : extractedName
@@ -917,14 +989,14 @@ async function importProjectFontFiles(
         ? await findAvailableProjectAssetName(targetAbsoluteDirectory, desiredName)
         : desiredName
       await fileSystemService.writeBinaryFile(`${targetAbsoluteDirectory}/${outputName}`, prepared.bytes)
-      sources.push(`${targetDirectory}/${outputName}`)
+      sources.push(fontReference(outputName))
     }
     await refreshIndexedEntries()
     return { sources, copied: true }
   }
   const targetExists = await fileSystemService.fileExists(`${targetAbsoluteDirectory}/${fileName}`)
   if (!sourceInsideManagedDirectory && targetExists && conflictResolution === 'use-existing') {
-    return { sources: [`${targetDirectory}/${fileName}`], copied: false }
+    return { sources: [fontReference(fileName)], copied: false }
   }
 
   const prepared = await ensureLoadableProjectFont(
@@ -932,10 +1004,10 @@ async function importProjectFontFiles(
     fileName,
   )
   const duplicateName = await findMatchingProjectFontFile(targetAbsoluteDirectory, prepared.bytes)
-  if (duplicateName) return { sources: [`${targetDirectory}/${duplicateName}`], copied: false }
+  if (duplicateName) return { sources: [fontReference(duplicateName)], copied: false }
   if (sourceInsideManagedDirectory && !prepared.repaired) {
     return {
-      sources: [`${targetDirectory}/${normalizedSourcePath.slice(targetAbsoluteDirectory.length + 1)}`],
+      sources: [fontReference(normalizedSourcePath.slice(targetAbsoluteDirectory.length + 1))],
       copied: false,
     }
   }
@@ -949,7 +1021,7 @@ async function importProjectFontFiles(
   if (prepared.repaired) await fileSystemService.writeBinaryFile(`${outputDirectory}/${outputName}`, prepared.bytes)
   else await fileSystemService.copyFile(normalizedSourcePath, `${outputDirectory}/${outputName}`)
   await refreshIndexedEntries()
-  return { sources: [`${targetDirectory}/${outputName}`], copied: true }
+  return { sources: [fontReference(outputName)], copied: true }
 }
 
 async function ensureProjectManagementStructure(): Promise<void> {
@@ -1006,6 +1078,7 @@ async function getProjectFontImportConflict(
   return await getProjectAssetImportConflict(
     sourcePath,
     targetDirectory,
+    PROJECT_FONT_REGISTRY_FILE_NAME,
     PROJECT_FONT_EXTENSIONS,
     'Unsupported project font file',
   )
@@ -1021,6 +1094,7 @@ async function importProjectIconFile(
   return await importProjectAssetFile(
     sourcePath,
     targetDirectory,
+    PROJECT_ICON_REGISTRY_FILE_NAME,
     PROJECT_ICON_EXTENSIONS,
     'Unsupported project icon image',
     conflictResolution,
@@ -1029,34 +1103,56 @@ async function importProjectIconFile(
 
 async function installResourcePackageFile(
   sourcePath: string,
-  confirmReplacement?: Parameters<typeof installResourcePackage>[0]['confirmReplacement'],
+  confirmReplacement?: (next: ResourcePackageInstallResult['manifest'], previous: ResourcePackageInstallResult['manifest']) => boolean | Promise<boolean>,
  ): Promise<ImportedResourcePackage> {
-  const installed = await installResourcePackage({
-    fs: fileSystemService,
-    projectRootPath: ensureProjectOpen(),
-    sourcePath: normalizePath(sourcePath),
-    confirmReplacement,
-  })
+  const projectRootPath = ensureProjectOpen()
+  const preview = await previewResourcePackage({ projectRootPath, sourcePath: normalizePath(sourcePath) })
+  const decision = decideResourcePackageInstallation(preview.manifest, preview.existingManifest)
+  if (decision === 'unchanged' && preview.existingManifest && preview.existingFingerprint) {
+    await persistProjectPackageIndex(preview.existingManifest)
+    return { manifest: preview.existingManifest, targetPath: preview.targetPath, replaced: false, unchanged: true, fingerprint: preview.existingFingerprint }
+  }
+  if (decision === 'replace' && preview.existingManifest) {
+    if (!confirmReplacement) throw new Error('Package replacement requires confirmation')
+    const accepted = await confirmReplacement(preview.manifest, preview.existingManifest)
+    if (!accepted) throw new Error('Package installation was cancelled')
+  }
+  const installed = await installResourcePackage({ preview })
+  await persistProjectPackageIndex(installed.manifest)
   await reloadProjectResourceEnvironment()
   await refreshIndexedEntries()
   return installed
 }
 
-async function uninstallResourcePackageFile(
-  packageKey: string,
-  confirmRemoval?: Parameters<typeof uninstallResourcePackage>[0]['confirmRemoval'],
- ): Promise<boolean> {
+async function persistProjectPackageIndex(manifest: ResourcePackageInstallResult['manifest']): Promise<void> {
+  const next = new Map(projectPackageManifests.value)
+  next.set(manifest.key, manifest)
+  await writeProjectPackageIndex(next)
+  projectPackageManifests.value = next
+}
+
+async function writeProjectPackageIndex(manifests: ReadonlyMap<string, ResourcePackageManifest>): Promise<void> {
+  const projectRootPath = ensureProjectOpen()
+  await fileSystemService.writeFile(`${projectRootPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, serializeProjectPackageManifest({
+    type: PROJECT_PACKAGE_MANIFEST_TYPE,
+    packages: Object.fromEntries(manifests),
+  }))
+}
+
+async function removeResourcePackage(packageKey: string): Promise<boolean> {
+  const projectRootPath = ensureProjectOpen()
   const key = packageKey.trim().toLocaleLowerCase()
-  const packageEntry = projectResourcePackages.value.get(key)
-  const removed = await uninstallResourcePackage({
-    fs: fileSystemService,
-    projectRootPath: ensureProjectOpen(),
-    packageKey: key,
-    manifest: packageEntry?.manifest ?? null,
-    dependents: [...projectResourcePackages.value.values()].map(entry => entry.manifest),
-    confirmRemoval,
-  })
-  if (!removed) return false
+  const manifestEntry = [...projectPackageManifests.value].find(([candidate]) => candidate.toLocaleLowerCase() === key)
+  if (!manifestEntry) return false
+
+  const [storedKey] = manifestEntry
+  const packageRootPath = resolveInstalledResourcePackageRootPath(projectRootPath, storedKey)
+  const exists = await fileSystemService.fileExists(packageRootPath)
+  if (exists) await fileSystemService.deleteFile(packageRootPath)
+
+  const next = new Map(projectPackageManifests.value)
+  next.delete(storedKey)
+  projectPackageManifests.value = next
   await reloadProjectResourceEnvironment()
   await refreshIndexedEntries()
   return true
@@ -1071,6 +1167,7 @@ async function getProjectIconImportConflict(
   return await getProjectAssetImportConflict(
     sourcePath,
     targetDirectory,
+    PROJECT_ICON_REGISTRY_FILE_NAME,
     PROJECT_ICON_EXTENSIONS,
     'Unsupported project icon image',
   )
@@ -1162,7 +1259,7 @@ async function trashUnusedProjectAssetFiles(
     if (!normalizedIdentity.startsWith(directoryPrefix.toLocaleLowerCase())) {
       throw new Error(`Only managed project ${assetKind} files can be cleaned up`)
     }
-    const source = relativePath.slice(`${PROJECT_INTERNAL_DIRECTORY_NAME}/`.length)
+    const source = relativePath
     const extension = source.split('.').pop()?.toLocaleLowerCase() ?? ''
     if (!extensions.has(extension)) throw new Error(`Unsupported project ${assetKind} file`)
     if (registered.has(source.toLocaleLowerCase())) throw new Error(`Project ${assetKind} file is still registered: ${source}`)
@@ -1461,6 +1558,7 @@ export function useProjectStore() {
     renderEnvironment,
     projectIconLoadErrors: readonly(projectIconLoadErrors),
     projectDictionary: readonly(projectDictionary),
+    projectPackageManifests: readonly(projectPackageManifests),
     projectResourceEnvironment,
     resolvedDictionary: readonly(resolvedDictionary),
     dictionaryError: readonly(dictionaryError),
@@ -1498,6 +1596,8 @@ export function useProjectStore() {
     isDirectoryExpanded,
     resolveAssetSrc,
     resolveProjectInternalPath,
+    resolveResourcePathFromFile,
+    resolveResourceAssetSrcFromFile,
     readFile,
     isProjectAvailable,
     saveFile,
@@ -1508,7 +1608,7 @@ export function useProjectStore() {
     importProjectIconFile,
     getProjectIconImportConflict,
     installResourcePackageFile,
-    uninstallResourcePackageFile,
+    removeResourcePackage,
     createEntryWithAvailableName,
     trashFile,
     trashUnusedProjectFontFiles,

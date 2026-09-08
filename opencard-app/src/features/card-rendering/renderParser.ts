@@ -211,7 +211,7 @@ function parseBlock(
       return {
         ...base,
         type,
-        image: fields.string('image'),
+        source: fields.string('source'),
         fit: fields.option('fit'),
       }
     case 'qrcode-block':
@@ -577,7 +577,11 @@ function parseRenderField(
     return invalidRenderField('invalid-color')
   }
   if (contract.kind === 'file-path' && stringValue
-    && !isValidRenderFilePath(stringValue, contract.extensions, contract.allowRemote)) {
+    && !isValidRenderFilePath(
+      stringValue,
+      contract.extensions,
+      contract.allowRemote,
+    )) {
     return invalidRenderField('invalid-file-path')
   }
   const converted = contract.kind === 'css-length' ? normalizeRenderCssLength(stringValue) : stringValue
@@ -608,8 +612,13 @@ function cloneRenderValue(value: unknown): unknown {
   return value
 }
 
-function isValidRenderFilePath(value: string, extensions?: readonly string[], allowRemote = false): boolean {
+function isValidRenderFilePath(
+  value: string,
+  extensions?: readonly string[],
+  allowRemote = false,
+): boolean {
   const normalized = value.replace(/\\/g, '/')
+  if (/^(?:[a-z0-9._-]+@|@)?icon:[^/\s]+\/[^/\s]+$/i.test(value.trim())) return true
   if (allowRemote && /^https:\/\/[^\s]+$/i.test(value.trim())) return true
   if (normalized.includes('\0') || /(^|\/)\.\.(?:\/|$)/.test(normalized) || /[<>:"|?*]/.test(normalized)) {
     return false

@@ -54,6 +54,7 @@ export interface EditorSnapshotContext {
   label: string
   content: string
   resourceRootPath?: string | null
+  sourceFilePath?: string | null
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>>
   projectIconCatalog?: ProjectIconCatalog
@@ -121,7 +122,8 @@ import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.v
 import ProjectConfigEditor from '../../../components/editors/ProjectConfigEditor.vue'
 import ProjectFontRegistryFileEditor from '../../../components/editors/ProjectFontRegistryFileEditor.vue'
 import ProjectIconRegistryFileEditor from '../../../components/editors/ProjectIconRegistryFileEditor.vue'
-import ExternalPackageManagerEditor from '../../../components/editors/ExternalPackageManagerEditor.vue'
+import PackageManagerEditor from '../../../components/editors/PackageManagerEditor.vue'
+import PackageManifestEditor from '../../../components/editors/PackageManifestEditor.vue'
 import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
@@ -184,9 +186,17 @@ editorRegistry.register({
 })
 
 editorRegistry.register({
-  id: 'external-package-manager',
-  name: 'External Package Manager',
-  component: ExternalPackageManagerEditor,
+  id: 'package-manager',
+  name: 'Package Manager',
+  component: PackageManagerEditor,
+  history: 'none',
+  hasPreview: false,
+})
+
+editorRegistry.register({
+  id: 'package-manifest',
+  name: 'Package Manifest',
+  component: PackageManifestEditor,
   history: 'none',
   hasPreview: false,
 })

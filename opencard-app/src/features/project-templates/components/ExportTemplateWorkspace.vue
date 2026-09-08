@@ -78,10 +78,6 @@
 
       <footer class="export-template__footer">
         <div class="export-template__feedback">
-          <div v-if="exportedPath" class="export-template__result" role="status">
-            <span>{{ t('templateExport.status.exported') }}</span>
-            <code>{{ exportedPath }}</code>
-          </div>
           <p v-if="errorMessage" class="export-template__error" role="alert">{{ errorMessage }}</p>
         </div>
         <OcButton type="submit" size="lg" variant="solid" icon="action.export" :disabled="!canExport">
@@ -113,6 +109,7 @@ const props = defineProps<{ projectPath: string }>()
 const emit = defineEmits<{
   'update:busy': [busy: boolean]
   'selection-change': [selection: TemplateExportSelection]
+  'exported': [path: string]
 }>()
 const { t } = useI18n()
 const store = useProjectTemplateStore()
@@ -126,7 +123,6 @@ const activeCoverIndex = ref(0)
 const isInspecting = ref(true)
 const isExporting = ref(false)
 const errorMessage = ref('')
-const exportedPath = ref('')
 let coverTimer: ReturnType<typeof setInterval> | null = null
 
 const isBusy = computed(() => isInspecting.value || isExporting.value)
@@ -247,7 +243,6 @@ function safeFileName(value: string): string {
 async function exportTemplate(): Promise<void> {
   if (!canExport.value || !inspection.value) return
   errorMessage.value = ''
-  exportedPath.value = ''
   try {
     const outputPath = await store.pickTemplateExportPath(
       `${safeFileName(name.value)}${PROJECT_TEMPLATE_PACKAGE_SUFFIX}`,
@@ -256,7 +251,7 @@ async function exportTemplate(): Promise<void> {
     if (!outputPath) return
     isExporting.value = true
     emit('update:busy', true)
-    exportedPath.value = await store.exportProjectTemplate({
+    const exportedPath = await store.exportProjectTemplate({
       sourcePath: props.projectPath,
       outputPath,
       name: name.value,
@@ -266,6 +261,7 @@ async function exportTemplate(): Promise<void> {
       covers: covers.value,
       excludedPaths: excludedPaths.value,
     })
+    emit('exported', exportedPath)
   } catch (cause) {
     errorMessage.value = resolveError(cause)
   } finally {
@@ -434,11 +430,6 @@ function resolveError(cause: unknown): string {
   background: var(--oc-bg-surface);
 }
 
-.export-template__result span {
-  color: var(--oc-fg-subtle);
-  font-size: var(--oc-text-sm);
-}
-
 .export-template__field {
   display: grid;
   gap: var(--oc-space-2);
@@ -473,18 +464,6 @@ function resolveError(cause: unknown): string {
 
 .export-template__feedback {
   min-width: 0;
-}
-
-.export-template__result {
-  display: grid;
-  gap: var(--oc-space-1);
-}
-
-.export-template__result code {
-  overflow-wrap: anywhere;
-  color: var(--oc-fg-accent);
-  font-family: var(--oc-font-mono);
-  font-size: var(--oc-text-sm);
 }
 
 .export-template__error,

@@ -13,6 +13,7 @@ import {
   resolveFileTypeById,
 } from '../model/fileTypes'
 import { fileSystemService } from '../services/fileSystemService'
+import { resolveInstalledResourcePackageKey } from '../model/resourcePackage'
 import { useProjectStore } from './projectStore'
 import type {
   CardDesignerLayoutState,
@@ -28,7 +29,14 @@ import {
 } from '../../editor-runtime/history/editorHistoryManager'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
-const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'custom-block-package', 'custom-block-manager', 'unsupported-file'])
+const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'package-manifest', 'custom-block-package', 'custom-block-manager', 'unsupported-file'])
+
+function resolveOpenedSessionName(path: string, fileTypeId: string): string {
+  if (fileTypeId === 'opencard-installed-package-manifest') {
+    return resolveInstalledResourcePackageKey(path) ?? getPathBasename(path)
+  }
+  return getPathBasename(path)
+}
 
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
@@ -313,7 +321,7 @@ export function useEditorSessionStore() {
       resourceKind,
       path: normalizedPath,
       fileTypeId: fileType.id,
-      name: getPathBasename(normalizedPath),
+      name: resolveOpenedSessionName(normalizedPath, fileType.id),
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,

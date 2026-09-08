@@ -1,20 +1,14 @@
-import { convertFileSrc } from '@tauri-apps/api/core'
-import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
 import {
   findProjectIcon,
   type ProjectIconCatalogEntry,
 } from './projectIconCatalog'
 import type { ProjectFontRegistryEntry } from '../model/projectFontRegistry'
-import {
-  normalizeProjectResourcePath,
-  resolveProjectResourceFilePath,
-  type ProjectResourceEnvironment,
-  type ProjectResourcePackage,
-} from './projectResourceEnvironment'
+import { resolveProjectEnvironmentFontFamily, type ProjectResourceEnvironment, type ProjectResourcePackage } from './projectResourceEnvironment'
+import { toCssFontFamily, type FontCatalogEntry } from '../model/projectFonts'
 
 export type ResourceReferenceScope = 'current' | 'host' | 'package'
-export type ResourceReferenceKind = 'asset' | 'font' | 'icon'
+export type ResourceReferenceKind = 'font' | 'icon'
 
 export type ResourceReference = {
   scope: ResourceReferenceScope
@@ -28,8 +22,6 @@ export type ResourceReferenceDiagnosticCode =
   | 'scope-unavailable'
   | 'package-unavailable'
   | 'resource-unavailable'
-  | 'unsafe-path'
-  | 'type-mismatch'
 
 export type ResourceReferenceDiagnostic = {
   code: ResourceReferenceDiagnosticCode
@@ -71,13 +63,12 @@ function splitReference(source: string): { qualifier: string | null, body: strin
 }
 
 function normalizeKind(value: string): ResourceReferenceKind | null {
-  return value === 'asset' || value === 'font' || value === 'icon'
+  return value === 'font' || value === 'icon'
     ? value
     : null
 }
 
 function normalizeTypedKey(kind: ResourceReferenceKind, value: string): string | null {
-  if (kind === 'asset') return normalizeProjectResourcePath(value)
   if (kind === 'icon') {
     const segments = value.split('/')
     if (segments.length !== 2) return null
@@ -117,12 +108,7 @@ export function parseResourceReference(source: string): ParsedResourceReference 
   const key = normalizeTypedKey(kind, keyValue)
   if (!key) return {
     reference: null,
-    diagnostics: [diagnostic(kind === 'asset' ? 'unsafe-path' : 'syntax-error', original,
-      kind === 'asset' ? 'Resource asset path is unsafe' : 'Resource key is invalid')],
-  }
-  if (kind === 'asset' && (key === '.opencard' || key.startsWith('.opencard/'))) return {
-    reference: null,
-    diagnostics: [diagnostic('type-mismatch', original, 'Asset references cannot access internal project files')],
+    diagnostics: [diagnostic('syntax-error', original, 'Resource key is invalid')],
   }
 
   if (split.qualifier === null) return {
@@ -226,14 +212,6 @@ export function resolveResourceReference<T extends string | ProjectFontRegistryE
     }
   }
   const environment = selected.environment
-  if (reference.kind === 'asset') {
-    const path = resolveProjectResourceFilePath(environment, reference.key)
-    if (!path) return resourceUnavailable(reference, environment, 'Resource asset path is unavailable')
-    const allowed = environment.accessPolicy?.mode !== 'allow-list'
-      || environment.accessPolicy.assetPaths.has(reference.key.toLocaleLowerCase())
-    if (!allowed) return resourceUnavailable(reference, environment, 'Resource asset is not allowed by the environment')
-    return { reference, environment, value: convertFileSrc(path) as T, diagnostics: [] }
-  }
   if (reference.kind === 'font') {
     const font = findFont(environment, reference.key)
     return font
@@ -266,31 +244,6 @@ export function resolveResourceReferenceText<T extends string | ProjectFontRegis
     ? result
     : { ...result, diagnostics: [...parsed.diagnostics, ...result.diagnostics] }
 }
-
-export function resolveAssetReferenceSource(
-  source: string,
-  options: ResourceReferenceResolutionOptions,
-  remoteResourcePolicy?: import('../model/projectMetadata').ProjectRemoteResourcePolicy,
-): ResolvedResource<string> {
-  const value = source.trim()
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-z]:[\\/]/i.test(value)) {
-    
-    if (!isRemoteResourceAllowed(value, remoteResourcePolicy)) {
-      return {
-        reference: null,
-        environment: null,
-        value: null,
-        diagnostics: [diagnostic('resource-unavailable', source, 'Remote resource is not allowed')],
-      }
-    }
-    return { reference: null, environment: options.environment, value, diagnostics: [] }
-  }
-  const typedSource = value.toLocaleLowerCase().startsWith('asset:') || value.includes('@asset:')
-    ? value
-    : `asset:${value}`
-  return resolveResourceReferenceText<string>(typedSource, options)
-}
-
 
 export type ParsedResourceReferenceToken = {
   source: string
@@ -334,20 +287,22 @@ export function parseEmbeddedResourceReferences(source: string): ParsedResourceR
 
 export function buildResourceFontCatalog(
   environment: ProjectResourceEnvironment,
-  packageEnvironments: ReadonlyMap<string, ProjectResourceEnvironment> = new Map(),
-): readonly import('../model/projectFonts').FontCatalogEntry[] {
-  const entries: import('../model/projectFonts').FontCatalogEntry[] = []
+): readonly FontCatalogEntry[] {
+  const entries: FontCatalogEntry[] = []
   for (const [key, entry] of Object.entries(environment.fonts)) {
-    entries.push({ value: `font:${key}`, label: entry.name, source: 'project', detail: `font:${key}` })
+    entries.push({ value: `font:${key}`, label: entry.name, source: 'project', detail: `font:${key}`,
+      cssFamily: resolveProjectEnvironmentFontFamily(`font:${key}`, environment, toCssFontFamily) })
   }
-  for (const [packageKey, packageEnvironment] of packageEnvironments) {
-    if (environment.packages?.get(packageKey)?.unavailable) continue
+  for (const [packageKey, packageEnvironment] of environment.packageEnvironments ?? []) {
+    const pkg = environment.packages?.get(packageKey)
+    if (!pkg || pkg.unavailable) continue
     for (const [key, entry] of Object.entries(packageEnvironment.fonts)) {
       entries.push({
         value: `${packageKey}@font:${key}`,
         label: entry.name,
         source: 'project',
         detail: `${packageKey}@font:${key}`,
+        cssFamily: resolveProjectEnvironmentFontFamily(`font:${key}`, packageEnvironment, toCssFontFamily),
       })
     }
   }

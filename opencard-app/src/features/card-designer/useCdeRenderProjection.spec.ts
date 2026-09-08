@@ -60,6 +60,7 @@ function createHarness(document: CardDocument | null = createDocument()) {
     instance,
     activeFaceKey,
     resourceRootPath: ref('D:/Project'),
+    sourceFilePath: ref('D:/Project/card.ocdocument'),
     renderEnvironment,
   })
   return {

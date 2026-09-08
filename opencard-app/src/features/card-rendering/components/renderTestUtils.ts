@@ -35,6 +35,12 @@ export function createRendererTestResources(projectIconCatalog: ProjectIconCatal
   const resolver: CardResourceResolver = {
     hostEnvironment: resourceContext.hostEnvironment,
     resolveAsset: path => `asset://${path}`,
+    resolveImageSource: source => {
+      if (!source.trim()) return { kind: 'empty' }
+      return source.includes('icon:')
+        ? { kind: 'unavailable' }
+        : { kind: 'image', src: `asset://${source}` }
+    },
     resolveFont: value => value,
     resolveIcon: source => {
       const [, path] = source.split(':', 2)

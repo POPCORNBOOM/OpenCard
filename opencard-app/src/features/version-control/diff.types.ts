@@ -6,6 +6,7 @@ export interface DiffSnapshot {
   label: string
   content: string
   resourceRootPath?: string | null
+  sourceFilePath?: string | null
   project?: Readonly<ProjectInformation> | null
   dictionary?: Readonly<Record<string, string>>
   projectIconCatalog?: ProjectIconCatalog

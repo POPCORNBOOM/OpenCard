@@ -4,6 +4,11 @@ import { isRemoteResourceAllowed } from '../editor-runtime/services/editorResour
 import { createCardPipelineIssue, type CardPipelineIssue } from './cardPipelineIssue'
 import type { RenderReadyCardBlock, RenderReadyCardDocument } from './render.types'
 
+const PORTABLE_FONT_FAMILIES = new Set([
+  'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui',
+  'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'emoji', 'math', 'fangsong',
+])
+
 export function validateRenderResources(
   document: RenderReadyCardDocument,
   policy: ProjectRemoteResourcePolicy | undefined,
@@ -28,8 +33,8 @@ function validateBlock(
   issues: CardPipelineIssue[],
 ): void {
   const blockPath = joinBlockPath(parentPath, block.name)
-  if (block.type === 'image-block' && isHttpsUrl(block.image)
-    && !isRemoteResourceAllowed(block.image, policy)) {
+  if (block.type === 'image-block' && isHttpsUrl(block.source)
+    && !isRemoteResourceAllowed(block.source, policy)) {
     issues.push(createCardPipelineIssue({
       type: 'card-designer.resource.remote-blocked',
       location: {
@@ -39,17 +44,49 @@ function validateBlock(
         owner: { kind: 'block', id: block.id },
         blockId: block.id,
         ...(blockPath ? { blockPath } : {}),
-        fieldKey: 'image',
+        fieldKey: 'source',
       },
-      parameters: { fieldName: 'image' },
-      details: { url: block.image },
+      parameters: { fieldName: 'source' },
+      details: { url: block.source },
     }))
+  }
+  if (block.type === 'text-block' || block.type === 'markdown-text-block') {
+    for (const fontName of systemFontFamilies(block.fontFamily)) {
+      issues.push(createCardPipelineIssue({
+        type: 'card-designer.resource.system-font',
+        location: {
+          documentId,
+          instanceId,
+          faceKey,
+          owner: { kind: 'block', id: block.id },
+          blockId: block.id,
+          ...(blockPath ? { blockPath } : {}),
+          fieldKey: 'fontFamily',
+        },
+        parameters: { fieldName: 'fontFamily', fontName },
+        token: fontName.toLocaleLowerCase(),
+        details: { fontName },
+      }))
+    }
   }
   if (block.type === 'simple-container-block' || block.type === 'flow-container-block') {
     for (const child of block.children) {
       validateBlock(child.block, blockPath, documentId, instanceId, faceKey, policy, issues)
     }
   }
+}
+
+function systemFontFamilies(value: string): string[] {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const candidate of value.split(';')) {
+    const name = candidate.trim().replace(/^(?:"([^"]*)"|'([^']*)')$/, '$1$2')
+    const identity = name.toLocaleLowerCase()
+    if (!name || identity.includes('font:') || PORTABLE_FONT_FAMILIES.has(identity) || seen.has(identity)) continue
+    seen.add(identity)
+    names.push(name)
+  }
+  return names
 }
 
 function isHttpsUrl(value: string): boolean {

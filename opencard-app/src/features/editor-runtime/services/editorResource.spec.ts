@@ -3,24 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   getEditorResourceRelativePath,
   isRemoteResourceAllowed,
-  resolveEditorResourcePath,
 } from './editorResource'
 
 describe('editorResource', () => {
-  it('resolves relative paths against the editor resource root', () => {
-    expect(resolveEditorResourcePath('D:\\Cards', 'assets\\portrait.png'))
-      .toBe('D:/Cards/assets/portrait.png')
-  })
-
-  it('keeps absolute paths independent from the resource root', () => {
-    expect(resolveEditorResourcePath('D:/Cards', 'C:/Shared/portrait.png'))
-      .toBe('C:/Shared/portrait.png')
-  })
-
-  it('cannot resolve a relative path without a resource root', () => {
-    expect(resolveEditorResourcePath(null, 'assets/portrait.png')).toBeNull()
-  })
-
   it('allows only HTTPS URLs matching the project host allowlist', () => {
     const policy = {
       mode: 'allowlist' as const,

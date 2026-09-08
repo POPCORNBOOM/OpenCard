@@ -172,7 +172,14 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
           return contextPromise
         })()
     const context = await contextLoad
-    return { commitId, label, content, resourceRootPath, ...context }
+    return {
+      commitId,
+      label,
+      content,
+      resourceRootPath,
+      sourceFilePath: resolveProjectFile(resourceRootPath, path),
+      ...context,
+    }
   }
 
   async function selectComparison(beforeCommitId: string | null, afterCommitId: string | null) {

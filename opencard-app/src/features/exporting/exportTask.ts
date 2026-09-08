@@ -24,6 +24,7 @@ export type ExportTaskValidationIssue = {
 export type ExportDocumentSnapshot = {
   sourcePath: string
   resourceRootPath: string
+  sourceFilePath: string
   document: CardDocument
 }
 

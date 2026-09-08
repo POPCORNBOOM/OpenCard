@@ -6,7 +6,7 @@
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
       :description="t('iconRegistry.description')" :series="document.iconSeries"
-      :resolve-asset-src="source => projectStore.resolveAssetSrc(projectStore.resolveProjectInternalPath(source))"
+      :resolve-asset-src="source => projectStore.resolveResourceAssetSrcFromFile(props.filePath, source)"
       :default-open-path="iconDirectory" :import-icon-source="importIconSource"
       :project-icon-catalog="projectStore.projectIconCatalog.value"
       :error="importError"
@@ -178,7 +178,7 @@ function getManagedIconSource(path: string): string | null {
   const normalizedPath = path.replace(/\\/g, '/').replace(/\/+$/, '')
   const managedDirectory = iconDirectory.value.replace(/\\/g, '/').replace(/\/+$/, '')
   if (!normalizedPath.toLocaleLowerCase().startsWith(`${managedDirectory.toLocaleLowerCase()}/`)) return null
-  return `${DEFAULT_PROJECT_ICON_DIRECTORY}/${normalizedPath.slice(managedDirectory.length + 1)}`
+  return `${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_ICON_DIRECTORY}/${normalizedPath.slice(managedDirectory.length + 1)}`
 }
 
 async function importIconSource(sourcePath: string, currentSource: string): Promise<string> {
@@ -283,7 +283,7 @@ async function exportIconPack(series: ProjectIconSeries): Promise<void> {
     await exportProjectIconPack({
       fs: fileSystemService,
       series,
-      spritesheetPath: projectStore.resolveProjectInternalPath(series.source),
+      spritesheetPath: projectStore.resolveResourcePathFromFile(props.filePath, series.source),
       outputPath,
     })
   } catch (error) {
@@ -313,7 +313,7 @@ async function copyPackSpritesheet(
     suffix += 1
   }
   await fileSystemService.writeBinaryFile(projectStore.resolveProjectInternalPath(candidatePath), bytes)
-  return candidatePath
+  return `${PROJECT_INTERNAL_DIRECTORY_NAME}/${candidatePath}`
 }
 
 function safeFileName(value: string): string {

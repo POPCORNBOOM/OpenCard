@@ -86,6 +86,66 @@ describe('ReferenceStringPropertyField', () => {
     expect(requestedCursor).toBe(12)
   })
 
+  it('uses Shift+Tab for provider parent navigation without consuming it at the root', async () => {
+    const wrapper = mount(ReferenceStringPropertyField, {
+      props: {
+        definition: {
+          title: 'Reference',
+          fieldType: 'string',
+          completion: {
+            static: { values: ['scope:'] },
+            provider: ({ value }) => value === 'scope:'
+              ? {
+                  replaceStart: 0,
+                  replaceEnd: value.length,
+                  items: [{ key: 'leaf', label: 'Leaf', insertText: 'scope:leaf' }],
+                  parent: { key: 'parent', label: '..', insertText: '', keepOpen: true },
+                }
+              : {
+                  replaceStart: 0,
+                  replaceEnd: value.length,
+                  items: [{ key: 'scope', label: 'Scope', insertText: 'scope:', keepOpen: true }],
+                },
+          },
+        },
+        value: 'scope:',
+      },
+    })
+    const input = wrapper.get('input')
+    const control = input.element as HTMLInputElement
+    await input.trigger('focus')
+    await nextTick()
+
+    const parentEvent = new KeyboardEvent('keydown', {
+      key: 'Tab', shiftKey: true, bubbles: true, cancelable: true,
+    })
+    control.dispatchEvent(parentEvent)
+    await nextTick()
+    await nextTick()
+    expect(parentEvent.defaultPrevented).toBe(true)
+    expect(control.value).toBe('')
+
+    control.value = 'sc'
+    control.setSelectionRange(control.value.length, control.value.length)
+    await input.trigger('input')
+    await nextTick()
+    const rootEvent = new KeyboardEvent('keydown', {
+      key: 'Tab', shiftKey: true, bubbles: true, cancelable: true,
+    })
+    control.dispatchEvent(rootEvent)
+    expect(rootEvent.defaultPrevented).toBe(false)
+    expect(control.value).toBe('sc')
+
+    control.value = 'scope:'
+    control.setSelectionRange(control.value.length, control.value.length)
+    await input.trigger('input')
+    await nextTick()
+    await input.trigger('keydown', { key: 'ArrowUp' })
+    await input.trigger('keydown', { key: 'Enter' })
+    await nextTick()
+    expect(control.value).toBe('')
+  })
+
   it.each([false, true])('projects readonly onto the native control when multiline=%s', (multiline) => {
     const wrapper = mount(ReferenceStringPropertyField, {
       props: {

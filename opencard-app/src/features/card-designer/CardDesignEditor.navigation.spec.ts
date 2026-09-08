@@ -1585,7 +1585,7 @@ describe('CardDesignEditor issue navigation', () => {
   it('provides file and font completion to data-table Cells', async () => {
     const document = createDocument()
     document.faces.front.children.push({
-      block: createImageBlock({ id: 'image-1', name: 'Portrait', image: '' }),
+      block: createImageBlock({ id: 'image-1', name: 'Portrait', source: '' }),
       location: { id: 'location-image', type: 'simple-container-location', anchor: 'lt' },
     })
     document.dataTable = {
@@ -1650,10 +1650,10 @@ describe('CardDesignEditor issue navigation', () => {
     const imageDefinition = getDefinition('image-1', imageField, imageField.cells[0]!)
     const imageEntries = await imageDefinition.directoryProvider?.('')
 
-    expect(fontResult?.items?.map(item => item.value)).toContain('Arial')
-    expect(contentDefinition.fontOptions?.map(item => item.value)).toContain('Arial')
+    expect(fontResult?.items).toEqual([])
+    expect(contentDefinition.fontOptions).toEqual([])
     expect(imageEntries?.map(item => item.name)).toContain('portrait.png')
-    expect(readDirectoryEntries).toHaveBeenCalledWith('D:/Project', 1, '')
+    expect(readDirectoryEntries).toHaveBeenCalledWith('D:/Project', 1)
     readDirectoryEntries.mockRestore()
   })
 })

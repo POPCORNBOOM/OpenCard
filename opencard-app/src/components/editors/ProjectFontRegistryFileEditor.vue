@@ -8,7 +8,7 @@
     <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
       :description="t('fontRegistry.description')" :families="document.families ?? []"
       :compositions="document.compositions ?? []"
-      :resolve-asset-src="source => projectStore.resolveAssetSrc(projectStore.resolveProjectInternalPath(source))"
+      :resolve-asset-src="source => projectStore.resolveResourceAssetSrcFromFile(props.filePath, source)"
       :read-font-bytes="readFontBytes"
       :load-errors="projectStore.projectFontLoadErrors.value"
       :error="importError" @update:families="updateFamilies" @update:compositions="updateCompositions"
@@ -76,6 +76,7 @@ import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../../features/workspace/model/
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import { stageProjectFontFiles } from '../../features/workspace/services/projectFontFileHistory'
+import { resolveResourcePath } from '../../features/workspace/model/scopedResourcePath'
 import ProjectFontRegistrationDialog, {
   type ProjectFontFamilyRegistrationRequest,
   type ProjectFontSlotKey,
@@ -121,6 +122,7 @@ const orphanedRemovalSources = computed(() => {
     .filter(candidate => candidate.key !== family.key)
     .flatMap(candidate => projectFontSources(candidate).map(source => source.toLocaleLowerCase())))
   return [...new Set(projectFontSources(family))]
+    .filter(source => source.toLocaleLowerCase().startsWith(`${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_FONT_DIRECTORY}/`))
     .filter(source => !remainingSources.has(source.toLocaleLowerCase()))
 })
 const sharedRemovalSourceCount = computed(() => (
@@ -134,7 +136,9 @@ const projectDirectory = computed(() => {
     : normalized
 })
 const fontDirectory = computed(() => `${projectDirectory.value}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_FONT_DIRECTORY}`)
-const readFontBytes = (source: string) => fileSystemService.readBinaryFile(projectStore.resolveProjectInternalPath(source))
+const readFontBytes = (source: string) => fileSystemService.readBinaryFile(
+  projectStore.resolveResourcePathFromFile(props.filePath, source),
+)
 const issueSnapshot = computed<EditorIssueSnapshot>(() => {
   const families = document.value?.families ?? []
   const compositions = document.value?.compositions ?? []
@@ -303,7 +307,7 @@ function getManagedFontSource(path: string): string | null {
   if (!relative) return null
   const prefix = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_FONT_DIRECTORY}/`
   return relative.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())
-    ? relative.slice(PROJECT_INTERNAL_DIRECTORY_NAME.length + 1)
+    ? relative
     : null
 }
 
@@ -331,9 +335,12 @@ async function confirmFamilyRemoval(): Promise<void> {
   let stagedFiles: Awaited<ReturnType<typeof stageProjectFontFiles>> | undefined
   try {
     if (cleanupOrphanedFiles.value && orphanedRemovalSources.value.length) {
-      stagedFiles = await stageProjectFontFiles(orphanedRemovalSources.value.map(source => (
-        `${projectDirectory.value}/${PROJECT_INTERNAL_DIRECTORY_NAME}/${source}`
-      )))
+      const paths = orphanedRemovalSources.value.map(source => {
+        const resolved = resolveResourcePath(projectDirectory.value, props.filePath, source)
+        if (!resolved.ok) throw new Error(resolved.message)
+        return resolved.value
+      })
+      stagedFiles = await stageProjectFontFiles(paths)
     }
     const nextFamilies = (document.value.families ?? []).filter(candidate => candidate.key !== family.key)
     const committed = commit({

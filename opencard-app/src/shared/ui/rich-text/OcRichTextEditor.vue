@@ -291,17 +291,9 @@ const StaticHighlight = Highlight.extend({
   },
 })
 
-const fallbackFontFamilies: readonly RichTextFontOption[] = [
-  { label: 'Arial', value: 'Arial' },
-  { label: 'Georgia', value: 'Georgia' },
-  { label: 'Impact', value: 'Impact' },
-  { label: 'Times New Roman', value: 'Times New Roman' },
-  { label: '微软雅黑', value: 'Microsoft YaHei' },
-  { label: '宋体', value: 'SimSun' },
-] as const
 const fontOptions = computed<readonly RichTextFontSelectOption[]>(() => [
   { label: '默认字体', value: '' },
-  ...(props.fontOptions ?? fallbackFontFamilies).map(option => ({
+  ...(props.fontOptions ?? []).map(option => ({
     ...option,
     labelStyle: { fontFamily: option.cssFamily ?? option.value },
   })),

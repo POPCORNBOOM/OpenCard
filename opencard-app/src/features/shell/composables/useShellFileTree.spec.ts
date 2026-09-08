@@ -18,6 +18,7 @@ describe('useShellFileTree opened editors', () => {
     const { openedEditorTreeData } = useShellFileTree({
       projectPath: ref(''),
       indexedEntries: ref([]),
+      packageManifests: ref(new Map()),
       openedEditorItems,
       activeSession: ref(null),
       translate: key => key,
@@ -35,6 +36,7 @@ describe('useShellFileTree opened editors', () => {
     const { projectTreeData } = useShellFileTree({
       projectPath: ref('D:/project'),
       indexedEntries: ref([{ name: 'cards/main.ocdocument', isDirectory: false }]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -64,6 +66,7 @@ describe('useShellFileTree opened editors', () => {
         { name: '.env', isDirectory: false },
         { name: 'notes.txt', isDirectory: false },
       ]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -87,6 +90,7 @@ describe('useShellFileTree opened editors', () => {
         { name: '.env', isDirectory: false },
       ]),
       hideDotFiles: ref(false),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -115,10 +119,8 @@ describe('useShellFileTree opened editors', () => {
         { name: '.opencard/fonts/Unused.otf', isDirectory: false },
         { name: '.opencard/icons/status.png', isDirectory: false },
         { name: '.opencard/icons/unused.png', isDirectory: false },
-        { name: '.opencard/blocks/alice', isDirectory: true },
-        { name: '.opencard/blocks/alice/square', isDirectory: true },
-        { name: '.opencard/blocks/alice/square/manifest.json', isDirectory: false },
       ]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => `translated:${key}`,
@@ -133,7 +135,6 @@ describe('useShellFileTree opened editors', () => {
       `${projectPath}/.opencard/locale.json`,
       `${projectPath}/.opencard/fonts/fonts.json`,
       `${projectPath}/.opencard/icons/icons.json`,
-      `${projectPath}/.opencard/blocks/blocks.json`,
       `${projectPath}/.opencard/packages/packages.json`,
     ])
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.label)
@@ -142,18 +143,11 @@ describe('useShellFileTree opened editors', () => {
       .toMatchObject({ icon: 'file.font', iconTone: 'config' })
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/fonts/fonts.json`)).toBe(false)
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/icons/icons.json`)).toBe(false)
-    expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/blocks/blocks.json`)).toBe(false)
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.actions)
       .toBeUndefined()
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/icons.json`)?.actions)
       .toBeUndefined()
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/blocks/blocks.json`)?.actions)
-      .toBeUndefined()
-    expect(result.projectManagementExpandedKeys.value).toEqual([
-      `${projectPath}/.opencard/packages/packages.json`,
-      `${projectPath}/.opencard/packages/alice`,
-      `${projectPath}/.opencard/packages/alice/square`,
-    ])
+    expect(result.projectManagementExpandedKeys.value).toEqual([])
 
     const fontRegistryKey = `${projectPath}/.opencard/fonts/fonts.json`
     expect(result.setProjectManagementEntryExpanded(fontRegistryKey, false)).toBe(false)
@@ -163,9 +157,6 @@ describe('useShellFileTree opened editors', () => {
     expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
     expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/fonts/fonts.json`)
 
-    await result.handleProjectManagementSelect([`${projectPath}/.opencard/icons/status.png`])
-    expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
-    expect(openPreviewFile).toHaveBeenLastCalledWith(`${projectPath}/.opencard/icons/status.png`)
   })
 
   it('does not expose cleanup actions before asset registries finish loading', async () => {
@@ -176,6 +167,7 @@ describe('useShellFileTree opened editors', () => {
         { name: '.opencard/fonts/Unused.otf', isDirectory: false },
         { name: '.opencard/icons/unused.png', isDirectory: false },
       ]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -205,6 +197,7 @@ describe('useShellFileTree opened editors', () => {
     const result = useShellFileTree({
       projectPath: ref('D:/project'),
       indexedEntries: ref([{ name: 'card.ocdocument', isDirectory: false }]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([{
         key: 'session-1',
         label: 'card.ocdocument',
@@ -218,7 +211,7 @@ describe('useShellFileTree opened editors', () => {
       openPreviewFile: vi.fn(async () => undefined),
       ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
-    const selectedFiles = result.selectedFileKeys.value
+    const selectedFiles = result.selectedProjectEntryKeys.value
     const selectedEditors = result.openedEditorSelectedKeys.value
 
     activeSession.value = {
@@ -228,7 +221,7 @@ describe('useShellFileTree opened editors', () => {
     }
     await nextTick()
 
-    expect(result.selectedFileKeys.value).toBe(selectedFiles)
+    expect(result.selectedProjectEntryKeys.value).toBe(selectedFiles)
     expect(result.openedEditorSelectedKeys.value).toBe(selectedEditors)
   })
 
@@ -238,6 +231,7 @@ describe('useShellFileTree opened editors', () => {
     const result = useShellFileTree({
       projectPath: ref('D:/project'),
       indexedEntries: ref([{ name: 'assets/fonts/Brand.otf', isDirectory: false }]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       translate: key => key,
@@ -249,7 +243,7 @@ describe('useShellFileTree opened editors', () => {
 
     await result.handleFileTreeSelect([path])
 
-    expect(result.selectedFileKeys.value).toEqual([path])
+    expect(result.selectedProjectEntryKeys.value).toEqual([path])
     expect(openPreviewFile).toHaveBeenCalledWith(path)
   })
 
@@ -261,6 +255,7 @@ describe('useShellFileTree opened editors', () => {
         { name: 'assets/fonts/Brand.otf', isDirectory: false },
         { name: 'assets/fonts/Other.otf', isDirectory: false },
       ]),
+      packageManifests: ref(new Map()),
       openedEditorItems: ref([]),
       activeSession: ref(null),
       registeredFontSources: ref(['assets/fonts/Brand.otf']),

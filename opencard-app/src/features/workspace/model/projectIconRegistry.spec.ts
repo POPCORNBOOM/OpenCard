@@ -12,7 +12,7 @@ describe('project icon registry', () => {
       iconSeries: [{
         name: 'Status icons',
         key: 'status',
-        source: 'assets\\icons\\status.png',
+        source: 'theme@icons/status.png',
         grid: { snapToGrid: true, rows: 2, columns: 3 },
         icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
       }],
@@ -20,7 +20,7 @@ describe('project icon registry', () => {
       iconSeries: [{
         name: 'Status icons',
         key: 'status',
-        source: 'assets/icons/status.png',
+        source: 'theme@icons/status.png',
         grid: { snapToGrid: true, rows: 2, columns: 3, pixelated: false },
         icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
       }],

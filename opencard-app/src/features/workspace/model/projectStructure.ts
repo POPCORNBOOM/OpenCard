@@ -15,7 +15,7 @@ export const PROJECT_INTERNAL_FILE_DEFAULTS = Object.freeze({
   [PROJECT_FONT_REGISTRY_FILE_NAME]: '{}\n',
   [PROJECT_ICON_REGISTRY_FILE_NAME]: '{}\n',
   [PROJECT_DICTIONARY_FILE_NAME]: '{}\n',
-  [PROJECT_PACKAGE_MANIFEST_FILE_NAME]: '{\n  "type": "opencard-project-packages",\n  "packages": []\n}\n',
+  [PROJECT_PACKAGE_MANIFEST_FILE_NAME]: '{\n  "type": "opencard-project-packages",\n  "packages": {}\n}\n',
 })
 
 export const PROJECT_INTERNAL_DIRECTORIES = Object.freeze([

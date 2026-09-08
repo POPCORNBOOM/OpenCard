@@ -100,6 +100,7 @@ export function createCdeDictionaryReferenceScope(
 }
 
 export function enrichCardPropertyFieldDefinition(options: {
+  translate: Translate
   definition: CardPropertyFieldDefinition
   fieldKey: string
   record: Readonly<Record<string, unknown>>
@@ -121,9 +122,9 @@ export function enrichCardPropertyFieldDefinition(options: {
     ? buildResourceFontCatalog(options.resourceEnvironment)
     : options.fontCatalog
   const fontProvider = options.fieldKey === 'fontFamily'
-    ? createFontCompletionProvider(fontCatalog)
+    ? createFontCompletionProvider(fontCatalog, options.translate('propertyEditor.references.project'), options.resourceEnvironment)
     : undefined
-  const iconProvider = options.fieldKey === 'content' && options.definition.fieldType === 'string'
+  const iconProvider = (options.fieldKey === 'content' || (options.fieldKey === 'source' && options.definition.fieldType === 'filePath'))
     ? createProjectIconCompletionProvider(options.iconSeries, options.projectIconCatalog)
     : undefined
   const provider = bindingProvider || fontProvider || iconProvider
@@ -133,7 +134,7 @@ export function enrichCardPropertyFieldDefinition(options: {
     ? fontCatalog.map(font => ({
         label: font.label,
         value: font.value,
-        cssFamily: toCssFontFamily(font.value),
+        cssFamily: font.cssFamily ?? toCssFontFamily(font.value),
       }))
     : undefined
   const richTextBaseStyle = options.definition.fieldType === 'string' && options.definition.richText
@@ -169,7 +170,7 @@ export function enrichCardPropertyFieldDefinition(options: {
 function createReferenceCompletionProvider(
   context: ReferenceCompletionContext,
 ): PropertyCompletionProvider {
-  return ({ value, cursor }) => {
+  return async ({ value, cursor }) => {
     const state = resolveReferenceCompletion(value, cursor, context)
     if (!state) return null
     return {
@@ -189,29 +190,54 @@ function createReferenceCompletionProvider(
 
 function createFontCompletionProvider(
   fontCatalog: readonly FontCatalogEntry[],
+  projectLabel: string,
+  environment?: ProjectResourceEnvironment,
 ): PropertyCompletionProvider {
-  return ({ value, cursor }) => {
+  const scopes = new Map<string, string>()
+  for (const font of fontCatalog) {
+    if (font.source === 'system') continue
+    const prefix = font.value.slice(0, font.value.indexOf('font:') + 5)
+    const packageKey = prefix.includes('@') ? prefix.slice(0, prefix.indexOf('@')) : null
+    scopes.set(prefix, packageKey ? environment?.packages?.get(packageKey)?.manifest.name || packageKey : projectLabel)
+  }
+  return async ({ value, cursor }) => {
     const position = Math.min(cursor, value.length)
     const replaceStart = value.lastIndexOf(';', Math.max(0, position - 1)) + 1
     const nextSeparator = value.indexOf(';', position)
     const replaceEnd = nextSeparator < 0 ? value.length : nextSeparator
     const fragment = value.slice(replaceStart, position).trim().toLocaleLowerCase()
     const insertionPrefix = replaceStart > 0 ? ' ' : ''
+    const scope = [...scopes.keys()].find(prefix => fragment.startsWith(prefix.toLocaleLowerCase()))
+    const query = scope ? fragment.slice(scope.length) : fragment
     return {
       replaceStart,
       replaceEnd,
-      items: fontCatalog
-        .filter(font => !fragment
-          || font.label.toLocaleLowerCase().includes(fragment)
-          || font.value.toLocaleLowerCase().includes(fragment))
+      items: [
+        ...(!scope ? [...scopes].filter(([prefix, label]) => !fragment
+          || prefix.toLocaleLowerCase().includes(fragment) || label.toLocaleLowerCase().includes(fragment))
+          .map(([prefix, label]) => ({
+            key: `font-scope:${prefix}`, label,
+            insertText: `${insertionPrefix}${prefix}`, keepOpen: true,
+          })) : []),
+        ...fontCatalog
+        .filter(font => scope ? font.value.startsWith(scope) : font.source === 'system')
+        .filter(font => !query
+          || font.label.toLocaleLowerCase().includes(query)
+          || (scope ? font.value.slice(scope.length) : font.value).toLocaleLowerCase().includes(query))
         .map(font => ({
           key: `font:${font.value}`,
           label: font.label,
-          detail: font.value.replace(/^(?:font|project):/, ''),
-          labelStyle: { fontFamily: toCssFontFamily(font.value) },
+          labelStyle: { fontFamily: font.cssFamily ?? toCssFontFamily(font.value) },
           insertText: `${insertionPrefix}${font.value}`,
           value: `${insertionPrefix}${font.value}`,
         })),
+      ],
+      ...(scope ? {
+        parent: {
+          key: 'font-scope:parent', label: '..', icon: 'nav.arrow-up' as const,
+          insertText: insertionPrefix, keepOpen: true,
+        },
+      } : {}),
     }
   }
 }

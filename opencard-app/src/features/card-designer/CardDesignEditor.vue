@@ -324,8 +324,8 @@ import { readOcClipboard, writeOcClipboard } from '../../shared/model/clipboard/
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import {
   getEditorResourceRelativePath,
-  resolveEditorResourcePath,
 } from '../editor-runtime/services/editorResource'
+import { createResourceDirectoryProvider } from '../workspace/services/resourceDirectoryProvider'
 import {
   isCardDesignerNavigationToken,
   type CardDesignerNavigationResult,
@@ -352,6 +352,7 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t, te, locale } = useI18n()
 const projectStore = useProjectStore()
+const settingsStore = useAppSettingsStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
 
 const diffModel = computed(() => {
@@ -367,6 +368,7 @@ const diffBeforeRender = computed<PreparedCardRender | null>(() => {
     document: model.beforeDocument,
     instance: diffBeforeInstance.value,
     resourceRootPath: snapshot.resourceRootPath ?? null,
+    sourceFilePath: snapshot.sourceFilePath ?? null,
     environment: {
       ...projectStore.renderEnvironment.value,
       project: snapshot.project ?? null,
@@ -385,6 +387,7 @@ const diffAfterRender = computed<PreparedCardRender | null>(() => {
     document: model.afterDocument,
     instance: diffAfterInstance.value,
     resourceRootPath: snapshot.resourceRootPath ?? null,
+    sourceFilePath: snapshot.sourceFilePath ?? null,
     environment: {
       ...projectStore.renderEnvironment.value,
       project: snapshot.project ?? null,
@@ -1483,7 +1486,16 @@ const propertyProjectContext = computed(() => ({
 }))
 const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined>(() => {
   const rootPath = props.resourceRootPath
-  return rootPath ? createEditorResourceDirectoryProvider(rootPath) : undefined
+  const sourceFilePath = props.filePath?.startsWith('draft://') ? null : props.filePath
+  return rootPath && sourceFilePath
+    ? createResourceDirectoryProvider(
+        rootPath,
+        sourceFilePath,
+        projectStore.projectResourceEnvironment.value,
+        fileSystemService,
+        { hideDotFiles: settingsStore.settings.value.workspace.hideDotFiles },
+      )
+    : undefined
 })
 const { propertyEditorInputs } = useCdePropertyEditorProjection({
   cardDoc,
@@ -1651,16 +1663,6 @@ function updateAdditionalFieldKey(value: string): void {
 
 function updateAdditionalFieldTitle(value: string): void {
   additionalFieldCreateDraft.value.title = value
-}
-
-function createEditorResourceDirectoryProvider(rootPath: string): FilePathDirectoryProvider {
-  return async (relativeDirectory) => {
-    const directoryPath = relativeDirectory
-      ? resolveEditorResourcePath(rootPath, relativeDirectory)
-      : rootPath
-    if (!directoryPath) return []
-    return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativeDirectory)
-  }
 }
 
 const selectedLocationType = computed<'simple-container-location' | 'flow-container-location' | null>(() => {
@@ -1833,6 +1835,7 @@ function handleRuntimeRenderIssuesChange(
   runtimeRenderIssues.value = issues
 }
 const renderResourceRootPath = computed(() => props.resourceRootPath ?? null)
+const renderSourceFilePath = computed(() => props.filePath?.startsWith('draft://') ? null : props.filePath ?? null)
 const {
   findViewBlock,
   renderPipelineResult,
@@ -1845,6 +1848,7 @@ const {
   instance: renderTargetInstance,
   activeFaceKey,
   resourceRootPath: renderResourceRootPath,
+  sourceFilePath: renderSourceFilePath,
   renderEnvironment,
 })
 watch(renderPipelineResult, (result) => {

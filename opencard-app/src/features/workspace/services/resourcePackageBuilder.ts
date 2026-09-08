@@ -4,8 +4,6 @@ import {
   RESOURCE_PACKAGE_SUFFIX,
   normalizeResourcePackageManifest,
   serializeResourcePackageManifest,
-  type ResourcePackageDependency,
-  type ResourcePackageHostDependency,
   type ResourcePackageManifest,
   type ResourcePackagePublicResources,
 } from '../model/resourcePackage'
@@ -21,8 +19,6 @@ export type ResourcePackageBuildOptions = {
   version: string
   files: readonly ResourcePackageContentFile[]
   public?: Partial<ResourcePackagePublicResources>
-  dependencies?: readonly ResourcePackageDependency[]
-  hostDependencies?: readonly ResourcePackageHostDependency[]
   compressionLevel?: number
 }
 
@@ -40,7 +36,6 @@ function normalizePublicResources(
   return {
     fonts: [...(values.fonts ?? [])],
     iconSeries: [...(values.iconSeries ?? [])],
-    assets: [...(values.assets ?? [])],
   }
 }
 
@@ -66,11 +61,9 @@ export async function buildResourcePackageArchive(
     version: options.version,
     contentHash,
     public: normalizePublicResources(options.public),
-    dependencies: options.dependencies ?? [],
-    ...(options.hostDependencies ? { hostDependencies: options.hostDependencies } : {}),
   }, options.key)
   if (normalized.issues.length > 0) {
-    throw new Error(`Invalid resource package manifest: ${normalized.issues.map(issue => `${issue.path}: ${issue.message}`).join('; ')}`)
+    throw new Error(`Invalid package manifest: ${normalized.issues.map(issue => `${issue.path}: ${issue.message}`).join('; ')}`)
   }
   const manifest = normalized.manifest
   const archive = zipSync(archiveEntries(files, manifest), {

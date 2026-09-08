@@ -359,7 +359,7 @@ defineExpose({ activateIconKey })
 <style scoped>
 .project-icon-set-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(var(--oc-project-icon-property-min-width), 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
   min-height: var(--oc-project-icon-inspector-min-height);
   border: var(--oc-border-width) solid var(--oc-border-muted);

@@ -35,6 +35,7 @@ export type CardRenderRequest = {
   document: CardDocument
   instance: CardInstanceRecord | null
   resourceRootPath: string | null
+  sourceFilePath: string | null
   environment: Readonly<CardRenderEnvironment>
 }
 
@@ -72,6 +73,7 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
     ...result,
     resources: createCardRenderResourceContext({
       resourceRootPath: request.resourceRootPath,
+      sourceFilePath: request.sourceFilePath,
       hostEnvironment: request.environment.projectResourceEnvironment,
       packageEnvironments: request.environment.projectResourceEnvironment?.packageEnvironments,
       remoteResourcePolicy: request.environment.remoteResourcePolicy,

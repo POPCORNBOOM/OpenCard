@@ -4,6 +4,10 @@ import type { OpenedEditorItem, EditorSession } from '../../workspace/store/edit
 import { resolveEntryIcon } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
 import type { IconToken } from '../../../shared/ui/icon/iconTokens'
+import {
+  resolveInstalledResourcePackageManifestPath,
+  type ResourcePackageManifest,
+} from '../../workspace/model/resourcePackage'
 import { notifyAppError } from '../../notifications/titlebarNotices'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
@@ -25,6 +29,7 @@ export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-a
 const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
 const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
 const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
+const PROJECT_PACKAGE_DELETE_ACTION_PREFIX = 'project-package-delete:'
 type ProjectManagementEntry = {
   path: string
   labelKey: string
@@ -61,6 +66,10 @@ export function isProjectEntryConfirmDeleteActionKey(actionKey: string): boolean
   return actionKey.startsWith(PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX)
 }
 
+export function projectPackageDeleteActionKey(packageKey: string): string {
+  return `${PROJECT_PACKAGE_DELETE_ACTION_PREFIX}${packageKey}`
+}
+
 type IndexedEntry = {
   name: string
   isDirectory?: boolean | null
@@ -78,6 +87,7 @@ type ProjectEntryView = {
 type UseShellFileTreeOptions = {
   projectPath: Readonly<Ref<string>>
   indexedEntries: Readonly<Ref<readonly IndexedEntry[]>>
+  packageManifests: Readonly<Ref<ReadonlyMap<string, ResourcePackageManifest>>>
   openedEditorItems: Readonly<Ref<OpenedEditorItem[]>>
   activeSession: Readonly<Ref<EditorSession | null>>
   hideDotFiles?: Readonly<Ref<boolean>>
@@ -104,7 +114,8 @@ function isDotPath(path: string): boolean {
 }
 
 export function useShellFileTree(options: UseShellFileTreeOptions) {
-  const selectedFileKeys = ref<string[]>([])
+  const selectedProjectEntryKeys = ref<string[]>([])
+  const selectedManagementKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
   const collapsedProjectManagementKeys = ref<ReadonlySet<string>>(new Set())
   const managedRegisteredFontSources = computed(() => new Set(
@@ -197,10 +208,19 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     }
   })
 
-  const projectManagementTreeData = computed<OcTreeData>(() => {
-    if (!options.projectPath.value) return { rootKeys: [], items: new Map(), children: new Map() }
+  const projectManagementProjection = computed(() => {
+    const emptyTreeData: OcTreeData = { rootKeys: [], items: new Map(), children: new Map() }
+    if (!options.projectPath.value) return {
+      treeData: emptyTreeData,
+      targetByNodeKey: new Map<string, string>(),
+      nodeKeyByTargetPath: new Map<string, string>(),
+      packageKeyByNodeKey: new Map<string, string>(),
+    }
     const items = new Map<string, OcTreeItem>()
     const children = new Map<string, readonly string[]>()
+    const targetByNodeKey = new Map<string, string>()
+    const nodeKeyByTargetPath = new Map<string, string>()
+    const packageKeyByNodeKey = new Map<string, string>()
     const rootKeys = PROJECT_MANAGEMENT_ENTRIES.map((entry) => {
       const key = normalizeShellPath(`${options.projectPath.value}/${entry.path}`)
       const presentation = entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY
@@ -211,41 +231,39 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         icon: presentation.icon,
         iconTone: presentation.tone,
       })
+      targetByNodeKey.set(key, key)
+      nodeKeyByTargetPath.set(key, key)
       if (entry.packageDirectory && entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY) {
         const directory = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${entry.assetDirectory}`
-        const childSets = new Map<string, Set<string>>()
-        for (const indexedEntry of options.indexedEntries.value) {
-          const relativePath = normalizeShellPath(indexedEntry.name)
-          if (!relativePath.startsWith(`${directory}/`)) continue
-          if (relativePath === entry.path || relativePath === `${directory}/${entry.path.split('/').pop()}`) continue
-          const segments = relativePath.slice(directory.length + 1).split('/').filter(Boolean)
-          let parentKey = key
-          segments.forEach((segment, index) => {
-            const nodeRelativePath = `${directory}/${segments.slice(0, index + 1).join('/')}`
-            const nodeKey = normalizeShellPath(`${options.projectPath.value}/${nodeRelativePath}`)
-            const isDirectory = index < segments.length - 1 || Boolean(indexedEntry.isDirectory)
-            if (!items.has(nodeKey)) {
-              const nodePresentation = entry.assetDirectory === PROJECT_PACKAGE_DIRECTORY
-                ? { icon: 'file.package' as IconToken, tone: 'config' as const }
-                : resolveEntryIcon(nodeKey, isDirectory, false, options.projectPath.value)
-              items.set(nodeKey, {
-                label: segment,
-                icon: nodePresentation.icon,
-                iconTone: nodePresentation.tone,
-                ...(index === 1 ? { tail: `${segments[0]}/${segments[1]}` } : {}),
-              })
-            }
-            if (!childSets.has(parentKey)) childSets.set(parentKey, new Set())
-            childSets.get(parentKey)!.add(nodeKey)
-            parentKey = nodeKey
+        const packageNodeKeys = [...options.packageManifests.value.keys()].sort().map((packageKey) => {
+          const nodeKey = normalizeShellPath(`${options.projectPath.value}/${directory}/${packageKey}`)
+          const targetPath = resolveInstalledResourcePackageManifestPath(options.projectPath.value, packageKey)
+          items.set(nodeKey, {
+            label: packageKey,
+            icon: 'file.package',
+            iconTone: 'config',
+            actions: [projectPackageDeleteActionKey(packageKey)],
           })
+          targetByNodeKey.set(nodeKey, targetPath)
+          nodeKeyByTargetPath.set(targetPath, nodeKey)
+          packageKeyByNodeKey.set(nodeKey, packageKey)
+          return nodeKey
+        })
+        if (packageNodeKeys.length > 0) {
+          children.set(key, packageNodeKeys)
         }
-        for (const [parentKey, childKeys] of childSets) children.set(parentKey, [...childKeys].sort())
       }
       return key
     })
-    return { rootKeys, items, children }
+    return {
+      treeData: { rootKeys, items, children },
+      targetByNodeKey,
+      nodeKeyByTargetPath,
+      packageKeyByNodeKey,
+    }
   })
+
+  const projectManagementTreeData = computed<OcTreeData>(() => projectManagementProjection.value.treeData)
 
   const projectManagementExpandedKeys = computed(() => (
     [...projectManagementTreeData.value.children.keys()].filter(
@@ -284,6 +302,10 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     return projectProjection.value.byKey.get(normalizeShellPath(key)) ?? null
   }
 
+  function findProjectPackageKeyByNodeKey(nodeKey: string): string | null {
+    return projectManagementProjection.value.packageKeyByNodeKey.get(normalizeShellPath(nodeKey)) ?? null
+  }
+
   function setProjectEntryExpanded(key: string, expanded: boolean): boolean {
     const entry = findProjectEntryByKey(key)
     if (!entry?.isDirectory || entry.children.length === 0) return false
@@ -291,14 +313,14 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   }
 
   async function handleProjectManagementSelect(nextSelectedKeys: string[]): Promise<void> {
-    selectedFileKeys.value = nextSelectedKeys
+    selectedManagementKeys.value = nextSelectedKeys
     const selectedKey = nextSelectedKeys[0]
     if (!selectedKey) return
     try {
       const isManagementRoot = projectManagementTreeData.value.rootKeys.includes(selectedKey)
       if (isManagementRoot) await options.ensureProjectManagementStructure()
-      if (!isManagementRoot && projectManagementTreeData.value.children.has(selectedKey)) return
-      await options.openPreviewFile(selectedKey)
+      const targetPath = projectManagementProjection.value.targetByNodeKey.get(selectedKey)
+      if (targetPath) await options.openPreviewFile(targetPath)
     } catch (error) {
       notifyAppError('OC-E4001', { path: selectedKey, error })
     }
@@ -307,7 +329,8 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   function syncSelectionFromActiveSession(session: EditorSession | null): void {
     if (!session) {
       setSelectedKeys(openedEditorSelectedKeys, [])
-      setSelectedKeys(selectedFileKeys, [])
+      setSelectedKeys(selectedProjectEntryKeys, [])
+      setSelectedKeys(selectedManagementKeys, [])
       return
     }
 
@@ -315,13 +338,16 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     setSelectedKeys(openedEditorSelectedKeys, opened ? [session.id] : [])
 
     if (session.resourceKind !== 'workspace' || !session.path) {
-      setSelectedKeys(selectedFileKeys, [])
+      setSelectedKeys(selectedProjectEntryKeys, [])
+      setSelectedKeys(selectedManagementKeys, [])
       return
     }
 
-    const entry = findProjectEntryByKey(session.path)
-    const managed = projectManagementTreeData.value.items.has(session.path)
-    setSelectedKeys(selectedFileKeys, entry || managed ? [session.path] : [])
+    const normalizedSessionPath = normalizeShellPath(session.path)
+    const entry = findProjectEntryByKey(normalizedSessionPath)
+    const managedKey = projectManagementProjection.value.nodeKeyByTargetPath.get(normalizedSessionPath)
+    setSelectedKeys(selectedProjectEntryKeys, entry ? [normalizedSessionPath] : [])
+    setSelectedKeys(selectedManagementKeys, managedKey ? [managedKey] : [])
   }
 
   function handleOpenedEditorsSelect(nextSelectedKeys: string[]): void {
@@ -331,7 +357,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   }
 
   async function handleFileTreeSelect(nextSelectedKeys: string[]): Promise<void> {
-    selectedFileKeys.value = nextSelectedKeys
+    selectedProjectEntryKeys.value = nextSelectedKeys
     if (nextSelectedKeys.length !== 1) return
     const selectedEntry = findProjectEntryByKey(nextSelectedKeys[0])
     if (!selectedEntry || selectedEntry.isDirectory) return
@@ -343,10 +369,10 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   }
 
   watch(
-    () => {
+    [() => {
       const session = options.activeSession.value
       return session ? `${session.id}\0${session.resourceKind}\0${session.path ?? ''}` : ''
-    },
+    }, () => projectProjection.value.byKey, () => projectManagementProjection.value.nodeKeyByTargetPath],
     () => syncSelectionFromActiveSession(options.activeSession.value),
     { immediate: true },
   )
@@ -357,12 +383,14 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     projectManagementExpandedKeys,
     projectExpandedKeys,
     openedEditorTreeData,
-    selectedFileKeys,
+    selectedProjectEntryKeys,
+    selectedManagementKeys,
     openedEditorSelectedKeys,
     handleOpenedEditorsSelect,
     handleFileTreeSelect,
     handleProjectManagementSelect,
     findProjectEntryByKey,
+    findProjectPackageKeyByNodeKey,
     setProjectManagementEntryExpanded,
     setProjectEntryExpanded,
   }

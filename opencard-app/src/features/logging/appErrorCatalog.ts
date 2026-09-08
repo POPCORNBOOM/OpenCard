@@ -133,6 +133,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法导入自定义块', 'en-US': 'Could not import the custom block' },
     solution: '确认 .ocblock 文件完整有效，并检查应用资源目录写入权限。',
   },
+  'OC-E3016': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '无法更新项目包', 'en-US': 'Could not update the project package' },
+    solution: '确认包目录未被其他程序占用且项目可写，然后重新打开项目再试。',
+  },
   'OC-E4001': {
     area: '编辑器与文档',
     meaning: { 'zh-CN': '无法在预览会话中打开文件', 'en-US': 'Could not open the file in a preview session' },

@@ -1,10 +1,10 @@
 import { defineComponent, h, type PropType, type VNodeChild } from 'vue'
 import type { RichTextNode } from '../../../shared/rich-text/richTextHtml'
 import type { RenderReadyTextBlock } from '../render.types'
-import { createProjectIconStyle } from '../../workspace/services/projectIconCatalog'
 import type { PreparedRichText } from '../prepareRichText'
 import { useCardEditorContext } from './cardEditorContext'
 import OcIcon from '../../../components/base/OcIcon.vue'
+import ProjectIconGraphic from './ProjectIconGraphic.vue'
 
 export default defineComponent({
   name: 'RichTextDocumentRenderer',
@@ -19,7 +19,7 @@ export default defineComponent({
       if (node.type === 'icon') {
         const entry = context.resources.resolveIcon(`icon:${node.seriesKey}/${node.iconKey}`, props.ownerBlock.id, 'content')
         return entry
-          ? h('span', { class: 'project-inline-icon oc-project-icon', style: createProjectIconStyle(entry), role: 'img', 'aria-label': entry.name })
+          ? h(ProjectIconGraphic, { class: 'project-inline-icon', entry, mode: 'inline' })
           : h(OcIcon, { name: 'status.warning', tone: 'warning', size: 'md' })
       }
       return h(node.tag, node.attributes, node.children.map(renderNode))

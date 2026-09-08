@@ -25,6 +25,7 @@ type UseCdeRenderProjectionOptions = {
   instance: Readonly<Ref<CardInstanceRecord | null>>
   activeFaceKey: Readonly<Ref<CardFaceKey>>
   resourceRootPath: Readonly<Ref<string | null>>
+  sourceFilePath: Readonly<Ref<string | null>>
   renderEnvironment: Readonly<Ref<Readonly<CardRenderEnvironment>>>
 }
 
@@ -37,6 +38,7 @@ export function useCdeRenderProjection(options: UseCdeRenderProjectionOptions) {
       document,
       instance: options.instance.value,
       resourceRootPath: options.resourceRootPath.value,
+      sourceFilePath: options.sourceFilePath.value,
       environment: options.renderEnvironment.value,
     })
   })

@@ -54,7 +54,7 @@ export type RenderReadyMarkdownTextBlock = RenderReadyTextContentBlock & {
 
 export type RenderReadyImageBlock = RenderReadyBaseBlock & {
   type: 'image-block'
-  image: string
+  source: string
   fit: 'cover' | 'contain' | 'fill'
 }
 

@@ -34,17 +34,17 @@
           <div class="resource-package-builder__fields">
             <label>
               <OcText as="span" size="sm">{{ t('resourcePackage.name') }}</OcText>
-              <OcFieldInput full-width autofocus :value="name" :disabled="busy"
+              <OcFieldInput variant="underline" full-width autofocus :value="name" :disabled="busy"
                 @input="name = ($event.target as HTMLInputElement).value" />
             </label>
             <label>
               <OcText as="span" size="sm">{{ t('resourcePackage.key') }}</OcText>
-              <OcFieldInput full-width mono :value="packageKey" :placeholder="generatedKey" :disabled="busy"
+              <OcFieldInput variant="underline" full-width mono :value="packageKey" :placeholder="generatedKey" :disabled="busy"
                 @input="packageKey = ($event.target as HTMLInputElement).value" />
             </label>
             <label>
               <OcText as="span" size="sm">{{ t('resourcePackage.version') }}</OcText>
-              <OcFieldInput full-width mono :value="version" :disabled="busy"
+              <OcFieldInput variant="underline" full-width mono :value="version" :disabled="busy"
                 @input="version = ($event.target as HTMLInputElement).value" />
             </label>
           </div>
@@ -79,6 +79,7 @@ import OcPanel from '../../../components/base/OcPanel.vue'
 import OcText from '../../../components/base/OcText.vue'
 import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
+import { resolveFileType } from '../model/fileTypes'
 import { toKeySlug } from '../../../shared/model/keySlug'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { buildResourcePackageFromProject } from '../services/buildResourcePackage'
@@ -95,50 +96,52 @@ const version = ref('1.0.0')
 const selectedFamilyKeys = ref<Set<string>>(new Set())
 const selectedCompositionKeys = ref<Set<string>>(new Set())
 const selectedIconSeriesKeys = ref<Set<string>>(new Set())
-const selectedResourceIds = ref<Set<string>>(new Set())
+const selectedImageIds = ref<Set<string>>(new Set())
 const busy = ref(false)
 const errorText = ref('')
 
-type ResourceKind = 'images'
 type PackageCandidate = {
   id: string
-  kind: ResourceKind
   label: string
   detail?: string
-  paths: readonly string[]
-}
-const categoryLabels: Record<ResourceKind, string> = {
-  images: 'resourcePackage.images',
-}
-const categoryIcons: Record<ResourceKind, 'file.image'> = {
-  images: 'file.image',
 }
 
-function relativePath(path: string): string {
-  const normalized = path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
-  const root = props.projectRootPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
-  return normalized.toLocaleLowerCase().startsWith(`${root.toLocaleLowerCase()}/`)
-    ? normalized.slice(root.length + 1)
+function projectRelativePath(path: string): string | null {
+  const normalized = path.replace(/\\/g, '/').replace(/\/+$/g, '')
+  const root = props.projectRootPath.replace(/\\/g, '/').replace(/\/+$/g, '')
+  if (!root) return null
+  const absolute = normalized.startsWith('/') || /^[a-z]:\//i.test(normalized)
+  const relative = absolute
+    ? normalized.toLocaleLowerCase().startsWith(`${root.toLocaleLowerCase()}/`)
+      ? normalized.slice(root.length + 1)
+      : ''
     : normalized
+  const segments = relative.split('/')
+  return relative && !/^[a-z]:/i.test(relative)
+    && segments.every(segment => segment && segment !== '.' && segment !== '..')
+    ? relative
+    : null
 }
 
-const candidates = computed<readonly PackageCandidate[]>(() => [
-  ...props.entries.map(path => ({ path, relative: relativePath(path) }))
-    .filter(entry => {
-      const lower = entry.relative.toLocaleLowerCase()
-      return /\.(png|jpe?g|gif|webp|svg)$/.test(lower)
+const imageCandidates = computed<readonly PackageCandidate[]>(() => [
+  ...props.entries.map(projectRelativePath)
+    .filter((relative): relative is string => Boolean(relative))
+    .filter(relative => {
+      const lower = relative.toLocaleLowerCase()
+      return resolveFileType(relative, props.projectRootPath).id === 'image'
         && !lower.startsWith('.git/') && lower !== '.git'
         && !lower.startsWith('.opencard/')
     })
-    .map(entry => ({ id: `image:${entry.relative}`, kind: 'images' as const, label: entry.relative.split('/').pop() ?? entry.relative, detail: entry.relative, paths: [entry.relative] })),
+    .map(relative => ({
+      id: `image:${relative}`,
+      label: relative.split('/').pop() ?? relative,
+      detail: relative,
+    })),
 ])
-const categories = computed(() => (Object.keys(categoryLabels) as ResourceKind[])
-  .map(kind => ({ kind, entries: candidates.value.filter(entry => entry.kind === kind) }))
-  .filter(group => group.entries.length > 0))
 const expandedKeys = computed(() => [...expandedKeySet.value])
 const expandedKeySet = ref<Set<string>>(new Set())
 const selectedCount = computed(() => selectedFamilyKeys.value.size
-  + selectedCompositionKeys.value.size + selectedIconSeriesKeys.value.size + selectedResourceIds.value.size)
+  + selectedCompositionKeys.value.size + selectedIconSeriesKeys.value.size + selectedImageIds.value.size)
 const selectedResourceCount = selectedCount
 const generatedKey = computed(() => toKeySlug(name.value.trim(), ''))
 const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || generatedKey.value, ''))
@@ -213,32 +216,31 @@ const treeData = computed<OcTreeData>(() => {
       return key
     }))
   }
-  for (const group of categories.value) {
-    const categoryKey = `category:${group.kind}`
+  if (imageCandidates.value.length > 0) {
+    const categoryKey = 'category:images'
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
-      label: t(categoryLabels[group.kind]), icon: categoryIcons[group.kind], iconTone: 'config',
-      tail: `${group.entries.filter(entry => selectedResourceIds.value.has(entry.id)).length}/${group.entries.length}`,
+      label: t('resourcePackage.images'), icon: 'file.image', iconTone: 'config',
+      tail: `${imageCandidates.value.filter(entry => selectedImageIds.value.has(entry.id)).length}/${imageCandidates.value.length}`,
     })
-    for (const entry of group.entries) {
+    for (const entry of imageCandidates.value) {
       const segments = (entry.detail ?? entry.label).split('/')
-      const displaySegments = group.kind === 'images' ? segments : [entry.label]
       let parentKey = categoryKey
       let folderPath = ''
-      for (const segment of displaySegments.slice(0, -1)) {
+      for (const segment of segments.slice(0, -1)) {
         folderPath = folderPath ? `${folderPath}/${segment}` : segment
-        const folderKey = `folder:${group.kind}:${folderPath}`
+        const folderKey = `folder:images:${folderPath}`
         if (!items.has(folderKey)) {
           items.set(folderKey, { label: segment, icon: 'folder.generic', iconTone: 'muted' })
         }
         addChild(parentKey, folderKey)
         parentKey = folderKey
       }
-      const selected = selectedResourceIds.value.has(entry.id)
+      const selected = selectedImageIds.value.has(entry.id)
       items.set(entry.id, {
-        label: displaySegments[displaySegments.length - 1] ?? entry.label,
+        label: segments[segments.length - 1] ?? entry.label,
         tail: entry.detail,
-        icon: categoryIcons[group.kind], iconTone: selected ? 'active' : 'muted',
+        icon: 'file.image', iconTone: selected ? 'active' : 'muted',
         actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
       })
       addChild(parentKey, entry.id)
@@ -255,10 +257,9 @@ watch(() => props.open, open => {
   selectedFamilyKeys.value = new Set()
   selectedCompositionKeys.value = new Set()
   selectedIconSeriesKeys.value = new Set()
-  selectedResourceIds.value = new Set()
+  selectedImageIds.value = new Set()
   expandedKeySet.value = new Set([
-    'category:fonts', 'font-group:families', 'font-group:compositions', 'category:icons',
-    ...categories.value.map(group => `category:${group.kind}`),
+    'category:fonts', 'font-group:families', 'font-group:compositions', 'category:icons', 'category:images',
   ])
   errorText.value = ''
 })
@@ -270,7 +271,7 @@ function clearSelection(): void {
   selectedFamilyKeys.value = new Set()
   selectedCompositionKeys.value = new Set()
   selectedIconSeriesKeys.value = new Set()
-  selectedResourceIds.value = new Set()
+  selectedImageIds.value = new Set()
 }
 function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'expansion.change') {
@@ -305,10 +306,10 @@ function handleTreeIntent(intent: OcTreeIntent): void {
     selectedIconSeriesKeys.value = next
     return
   }
-  const next = new Set(selectedResourceIds.value)
+  const next = new Set(selectedImageIds.value)
   if (intent.actionKey === 'select') next.add(intent.key)
   if (intent.actionKey === 'deselect') next.delete(intent.key)
-  selectedResourceIds.value = next
+  selectedImageIds.value = next
 }
 
 async function build(): Promise<void> {
@@ -321,11 +322,11 @@ async function build(): Promise<void> {
       extensions: ['ocpack'], title: t('resourcePackage.buildTitle'),
     })
     if (!outputPath) return
-    const selected = candidates.value.filter(candidate => selectedResourceIds.value.has(candidate.id))
+    const selected = imageCandidates.value.filter(candidate => selectedImageIds.value.has(candidate.id))
     const result = await buildResourcePackageFromProject({
       fs: fileSystemService, projectRootPath: props.projectRootPath, key: normalizedKey.value,
       name: name.value.trim(), version: version.value.trim(),
-      resourcePaths: selected.flatMap(candidate => candidate.paths),
+      imageSelection: { paths: selected.map(candidate => candidate.detail ?? candidate.label) },
       fontSelection: {
         familyKeys: [...selectedFamilyKeys.value],
         compositionKeys: [...selectedCompositionKeys.value],
