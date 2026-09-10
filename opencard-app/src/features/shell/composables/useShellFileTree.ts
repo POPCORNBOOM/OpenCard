@@ -1,13 +1,14 @@
 /** Workspace entry lookup and key-only OcTree projection. */
 import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
-import { resolveEntryIcon } from '../../workspace/model/fileTypes'
+import { resolveEntryIcon, resolveFileType } from '../../workspace/model/fileTypes'
 import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
 import type { IconToken } from '../../../shared/ui/icon/iconTokens'
 import {
   resolveInstalledResourcePackageManifestPath,
 } from '../../workspace/model/resourcePackage'
 import type { RequiredPackage } from '../../workspace/model/projectPackageManifest'
+import { PROJECT_FILE_TYPE_TITLE_KEYS } from '../../workspace/model/projectFileTitles'
 import { notifyAppError } from '../../notifications/titlebarNotices'
 import {
   PROJECT_DICTIONARY_FILE_NAME,
@@ -323,10 +324,16 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const isManagementRoot = projectManagementTreeData.value.rootKeys.includes(selectedKey)
       if (isManagementRoot) await options.ensureProjectManagementStructure()
       const targetPath = projectManagementProjection.value.targetByNodeKey.get(selectedKey)
-      if (targetPath) await options.openPreviewFile(targetPath)
+      if (targetPath) await options.openPreviewFile(targetPath, { title: resolveManagedFileTitle(targetPath) })
     } catch (error) {
       notifyAppError('OC-E4001', { path: selectedKey, error })
     }
+  }
+
+  /** Managed project files open under their editor page heading instead of their JSON file name. */
+  function resolveManagedFileTitle(targetPath: string): string | undefined {
+    const titleKey = PROJECT_FILE_TYPE_TITLE_KEYS[resolveFileType(targetPath, options.projectPath.value).id]
+    return titleKey ? options.translate(titleKey) : undefined
   }
 
   function syncSelectionFromActiveSession(session: EditorSession | null): void {

@@ -164,8 +164,41 @@ describe('useShellFileTree opened editors', () => {
 
     await result.handleProjectManagementSelect([`${projectPath}/.opencard/fonts/fonts.json`])
     expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
-    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/fonts/fonts.json`)
+    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/fonts/fonts.json`, {
+      title: 'translated:fontRegistry.title',
+    })
 
+  })
+
+  it('opens every managed project file under its editor page heading', async () => {
+    const projectPath = 'D:/project'
+    const openPreviewFile = vi.fn(async () => undefined)
+    const result = useShellFileTree({
+      projectPath: ref(projectPath),
+      indexedEntries: ref([]),
+      packageManifests: ref(new Map()),
+      openedEditorItems: ref([]),
+      activeSession: ref(null),
+      translate: key => `translated:${key}`,
+      isDirectoryExpanded: vi.fn(() => false),
+      activateSession: vi.fn(),
+      openPreviewFile,
+      ensureProjectManagementStructure: vi.fn(async () => undefined),
+    })
+
+    for (const fileName of [
+      '.opencard/project.json',
+      '.opencard/locale.json',
+      '.opencard/fonts/fonts.json',
+      '.opencard/icons/icons.json',
+      '.opencard/packages/packages.json',
+    ]) {
+      openPreviewFile.mockClear()
+      await result.handleProjectManagementSelect([`${projectPath}/${fileName}`])
+      expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/${fileName}`, {
+        title: expect.stringMatching(/^translated:/),
+      })
+    }
   })
 
   it('does not expose cleanup actions before asset registries finish loading', async () => {
