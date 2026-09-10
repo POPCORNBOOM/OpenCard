@@ -36,6 +36,7 @@ describe('ProjectConfigEditor', () => {
       },
     })
 
+    expect(wrapper.get('h1').text()).toBe('projectConfig.title')
     expect(wrapper.find('[data-field-key="extends"]').exists()).toBe(false)
     expect(wrapper.find('[data-field-key="globalvariables"]').exists()).toBe(false)
     expect(wrapper.find('.property-editor').exists()).toBe(false)
