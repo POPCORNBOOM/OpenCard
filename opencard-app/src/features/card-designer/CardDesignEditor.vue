@@ -225,6 +225,7 @@
 import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps, EditorSnapshotContext } from '../editor-runtime/registry/editorRegistry'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
   getCardFieldDefinition,
@@ -2447,10 +2448,21 @@ function getImageRenderSource(): { render: PreparedCardRender; activeFaceKey: Ca
   return render ? { render, activeFaceKey: activeFaceKey.value } : null
 }
 
+/** The card document names itself, so the workspace header shows that instead of the file name. */
+const presentation = computed<EditorPresentation>(() => ({
+  title: viewDoc.value?.name?.trim()
+    || props.fileName?.trim()
+    || props.filePath.split(/[\\/]/).filter(Boolean).pop()
+    || props.filePath,
+  description: '',
+  icon: 'file.opencard',
+}))
+
 defineExpose({
   save: saveFile,
   flush: flushPendingChanges,
   navigate,
+  presentation,
   importDataTableWorkbook,
   exportDataTableWorkbook,
   dataTableWorkbookBusy,

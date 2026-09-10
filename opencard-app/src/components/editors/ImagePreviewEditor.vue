@@ -66,6 +66,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, type CSSPro
 import { useI18n } from 'vue-i18n'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import OcText from '../base/OcText.vue'
 import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
@@ -462,7 +463,13 @@ onBeforeUnmount(() => {
   stopZoomAnimation()
 })
 
-defineExpose({ save, resetView })
+const presentation = computed<EditorPresentation>(() => ({
+  title: fileName.value,
+  description: '',
+  icon: 'file.image',
+}))
+
+defineExpose({ save, resetView, presentation })
 </script>
 
 <style scoped>

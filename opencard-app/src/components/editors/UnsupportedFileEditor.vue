@@ -27,6 +27,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import OcButton from '../base/OcButton.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -43,6 +44,14 @@ const errorMessage = ref('')
 let actionPending = false
 
 const displayName = computed(() => props.fileName || props.filePath.split(/[/\\]/).pop() || props.filePath)
+
+const presentation = computed<EditorPresentation>(() => ({
+  title: displayName.value,
+  description: t('unsupportedFile.title'),
+  icon: 'file.generic',
+}))
+
+defineExpose({ presentation })
 const absolutePath = computed(() => {
   if (/^[a-z]:[/\\]/i.test(props.filePath) || props.filePath.startsWith('/')) return props.filePath
   const root = props.resourceRootPath?.replace(/[/\\]+$/, '')
