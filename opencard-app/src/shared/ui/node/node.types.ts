@@ -33,6 +33,9 @@ export type OcNodeAction = OcActionButtonAction
  */
 export type OcNodeTailPart = string | OcNodeBadge | OcNodeAction
 
+/** The display-only subset of a tail, for views whose commands live elsewhere. */
+export type OcNodeTailDisplayPart = string | OcNodeBadge
+
 export type OcNodeContextEntry = OcNodeAction | OcActionDivider
 
 /** Presentation of one node; its identity is the key it is stored under in `OcNodeCollection.items`. */

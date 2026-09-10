@@ -409,6 +409,8 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   min-width: 0;
   align-items: center;
   gap: var(--oc-space-1);
+  /* Reserve the command height so revealing a command on hover never reflows the card. */
+  min-height: var(--oc-size-sm);
 }
 .oc-album__tail {
   display: inline-flex;

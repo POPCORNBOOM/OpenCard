@@ -1,7 +1,7 @@
 import type { IconToken } from '../icon/iconRegistry'
 import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
-import type { OcNodeTailPart } from '../node/node.types'
+import type { OcNodeTailDisplayPart } from '../node/node.types'
 import type { OcActionDefinition } from '../../../components/standard/OcActionMenu.vue'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
@@ -125,7 +125,8 @@ type PropertyEditorFieldBase = {
     provider?: PropertyCompletionProvider
     catalog?: ProjectIconCatalog
   }
-  tail?: OcNodeTailPart | readonly OcNodeTailPart[]
+  /** Display-only tail; a property row's commands go through its action rail instead. */
+  tail?: OcNodeTailDisplayPart | readonly OcNodeTailDisplayPart[]
 }
 
 type ScalarPropertyEditorFieldDefinition = {
