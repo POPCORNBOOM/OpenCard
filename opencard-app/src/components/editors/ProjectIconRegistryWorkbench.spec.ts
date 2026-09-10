@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import ProjectIconView from '../../features/workspace/components/ProjectIconView.vue'
 import OcButton from '../base/OcButton.vue'
-import OcIcon from '../base/OcIcon.vue'
 import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
 import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
 import OcViewportInspector from '../standard/OcViewportInspector.vue'
@@ -42,8 +41,6 @@ const projectIconCatalog = {
   errors: [],
 }
 const baseProps = {
-  heading: 'Icon registry',
-  description: 'Manage project icons',
   series,
   resolveAssetSrc: (source: string) => `asset://${source}`,
 }
@@ -56,8 +53,6 @@ describe('ProjectIconRegistryWorkbench', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.project-icon-registry-workbench__placeholder').exists()).toBe(false)
-    expect(wrapper.get('.project-icon-registry-workbench__left h1').text()).toBe('Icon registry')
-    expect(wrapper.findAllComponents(OcIcon).some(icon => icon.props('name') === 'file.project-icon')).toBe(true)
     expect(wrapper.get('.project-config-section__heading').text()).toContain('Status icons')
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props()).toMatchObject({
       series: series[0],
@@ -97,12 +92,14 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.getComponent(OcViewportInspector).props()).toMatchObject({ height: 300, expanded: false })
   })
 
-  it('routes pack creation through the left title action', async () => {
+  it('leaves pack creation to the editor shell actions', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
-      props: baseProps,
+      props: { ...baseProps, projectIconCatalog },
     })
-    await wrapper.get('button[aria-label="projectConfig.icons.createPack"]').trigger('click')
-    expect(wrapper.emitted('create-pack')).toEqual([[]])
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('button[aria-label="projectConfig.icons.createPack"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="projectConfig.icons.importPack"]').exists()).toBe(false)
   })
 
   it('adds and selects one crop beside the even-grid action', async () => {

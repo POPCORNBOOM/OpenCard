@@ -1,17 +1,27 @@
 <template>
   <MonacoEditor v-if="props.mode === 'diff'" :model-value="props.modelValue ?? ''" language="json"
     :mode="props.mode" :comparison="props.comparison" :theme-id="themeId" :theme-overrides="themeOverrides" />
-  <ProjectRegistryEditorShell v-else icon="file.project-icon" content-mode="workspace" header-mode="hidden"
+  <ProjectRegistryEditorShell v-else icon="file.project-icon" content-mode="workspace"
     :heading="t('iconRegistry.title')"
     :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
-    <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :heading="t('iconRegistry.title')"
-      :description="t('iconRegistry.description')" :series="document.iconSeries"
+    <template #actions>
+      <OcButton icon="action.add" variant="soft"
+        :aria-label="t('projectConfig.icons.createPack')" @click="openCreatePackDialog">
+        {{ t('projectConfig.icons.createPack') }}
+      </OcButton>
+      <OcButton icon="action.import" variant="soft"
+        :aria-label="t('projectConfig.icons.importPack')" @click="openImportPackDialog">
+        {{ t('projectConfig.icons.importPack') }}
+      </OcButton>
+    </template>
+
+    <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :series="document.iconSeries"
       :resolve-asset-src="source => projectStore.resolveResourceAssetSrcFromFile(props.filePath, source)"
       :default-open-path="iconDirectory" :import-icon-source="importIconSource"
       :project-icon-catalog="projectStore.projectIconCatalog.value"
       :error="importError"
       @update:series="updateIconSeries" @key-conflicts="updateKeyConflicts"
-      @create-pack="openCreatePackDialog" @import-pack="openImportPackDialog" @export-pack="exportIconPack" />
+      @export-pack="exportIconPack" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
       :theme-overrides="themeOverrides" :heading="t('iconRegistry.invalid')" :description="t('iconRegistry.repair')"
@@ -61,6 +71,7 @@ import {
   readProjectIconPack,
 } from '../../features/workspace/services/projectIconPack'
 import MonacoEditor from './MonacoEditor.vue'
+import OcButton from '../base/OcButton.vue'
 import ProjectIconRegistrationDialog, {
   type ProjectIconRegistrationRequest,
 } from './ProjectIconRegistrationDialog.vue'

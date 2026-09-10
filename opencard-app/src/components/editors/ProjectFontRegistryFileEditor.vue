@@ -2,19 +2,24 @@
   <MonacoEditor v-if="props.mode === 'diff'" :model-value="props.modelValue ?? ''" language="json"
     :mode="props.mode" :comparison="props.comparison" :theme-id="themeId" :theme-overrides="themeOverrides" />
 
-  <ProjectRegistryEditorShell v-else icon="file.font" content-mode="workspace" header-mode="hidden"
+  <ProjectRegistryEditorShell v-else icon="file.font" content-mode="workspace"
     :heading="t('fontRegistry.title')" :description="t('fontRegistry.description')"
     @keydown.ctrl.s.prevent="save">
-    <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :heading="t('fontRegistry.title')"
-      :description="t('fontRegistry.description')" :families="document.families ?? []"
+    <template #actions>
+      <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addFont')"
+        @click="openRegistrationDialog()">{{ t('projectConfig.fonts.addFont') }}</OcButton>
+      <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addSet')"
+        @click="openCompositionDialog()">{{ t('projectConfig.fonts.addSet') }}</OcButton>
+    </template>
+
+    <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :families="document.families ?? []"
       :compositions="document.compositions ?? []"
       :resolve-asset-src="source => projectStore.resolveResourceAssetSrcFromFile(props.filePath, source)"
       :read-font-bytes="readFontBytes"
       :load-errors="projectStore.projectFontLoadErrors.value"
       :error="importError" @update:families="updateFamilies" @update:compositions="updateCompositions"
-      @register-family="openRegistrationDialog()" @configure-family="openRegistrationDialog"
-      @remove-family="openFamilyRemovalDialog"
-      @register-composition="openCompositionDialog()" @configure-composition="openCompositionDialog" />
+      @configure-family="openRegistrationDialog" @remove-family="openFamilyRemovalDialog"
+      @configure-composition="openCompositionDialog" />
 
     <ProjectRegistryRepairEditor v-else :model-value="props.modelValue ?? ''" :theme-id="themeId"
       :theme-overrides="themeOverrides" :heading="t('fontRegistry.invalid')" :description="t('fontRegistry.repair')"

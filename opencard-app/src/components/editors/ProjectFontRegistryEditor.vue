@@ -3,22 +3,6 @@
     <component :is="'style'" v-if="previewFontCss" v-text="previewFontCss" />
 
     <section class="project-font-registry-workbench__left">
-      <header class="project-font-registry-workbench__titlebar">
-        <div class="project-font-registry-workbench__title">
-          <OcIcon name="file.font" size="lg" />
-          <div>
-            <h1>{{ heading }}</h1>
-            <OcText tone="muted" size="sm">{{ description }}</OcText>
-          </div>
-        </div>
-        <div class="project-font-registry-workbench__title-actions">
-          <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addFont')"
-            @click="emit('register-family')">{{ t('projectConfig.fonts.addFont') }}</OcButton>
-          <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addSet')"
-            @click="emit('register-composition')">{{ t('projectConfig.fonts.addSet') }}</OcButton>
-        </div>
-      </header>
-
       <OcText v-if="error" class="project-font-registry-workbench__error" tone="danger" size="sm" role="alert">
         {{ error }}
       </OcText>
@@ -112,7 +96,6 @@ import {
   type ProjectFontPreviewCandidate,
 } from '../../features/workspace/services/projectFontCoverage'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
-import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -121,8 +104,6 @@ import OcFloatingLayer from '../standard/OcFloatingLayer.vue'
 import OcTree from '../standard/OcTree.vue'
 
 const props = withDefaults(defineProps<{
-  heading: string
-  description: string
   families: readonly ProjectFont[]
   compositions?: readonly ProjectFontComposition[]
   resolveAssetSrc: (source: string) => string
@@ -133,10 +114,8 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:families': [families: ProjectFont[]]
   'update:compositions': [compositions: ProjectFontComposition[]]
-  'register-family': []
   'configure-family': [familyKey: string]
   'remove-family': [familyKey: string]
-  'register-composition': []
   'configure-composition': [compositionKey: string]
 }>()
 const { t } = useI18n()
@@ -432,28 +411,12 @@ defineExpose({ navigateToFont })
 .project-font-registry-workbench__right { min-width: 0; min-height: 0; overflow: hidden; }
 .project-font-registry-workbench__left {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   border-right: var(--oc-border-width) solid var(--oc-border-muted);
   background: var(--oc-bg-base);
 }
-.project-font-registry-workbench__titlebar,
-.project-font-registry-workbench__title,
-.project-font-registry-workbench__title-actions { display: flex; align-items: center; }
-.project-font-registry-workbench__titlebar {
-  grid-row: 1;
-  justify-content: space-between;
-  gap: var(--oc-space-4);
-  padding: var(--oc-space-5);
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-base);
-  color: var(--oc-fg-default);
-}
-.project-font-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
-.project-font-registry-workbench__title > div { display: grid; min-width: 0; gap: var(--oc-space-1); }
-.project-font-registry-workbench__title-actions { flex: 0 0 auto; gap: var(--oc-space-1); }
-.project-font-registry-workbench h1 { margin: 0; font-size: var(--oc-text-lg); font-weight: var(--font-weight-ui-title); letter-spacing: 0; }
-.project-font-registry-workbench__error { grid-row: 2; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
-.project-font-registry-workbench__list { position: relative; grid-row: 3; min-height: 0; overflow: hidden; }
+.project-font-registry-workbench__error { grid-row: 1; padding: var(--oc-space-2); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.project-font-registry-workbench__list { position: relative; grid-row: 2; min-height: 0; overflow: hidden; }
 .project-font-registry-workbench__list > .oc-tree { position: absolute; inset: 0; }
 .project-font-registry-workbench__right { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--oc-bg-base); }
 .project-font-registry-workbench__preview-toolbar { display: grid; gap: var(--oc-space-2); padding: var(--oc-space-3); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }

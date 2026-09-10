@@ -66,4 +66,23 @@ describe('ProjectIconRegistryFileEditor', () => {
     })
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
   })
+
+  it('offers creating and importing icon packs from the editor header', async () => {
+    const wrapper = mount(ProjectIconRegistryFileEditor, {
+      props: {
+        filePath: 'D:/Demo/.opencard/icons/icons.json',
+        modelValue: JSON.stringify({ iconSeries: [{ name: 'Status icons', key: 'status', source: 'status.png', icons: [] }] }),
+      },
+    })
+
+    const actions = wrapper.get('.project-registry-shell__actions')
+    expect(actions.findAll('button').map(button => button.attributes('aria-label'))).toEqual([
+      'projectConfig.icons.createPack',
+      'projectConfig.icons.importPack',
+    ])
+    expect(wrapper.getComponent(ProjectIconRegistrationDialog).props('open')).toBe(false)
+
+    await actions.findAll('button')[0]!.trigger('click')
+    expect(wrapper.getComponent(ProjectIconRegistrationDialog).props('open')).toBe(true)
+  })
 })

@@ -1,26 +1,6 @@
 <template>
   <div class="project-icon-registry-workbench">
     <section class="project-icon-registry-workbench__left">
-      <header class="project-icon-registry-workbench__titlebar">
-        <div class="project-icon-registry-workbench__title">
-          <OcIcon name="file.project-icon" size="lg" />
-          <div>
-            <h1>{{ heading }}</h1>
-            <OcText tone="muted" size="sm">{{ description }}</OcText>
-          </div>
-        </div>
-        <div class="project-icon-registry-workbench__title-actions">
-          <OcButton icon="action.add" variant="soft"
-            :aria-label="t('projectConfig.icons.createPack')" @click="emit('create-pack')">
-            {{ t('projectConfig.icons.createPack') }}
-          </OcButton>
-          <OcButton icon="action.import" variant="soft"
-            :aria-label="t('projectConfig.icons.importPack')" @click="emit('import-pack')">
-            {{ t('projectConfig.icons.importPack') }}
-          </OcButton>
-        </div>
-      </header>
-
       <OcText v-if="error" class="project-icon-registry-workbench__error" tone="danger" size="sm">
         {{ error }}
       </OcText>
@@ -169,8 +149,6 @@ import ProjectIconSetSettingsDialog, { type ProjectIconSetSettingsRequest } from
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
 
 const props = withDefaults(defineProps<{
-  heading: string
-  description: string
   series?: readonly ProjectIconSeries[]
   resolveAssetSrc: (source: string) => string
   defaultOpenPath?: string
@@ -181,8 +159,6 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:series': [series: ProjectIconSeries[]]
   'key-conflicts': [conflicts: readonly ProjectIconKeyConflict[]]
-  'create-pack': []
-  'import-pack': []
   'export-pack': [series: ProjectIconSeries]
 }>()
 const { t } = useI18n()
@@ -440,27 +416,9 @@ defineExpose({ selectSeries, navigateToKeyConflict })
 .project-icon-registry-workbench__right { min-width: 0; min-height: 0; overflow: hidden; }
 .project-icon-registry-workbench__left {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   border-right: var(--oc-border-width) solid var(--oc-border-muted);
   background: var(--oc-bg-base);
-}
-.project-icon-registry-workbench__titlebar,
-.project-icon-registry-workbench__title { display: flex; align-items: center; }
-.project-icon-registry-workbench__titlebar {
-  justify-content: space-between;
-  gap: var(--oc-space-4);
-  padding: var(--oc-space-5);
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  color: var(--oc-fg-default);
-}
-.project-icon-registry-workbench__title { min-width: 0; gap: var(--oc-space-3); }
-.project-icon-registry-workbench__title-actions { display: flex; flex-wrap: wrap; gap: var(--oc-space-2); justify-content: flex-end; }
-.project-icon-registry-workbench__title > div { display: grid; min-width: 0; gap: var(--oc-space-1); }
-.project-icon-registry-workbench h1 {
-  margin: 0;
-  font-size: var(--oc-text-lg);
-  font-weight: var(--font-weight-ui-title);
-  letter-spacing: 0;
 }
 .project-icon-registry-workbench__error { padding: var(--oc-space-2) var(--oc-space-6); }
 .project-icon-registry-workbench__series-list {
