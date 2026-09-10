@@ -1,4 +1,4 @@
-/** Card instance operations and their key-only tree view projection. */
+/** Card instance operations and their node collection projection. */
 import { computed, toRaw, watch, type Ref } from 'vue'
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
 import type {
@@ -10,7 +10,7 @@ import type {
   OcNodeRenameCommitEvent,
   OcNodeSelectionEvent,
 } from '../../shared/ui/node/node.types'
-import { getCdeShortcutParts } from './useCdeShortcuts'
+import { cdeNodeAction } from './cdeNodeAction'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
 type InstanceActionSet = {
@@ -21,31 +21,11 @@ type InstanceActionSet = {
 }
 
 function createInstanceActions(): InstanceActionSet {
-  const rename: OcNodeAction = {
-    key: 'rename',
-    icon: 'action.edit',
-    title: '重命名',
-    shortcut: getCdeShortcutParts('block.rename'),
-  }
-  const duplicate: OcNodeAction = {
-    key: 'duplicate-instance',
-    icon: 'action.copy',
-    title: '复制实例',
-    shortcut: getCdeShortcutParts('instance.duplicate'),
-  }
-  const remove: OcNodeAction = {
-    key: 'delete-instance',
-    icon: 'action.delete',
-    title: '删除实例',
-    shortcut: getCdeShortcutParts('instance.delete'),
-  }
+  const rename = cdeNodeAction('rename', 'action.edit', '重命名', { shortcut: 'block.rename' })
+  const duplicate = cdeNodeAction('duplicate-instance', 'action.copy', '复制实例', { shortcut: 'instance.duplicate' })
+  const remove = cdeNodeAction('delete-instance', 'action.delete', '删除实例', { shortcut: 'instance.delete' })
   return {
-    more: {
-      key: 'instance-more',
-      icon: 'nav.more',
-      title: '更多操作',
-      children: [rename, duplicate, remove],
-    },
+    more: cdeNodeAction('instance-more', 'nav.more', '更多操作', { children: [rename, duplicate, remove] }),
     rename,
     duplicate,
     remove,

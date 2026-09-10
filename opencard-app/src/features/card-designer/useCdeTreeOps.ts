@@ -1,6 +1,6 @@
-import type { CardBlockPayload } from '../../shared/model/clipboard/cardBlockClipboard'
-/** Card structure operations and their key-only tree view projection. */
+/** Card structure operations and their node collection projection. */
 import { computed, toRaw, watch, type Ref } from 'vue'
+import type { CardBlockPayload } from '../../shared/model/clipboard/cardBlockClipboard'
 import {
   createBlock,
   getBlockProperty,
@@ -31,7 +31,7 @@ import type {
   OcNodeSelectionEvent,
 } from '../../shared/ui/node/node.types'
 import { getBlockPresentation } from './blockPresentation'
-import { getCdeShortcutParts } from './useCdeShortcuts'
+import { cdeNodeAction } from './cdeNodeAction'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
 type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
@@ -77,62 +77,21 @@ export function createBlockAddActions(): OcNodeAction[] {
 }
 
 function createBlockActions(translate: (messageKey: string) => string): BlockActionSet {
-  const copyBlock: OcNodeAction = {
-    key: 'copy-block',
-    icon: 'action.copy',
-    title: '复制块',
-    shortcut: getCdeShortcutParts('block.copy'),
-  }
-  const pasteBlock: OcNodeAction = {
-    key: 'paste-block',
-    icon: 'action.copy',
-    title: '粘贴块',
-    shortcut: getCdeShortcutParts('block.paste'),
-  }
-  const rename: OcNodeAction = {
-    key: 'rename',
-    icon: 'action.edit',
-    title: '重命名',
-    shortcut: getCdeShortcutParts('block.rename'),
-  }
-  const duplicate: OcNodeAction = {
-    key: 'duplicate',
-    icon: 'action.copy',
-    title: '复制',
-    shortcut: getCdeShortcutParts('block.duplicate'),
-  }
-  const remove: OcNodeAction = {
-    key: 'delete',
-    icon: 'action.delete',
-    title: '删除',
-    shortcut: getCdeShortcutParts('block.delete'),
-  }
-  const add: OcNodeAction = {
-    key: 'add',
-    icon: 'action.add',
-    title: '添加子块',
-    children: createBlockAddActions(),
-  }
-  const pack: OcNodeAction = {
-    key: 'package',
-    icon: 'entity.block-package',
-    title: translate('cardDesigner.treeActions.package'),
-  }
-  const unpack: OcNodeAction = {
-    key: 'unpackage',
-    icon: 'entity.block-package',
-    title: translate('cardDesigner.treeActions.unpackage'),
-  }
-  const more = (key: string, children: readonly OcNodeAction[]): OcNodeAction => ({
-    key,
-    icon: 'nav.more',
-    title: '更多操作',
-    children,
-  })
+  const copyBlock = cdeNodeAction('copy-block', 'action.copy', '复制块', { shortcut: 'block.copy' })
+  const pasteBlock = cdeNodeAction('paste-block', 'action.copy', '粘贴块', { shortcut: 'block.paste' })
+  const rename = cdeNodeAction('rename', 'action.edit', '重命名', { shortcut: 'block.rename' })
+  const duplicate = cdeNodeAction('duplicate', 'action.copy', '复制', { shortcut: 'block.duplicate' })
+  const remove = cdeNodeAction('delete', 'action.delete', '删除', { shortcut: 'block.delete' })
+  const add = cdeNodeAction('add', 'action.add', '添加子块', { children: createBlockAddActions() })
+  const pack = cdeNodeAction('package', 'entity.block-package', translate('cardDesigner.treeActions.package'))
+  const unpack = cdeNodeAction('unpackage', 'entity.block-package', translate('cardDesigner.treeActions.unpackage'))
+  const more = (key: string, children: readonly OcNodeAction[]): OcNodeAction => (
+    cdeNodeAction(key, 'nav.more', '更多操作', { children })
+  )
 
   return {
-    show: { key: 'show-block', icon: 'status.eye-off', title: '显示' },
-    hide: { key: 'hide-block', icon: 'status.eye', title: '隐藏' },
+    show: cdeNodeAction('show-block', 'status.eye-off', '显示'),
+    hide: cdeNodeAction('hide-block', 'status.eye', '隐藏'),
     copyBlock,
     pasteBlock,
     rename,
