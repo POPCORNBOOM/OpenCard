@@ -3,6 +3,7 @@ import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcNodeCollection } from '../../../shared/ui/node/node.types'
+import { isNodeTailAction, normalizeNodeTail } from '../../../shared/ui/node/node.types'
 import type { AppSettings, ProjectWorkspaceState } from '../../settings/model/appSettings'
 import type { ProjectCover } from '../model/projectCover'
 import ResourcePackageBuilderDialog from './ResourcePackageBuilderDialog.vue'
@@ -57,7 +58,7 @@ function mountBuilder(entries: readonly string[] = [], projectRootPath = '/proje
 }
 
 function actionsOf(data: OcNodeCollection, key: string): readonly string[] | undefined {
-  return data.items.get(key)?.actions?.map(action => action.key)
+  return normalizeNodeTail(data.items.get(key)?.tail).filter(isNodeTailAction).map(action => action.key)
 }
 
 beforeEach(() => {
@@ -151,7 +152,9 @@ describe('ResourcePackageBuilderDialog selection', () => {
     expect([...data.items.keys()].some(key => key.includes('notes.txt') || key.includes('.opencard')
       || key.includes('.git') || key.includes('outside'))).toBe(false)
     expect(data.items.get('category:images')?.tail).toBeUndefined()
-    expect(data.items.get('image:images/card.png')?.tail).toBeUndefined()
+    // An image row carries only its selection command, with no descriptive text part.
+    expect(normalizeNodeTail(data.items.get('image:images/card.png')?.tail).filter(part => typeof part === 'string'))
+      .toEqual([])
     expect(actionsOf(data, 'image:images/card.png')).toEqual(['deselect'])
 
     tree.vm.$emit('action', { key: 'image:images/card.png', actionKey: 'deselect', source: 'inline' })

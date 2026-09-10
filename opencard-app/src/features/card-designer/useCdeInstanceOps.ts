@@ -68,7 +68,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         icon: 'entity.card-instance',
         renamable: true,
         draggable: true,
-        actions: [actions.more],
+        tail: [actions.more],
         contextActions: [
           actions.rename,
           actions.duplicate,

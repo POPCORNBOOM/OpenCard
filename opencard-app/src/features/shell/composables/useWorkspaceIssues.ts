@@ -51,12 +51,12 @@ function issueLabel(issue: EditorIssue): string {
 
 function issueTreeItem(issue: EditorIssue, copyAction: OcNodeAction): OcNode {
   if (issue.severity === 'error') {
-    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger', actions: [copyAction] }
+    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger', tail: [copyAction] }
   }
   if (issue.severity === 'warning') {
-    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning', actions: [copyAction] }
+    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning', tail: [copyAction] }
   }
-  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted', actions: [copyAction] }
+  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted', tail: [copyAction] }
 }
 
 function dedupeIssues(issues: readonly EditorIssue[]): readonly EditorIssue[] {

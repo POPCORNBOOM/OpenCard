@@ -1,5 +1,6 @@
 import { nextTick, ref, type Ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 
 const mocks = vi.hoisted(() => ({
   inspectRepository: vi.fn(),
@@ -145,12 +146,14 @@ describe('useProjectTimeline', () => {
     await vi.waitFor(() => expect(state.treeData.value.rootKeys).toEqual(['timeline:file0001']))
     expect(state.projectTreeData.value.rootKeys).toEqual(['project-timeline:project1'])
     expect(mocks.readFileHistory).toHaveBeenCalledWith('D:/Cards/demo', { path: 'cards/main.ocdocument', limit: 50 })
-    expect(state.treeData.value.items.get('timeline:file0001')?.actions).toEqual([{
+    expect(normalizeNodeTail(state.treeData.value.items.get('timeline:file0001')?.tail)
+      .filter(isNodeTailAction)).toEqual([{
       key: 'timeline.compare-with-disk',
       title: 'Compare with disk',
       icon: 'action.file-arrow-up-down',
     }])
-    expect(state.projectTreeData.value.items.get('project-timeline:project1')?.actions).toEqual([])
+    expect(normalizeNodeTail(state.projectTreeData.value.items.get('project-timeline:project1')?.tail)
+      .filter(isNodeTailAction)).toEqual([])
   })
 
   it('reloads file history when switching documents', async () => {

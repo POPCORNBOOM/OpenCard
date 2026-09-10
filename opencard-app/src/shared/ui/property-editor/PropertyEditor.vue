@@ -79,9 +79,9 @@
                 />
                 <span v-if="entry.tail" class="property-editor__tail">
                   <template v-for="(part, index) in normalizeNodeTail(entry.tail)"
-                    :key="typeof part === 'string' ? `text:${index}` : `badge:${index}`">
+                    :key="typeof part === 'string' ? `text:${index}` : `part:${index}`">
                     <OcText v-if="typeof part === 'string'" tone="muted" size="xs">{{ part }}</OcText>
-                    <span v-else class="property-editor__tail-badge" role="img"
+                    <span v-else-if="part.type === 'badge'" class="property-editor__tail-badge" role="img"
                       :aria-label="part.label" :data-tooltip="part.label">
                       <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
                     </span>

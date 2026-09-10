@@ -121,26 +121,24 @@
         <span
           v-if="entry.item.tail"
           class="oc-tree__tail"
-          :class="{ 'is-badge-only': normalizeNodeTail(entry.item.tail).every(part => typeof part !== 'string') }"
+          :class="{ 'is-compact': normalizeNodeTail(entry.item.tail).every(part => typeof part !== 'string') }"
         >
-          <template v-for="(part, index) in normalizeNodeTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `badge:${index}`">
+          <template v-for="(part, index) in resolveTailParts(entry.key, entry.item.tail)" :key="tailPartKey(part, index)">
             <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
-            <span v-else class="oc-tree__tail-badge" role="img" :aria-label="part.label" :data-tooltip="part.label">
+            <span v-else-if="part.type === 'badge'" class="oc-tree__tail-badge" role="img" :aria-label="part.label" :data-tooltip="part.label">
               <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
             </span>
+            <span v-else class="oc-tree__tail-action" data-tree-interactive="true">
+              <OcActionButton
+                :action="part"
+                size="sm"
+                variant="ghost"
+                :button-tabindex="props.tabNavigation === 'none' ? -1 : undefined"
+                @mousedown.stop
+                @select="emitActionIntent(entry.key, $event.key)"
+              />
+            </span>
           </template>
-        </span>
-        <span v-if="resolveItemActions(entry.key).length > 0" class="oc-tree__controls" data-tree-interactive="true">
-          <OcActionButton
-            v-for="action in resolveItemActions(entry.key)"
-            :key="action.key"
-            :action="action"
-            size="sm"
-            variant="ghost"
-            :button-tabindex="props.tabNavigation === 'none' ? -1 : undefined"
-            @mousedown.stop
-            @select="emitActionIntent(entry.key, $event.key)"
-          />
         </span>
       </div>
     </div>
@@ -156,7 +154,7 @@ import OcActionButton from './OcActionButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
-import { normalizeNodeTail } from '../../shared/ui/node/node.types'
+import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import type {
   OcNode,
@@ -170,6 +168,7 @@ import type {
   OcNodeMoveEvent,
   OcNodeRenameCommitEvent,
   OcNodeSelectionEvent,
+  OcNodeTailPart,
 } from '../../shared/ui/node/node.types'
 import { resolveOcPixelToken } from '../../shared/ui/foundation'
 
@@ -392,32 +391,44 @@ function syncVirtualMetrics(): void {
   virtualScrollTop.value = root.scrollTop
 }
 
+/**
+ * Width the row's commands occupy right now, including the gaps between them.
+ * Collapsed commands are represented by the single overflow button, so this doubles
+ * as the "collapsed" width the projected-label calculation needs.
+ */
+function measureTailActionWidth(row: HTMLElement): number {
+  const parts = [...row.querySelectorAll<HTMLElement>('.oc-tree__tail-action')]
+  if (parts.length === 0) return 0
+  const gap = resolveOcPixelToken('--oc-space-1', treeRootElement.value)
+  return parts.reduce((total, part) => total + part.getBoundingClientRect().width, 0)
+    + gap * (parts.length - 1)
+}
+
 function syncActionOverflow(): void {
   const nextCollapsed = new Set(collapsedActionKeys.value)
   const minimumLabelWidth = resolveOcPixelToken('--oc-tree-action-label-min-width', treeRootElement.value)
 
   for (const [key, row] of rowRefs) {
-    const actionCount = props.data.items.get(key)?.actions?.length ?? 0
+    const actionCount = tailActionParts(key).length
     if (actionCount <= 1 || row.clientWidth <= 0) {
       nextCollapsed.delete(key)
       directActionWidths.delete(key)
       continue
     }
     const label = row.querySelector<HTMLElement>('.oc-tree__label')
-    const controls = row.querySelector<HTMLElement>('.oc-tree__controls')
-    if (!label || !controls) continue
+    if (!label || row.querySelector('.oc-tree__tail-action') === null) continue
     const labelWidth = label.getBoundingClientRect().width
-    const controlsWidth = controls.getBoundingClientRect().width
+    const actionWidth = measureTailActionWidth(row)
 
     if (!nextCollapsed.has(key)) {
-      directActionWidths.set(key, controlsWidth)
+      directActionWidths.set(key, actionWidth)
       if (labelWidth < minimumLabelWidth) nextCollapsed.add(key)
       continue
     }
 
     const directWidth = directActionWidths.get(key)
     if (directWidth === undefined) continue
-    const projectedLabelWidth = labelWidth - Math.max(0, directWidth - controlsWidth)
+    const projectedLabelWidth = labelWidth - Math.max(0, directWidth - actionWidth)
     if (projectedLabelWidth >= minimumLabelWidth) nextCollapsed.delete(key)
   }
 
@@ -643,15 +654,34 @@ function handleRowDoubleClick(event: MouseEvent, key: OcNodeKey): void {
   if (props.activationMode === 'double-click') emit('node-activate', { key })
 }
 
-function resolveItemActions(key: OcNodeKey): OcActionButtonAction[] {
-  const actions = props.data.items.get(key)?.actions ?? []
-  if (actions.length <= 1 || !collapsedActionKeys.value.has(key)) return [...actions]
-  return [{
-    key: `__oc-tree-action-overflow__:${key}`,
-    icon: 'nav.more',
-    title: props.actionOverflowTitle,
-    children: actions,
-  }]
+function tailActionParts(key: OcNodeKey): OcActionButtonAction[] {
+  return normalizeNodeTail(props.data.items.get(key)?.tail).filter(isNodeTailAction)
+}
+
+function tailPartKey(part: OcNodeTailPart, index: number): string {
+  return typeof part === 'string' ? `text:${index}` : isNodeTailAction(part) ? `action:${part.key}` : `badge:${index}`
+}
+
+/**
+ * The node's trailing line in order. When the row runs out of label space, its commands are
+ * replaced by one overflow menu placed at the first command's position.
+ */
+function resolveTailParts(key: OcNodeKey, tail: OcNode['tail']): readonly OcNodeTailPart[] {
+  const parts = normalizeNodeTail(tail)
+  const actions = parts.filter(isNodeTailAction)
+  if (actions.length <= 1 || !collapsedActionKeys.value.has(key)) return parts
+  let overflowPlaced = false
+  return parts.flatMap((part): OcNodeTailPart[] => {
+    if (!isNodeTailAction(part)) return [part]
+    if (overflowPlaced) return []
+    overflowPlaced = true
+    return [{
+      key: `__oc-tree-action-overflow__:${key}`,
+      icon: 'nav.more',
+      title: props.actionOverflowTitle,
+      children: actions,
+    }]
+  })
 }
 
 function resolveContextActions(key: OcNodeKey): FloatingMenuItem[] {
@@ -1075,7 +1105,7 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
 }
 
-.oc-tree__tail.is-badge-only {
+.oc-tree__tail.is-compact {
   flex: 0 0 auto;
   min-width: auto;
 }
@@ -1088,19 +1118,18 @@ onBeforeUnmount(() => {
   height: calc(var(--oc-size-md) - var(--oc-space-1));
 }
 
-.oc-tree__controls {
+.oc-tree__tail-action {
   display: none;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--oc-space-1);
 }
 
-.oc-tree__row:hover .oc-tree__controls,
-.oc-tree__row:focus-within .oc-tree__controls,
-.oc-tree__node.is-selected .oc-tree__controls,
-.oc-tree__controls:has(.oc-action-button.is-menu-open),
-.oc-tree.are-actions-always-visible .oc-tree__controls {
-  display: flex;
+.oc-tree__row:hover .oc-tree__tail-action,
+.oc-tree__row:focus-within .oc-tree__tail-action,
+.oc-tree__node.is-selected .oc-tree__tail-action,
+.oc-tree__tail-action:has(.oc-action-button.is-menu-open),
+.oc-tree.are-actions-always-visible .oc-tree__tail-action {
+  display: inline-flex;
 }
 
 .oc-tree__node.is-drag-source {

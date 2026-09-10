@@ -314,6 +314,7 @@ import OcIcon from '../../components/base/OcIcon.vue'
 import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
+import { normalizeNodeTail } from '../../shared/ui/node/node.types'
 import type {
   OcNode,
   OcNodeAction,
@@ -1222,10 +1223,9 @@ function createRecentProjectTreeData(
     })
     items.set(key, {
       label: path.split(/[/\\]/).filter(Boolean).pop() || path,
-      tail: path,
+      tail: [path, ...actions],
       icon: isMissing ? 'status.folder-alert' : 'status.folder-open',
       iconTone: isMissing ? 'warning' : undefined,
-      actions,
     })
     return key
   })
@@ -1240,7 +1240,7 @@ const templateTreeData = computed<OcNodeCollection>(() => {
     [USER_TEMPLATES_GROUP_KEY, {
       label: t('projectTemplates.sections.user'),
       icon: 'file.package',
-      actions: [{
+      tail: [{
         key: IMPORT_TEMPLATE_ACTION_KEY,
         title: t('projectTemplates.actions.import'),
         icon: 'action.import',
@@ -1398,7 +1398,7 @@ const exportTemplateTreeData = computed<OcNodeCollection>(() => {
       iconTone: isExcluded ? 'muted' : item.iconTone,
       disabled: isRuntimeCache,
       disabledReason: isRuntimeCache ? t('templateExport.tree.runtimeCache') : undefined,
-      actions,
+      tail: [...normalizeNodeTail(item.tail), ...actions],
     })
   }
   return {
@@ -1423,7 +1423,7 @@ function createExportSelectionTreeData(
     items: new Map(paths.map((path) => [`${prefix}${path}`, {
       label: labels[path] ?? path,
       icon,
-      actions: [removeAction],
+      tail: [removeAction],
     }])),
     children: new Map(),
   }
@@ -3150,7 +3150,7 @@ function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): 
     items.set(pack.key, {
       label: resolveProjectIconPackName(pack, locale.value),
       icon: 'file.project-icon',
-      actions: [isRegistered
+      tail: [isRegistered
         ? {
             key: REGISTERED_ICON_PACK_ACTION_KEY,
             title: t('projectTemplates.status.iconPackRegistered'),

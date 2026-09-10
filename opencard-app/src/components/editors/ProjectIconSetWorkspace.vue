@@ -192,7 +192,7 @@ const iconTreeData = computed<OcNodeCollection>(() => {
           ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name }
           : { icon: 'file.image' as const }),
         draggable: true,
-        actions: actions.inline,
+        tail: actions.inline,
         contextActions: actions.context,
       }]
     })),

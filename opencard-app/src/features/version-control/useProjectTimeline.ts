@@ -76,9 +76,8 @@ export function useProjectTimeline(
       const key = `${keyPrefix}:${commit.id}`
       items.set(key, {
         label: `${commit.summary.trim() || commit.shortId} ${commit.shortId}`,
-        tail: formatRelativeTime(commit.authoredAtSeconds * 1000, locale.value),
+        tail: [formatRelativeTime(commit.authoredAtSeconds * 1000, locale.value), ...actions],
         icon: 'file.git',
-        actions,
       })
       const changedFiles = Array.isArray(commit.changedFiles) ? commit.changedFiles : []
       if (!includeChangedPaths || changedFiles.length === 0) continue

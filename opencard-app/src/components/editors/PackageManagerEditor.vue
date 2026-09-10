@@ -166,12 +166,27 @@ const rows = computed<PackageRow[]>(() => {
     })
     .sort((left, right) => left.key.localeCompare(right.key))
 })
+/** Status chip per requirement problem; a matching version shows no chip at all. */
+const PACKAGE_STATUS_BADGES = {
+  missing: { icon: 'status.error', tone: 'danger' },
+  version: { icon: 'status.warning', tone: 'warning' },
+} as const
+
 const treeData = computed<OcNodeCollection>(() => ({
   rootKeys: rows.value.map(row => row.key),
   items: new Map(rows.value.map((row): [string, OcNode] => [row.key, {
     label: `${row.key}@${row.version}`,
-    tail: [row.source?.trim() || t('packageManager.local'), row.status ? t(`packageManager.status.${row.status}`) : ''].filter(Boolean).join(' · '),
-    actions: [{ key: removeAction(row.key), title: t('packageManager.noLongerNeeded'), icon: 'action.delete', iconTone: 'danger' }],
+    tail: [
+      row.source?.trim() || t('packageManager.local'),
+      ...(row.status
+        ? [{
+            type: 'badge' as const,
+            label: t(`packageManager.status.${row.status}`),
+            ...PACKAGE_STATUS_BADGES[row.status],
+          }]
+        : []),
+      { key: removeAction(row.key), title: t('packageManager.noLongerNeeded'), icon: 'action.delete', iconTone: 'danger' },
+    ],
     icon: 'file.package',
     iconTone: row.status === 'missing' ? 'muted' : row.status === 'version' ? 'warning' : 'success',
     thumbnailSrc: row.coverSrc,

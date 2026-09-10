@@ -86,7 +86,7 @@ describe('OcTree', () => {
       },
     })
 
-    expect(wrapper.get('.oc-tree__tail').classes()).toContain('is-badge-only')
+    expect(wrapper.get('.oc-tree__tail').classes()).toContain('is-compact')
     expect(wrapper.get('.oc-tree__tail-badge').attributes('aria-label')).toBe('Added')
     expect(wrapper.get('.oc-tree__tail-badge').attributes('data-tooltip')).toBe('Added')
     expect(wrapper.get('.oc-tree__label').attributes('data-tooltip')).toBe('A long changed file name')
@@ -289,8 +289,8 @@ describe('OcTree', () => {
         data: createData({
           roots: ['root', 'child'],
           items: [
-            ['root', { label: 'Root', actions: [{ key: 'move', title: 'Move', icon: 'action.drag' }] }],
-            ['child', { label: 'Child', actions: [{ key: 'move', title: 'Move', icon: 'action.drag' }] }],
+            ['root', { label: 'Root', tail: [{ key: 'move', title: 'Move', icon: 'action.drag' }] }],
+            ['child', { label: 'Child', tail: [{ key: 'move', title: 'Move', icon: 'action.drag' }] }],
           ],
         }),
         tabNavigation: 'none',
@@ -298,7 +298,7 @@ describe('OcTree', () => {
     })
 
     expect(wrapper.findAll('.oc-tree__row').map(row => row.attributes('tabindex'))).toEqual(['-1', '-1'])
-    expect(wrapper.findAll('.oc-tree__controls button').map(button => button.attributes('tabindex'))).toEqual(['-1', '-1'])
+    expect(wrapper.findAll('.oc-tree__tail-action button').map(button => button.attributes('tabindex'))).toEqual(['-1', '-1'])
     await wrapper.get('[data-oc-tree-key="child"] .oc-tree__row').trigger('click')
     expect(document.activeElement).toBe(wrapper.get('[data-oc-tree-key="child"] .oc-tree__row').element)
     wrapper.unmount()
@@ -410,7 +410,7 @@ describe('OcTree', () => {
           items: [['root', {
             label: 'Root',
             renamable: true,
-            actions: [{ key: 'rename', title: 'Rename', icon: 'action.edit' }],
+            tail: [{ key: 'rename', title: 'Rename', icon: 'action.edit' }],
           }]],
         }),
       },
@@ -547,8 +547,8 @@ describe('OcTree', () => {
         data: createData({
           items: [['root', {
             label: 'Root',
-            tail: 'Metadata',
-            actions: [
+            tail: [
+              'Metadata',
               { key: 'duplicate', title: 'Duplicate', icon: 'action.copy' },
               { key: 'delete', title: 'Delete', icon: 'action.delete', disabled: true, disabledReason: 'Protected' },
             ],
@@ -580,17 +580,19 @@ describe('OcTree', () => {
     const wrapper = mount(OcTree, {
       props: {
         data: createData({
-          items: [['root', { label: 'A readable label', actions: [...actions] }]],
+          items: [['root', { label: 'A readable label', tail: [...actions] }]],
         }),
         actionOverflowTitle: 'Item actions',
       },
     })
     const row = wrapper.get('.oc-tree__row').element as HTMLElement
     const label = wrapper.get('.oc-tree__label').element as HTMLElement
-    let controls = wrapper.get('.oc-tree__controls').element as HTMLElement
+    let actionParts = [...wrapper.findAll('.oc-tree__tail-action')]
     Object.defineProperty(row, 'clientWidth', { configurable: true, value: 160 })
     vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(40, 28))
-    vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue(rect(130, 22))
+    for (const part of actionParts) {
+      vi.spyOn(part.element as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(40, 22))
+    }
 
     resize([], {} as ResizeObserver)
     await wrapper.vm.$nextTick()
@@ -605,26 +607,28 @@ describe('OcTree', () => {
       key: 'root', actionKey: 'up', source: 'inline',
     }])
 
-    controls = wrapper.get('.oc-tree__controls').element as HTMLElement
+    actionParts = [...wrapper.findAll('.oc-tree__tail-action')]
     vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(200, 28))
-    vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue(rect(22, 22))
+    for (const part of actionParts) {
+      vi.spyOn(part.element as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(10, 22))
+    }
     resize([], {} as ResizeObserver)
     await wrapper.vm.$nextTick()
     expect(wrapper.findAllComponents(OcActionButton).map(button => button.props('action').key))
       .toEqual(['top', 'up', 'delete'])
   })
 
-  it('does not render an empty inline-action container', () => {
+  it('renders no action container when a node declares no commands', () => {
     const wrapper = mount(OcTree, {
       props: {
         data: createData({
-          items: [['root', { label: 'Root', tail: '2 weeks', actions: [] }]],
+          items: [['root', { label: 'Root', tail: ['2 weeks'] }]],
         }),
       },
     })
 
-    expect(wrapper.find('.oc-tree__tail').exists()).toBe(true)
-    expect(wrapper.find('.oc-tree__controls').exists()).toBe(false)
+    expect(wrapper.get('.oc-tree__tail').text()).toContain('2 weeks')
+    expect(wrapper.find('.oc-tree__tail-action').exists()).toBe(false)
   })
 
   it('can keep inline actions visible without row interaction', () => {
@@ -633,8 +637,7 @@ describe('OcTree', () => {
         data: createData({
           items: [['root', {
             label: 'Root',
-            tail: '2 weeks',
-            actions: [{ key: 'move', title: 'Move up', icon: 'nav.arrow-up' }],
+            tail: ['2 weeks', { key: 'move', title: 'Move up', icon: 'nav.arrow-up' }],
           }]],
         }),
         actionVisibility: 'always',
@@ -642,31 +645,34 @@ describe('OcTree', () => {
     })
 
     expect(wrapper.classes()).toContain('are-actions-always-visible')
-    expect(getComputedStyle(wrapper.get('.oc-tree__controls').element).visibility).toBe('visible')
-    const rowChildren = Array.from(wrapper.get('.oc-tree__row').element.children)
-    expect(rowChildren.indexOf(wrapper.get('.oc-tree__tail').element))
-      .toBeLessThan(rowChildren.indexOf(wrapper.get('.oc-tree__controls').element))
+    // jsdom does not evaluate the scoped stylesheet, so assert the structure the rule targets:
+    // the command is the trailing part of the node's own line.
+    const tail = wrapper.get('.oc-tree__tail')
+    const actionPart = wrapper.get('.oc-tree__tail-action')
+    expect(tail.element.contains(actionPart.element)).toBe(true)
+    const tailChildren = Array.from(tail.element.children)
+    expect(tailChildren[tailChildren.length - 1]?.classList.contains('oc-tree__tail-action')).toBe(true)
   })
 
-  it('keeps inline action controls mounted while their floating menu is open', async () => {
+  it('keeps revealed commands mounted while their floating menu is open', async () => {
     const wrapper = mount(OcTree, {
       attachTo: document.body,
       props: {
         data: createData({
           items: [['root', {
             label: 'Root',
-            actions: [{ key: 'more', title: 'More', children: [{ key: 'rename', title: 'Rename' }] }],
+            tail: [{ key: 'more', title: 'More', children: [{ key: 'rename', title: 'Rename' }] }],
           }]],
         }),
       },
     })
-    const controls = wrapper.get('.oc-tree__controls')
+    const actionPart = wrapper.get('.oc-tree__tail-action')
     const actionButton = wrapper.getComponent(OcActionButton)
 
     await actionButton.trigger('pointerenter')
 
     expect(actionButton.classes()).toContain('is-menu-open')
-    expect(controls.element.matches(':has(.oc-action-button.is-menu-open)')).toBe(true)
+    expect(actionPart.element.matches(':has(.oc-action-button.is-menu-open)')).toBe(true)
     wrapper.unmount()
   })
 
@@ -676,7 +682,7 @@ describe('OcTree', () => {
         data: createData({
           items: [['root', {
             label: 'Root',
-            actions: [{
+            tail: [{
               key: 'more',
               title: 'More',
               children: [

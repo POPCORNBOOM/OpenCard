@@ -1,5 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import { normalizeNodeTail } from '../../../shared/ui/node/node.types'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveFileType } from '../../workspace/model/fileTypes'
 import { RESOURCE_PACKAGE_TYPE, type ResourcePackageManifest } from '../../workspace/model/resourcePackage'
@@ -51,7 +52,7 @@ describe('useShellFileTree package navigation', () => {
     })
     expect(tree.projectManagementTreeData.value.children.get(`${projectPath}/.opencard/packages/packages.json`))
       .toEqual([`${projectPath}/.opencard/packages/theme`])
-    expect(tree.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/packages/theme`)?.actions)
+    expect(normalizeNodeTail(tree.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/packages/theme`)?.tail))
       .toEqual([
         { key: PROJECT_PACKAGE_VERIFY_ACTION_KEY, title: 'packageManager.verify', icon: 'action.check' },
         {

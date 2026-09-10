@@ -23,11 +23,15 @@ export interface OcNodeBadge {
   label: string
 }
 
-/** Tail content of a node: secondary text or a read-only status chip. */
-export type OcNodeTailPart = string | OcNodeBadge
-
 /** Inline action definition; its `key` is reported back through the node action event. */
 export type OcNodeAction = OcActionButtonAction
+
+/**
+ * One ordered trailing line per node: secondary text, read-only status chips, and commands.
+ * Commands are the parts that carry a `key`; views render them as buttons in the same order,
+ * revealed on interaction.
+ */
+export type OcNodeTailPart = string | OcNodeBadge | OcNodeAction
 
 export type OcNodeContextEntry = OcNodeAction | OcActionDivider
 
@@ -41,14 +45,13 @@ export interface OcNode {
   /** Resolved image source used by card views such as OcAlbum. */
   thumbnailSrc?: string
   tone?: OcNodeTone
+  /** Trailing line of the node, in order; text and badges are always visible, commands appear on interaction. */
   tail?: OcNodeTailPart | readonly OcNodeTailPart[]
   disabled?: boolean
   disabledReason?: string
   renamable?: boolean
   renameSelection?: OcNodeRenameSelection
   draggable?: boolean
-  /** Commands offered by this node, rendered in its trailing control area. */
-  actions?: readonly OcNodeAction[]
   /** Context-menu entries offered by this node. */
   contextActions?: readonly OcNodeContextEntry[]
 }
@@ -99,4 +102,9 @@ export function normalizeNodeTail(
 ): readonly OcNodeTailPart[] {
   if (!tail) return []
   return Array.isArray(tail) ? tail : [tail]
+}
+
+/** A tail part is a command when it carries a badge-free `key`; badges are the only other object part. */
+export function isNodeTailAction(part: OcNodeTailPart): part is OcNodeAction {
+  return typeof part !== 'string' && part.type !== 'badge'
 }

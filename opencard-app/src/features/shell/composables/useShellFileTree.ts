@@ -203,7 +203,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       iconTone: presentation.tone,
       renamable: true,
       draggable: true,
-      actions: [{
+      tail: [{
         key: PROJECT_ENTRY_MORE_ACTION_KEY,
         title: options.translate('sidebar.fileActions.more'),
         icon: 'nav.more',
@@ -273,7 +273,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
             label: packageKey,
             icon: 'file.package',
             iconTone: 'config',
-            actions: [
+            tail: [
               {
                 key: PROJECT_PACKAGE_VERIFY_ACTION_KEY,
                 title: options.translate('packageManager.verify'),
@@ -341,7 +341,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         label: item.label,
         icon: item.icon,
         iconTone: item.iconTone,
-        actions: [closeAction],
+        tail: [closeAction],
         contextActions: [closeAction],
       }])),
       children: new Map(),

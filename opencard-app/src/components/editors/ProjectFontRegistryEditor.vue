@@ -169,7 +169,7 @@ const treeData = computed<OcNodeCollection>(() => {
       return [treeKey('families', entry.key), {
         label: entry.name,
         icon: 'file.font',
-        actions: referenced ? [configureFamilyAction] : [configureFamilyAction, removeFamilyAction],
+        tail: referenced ? [configureFamilyAction] : [configureFamilyAction, removeFamilyAction],
         contextActions: referenced ? [configureFamilyAction] : [
           configureFamilyAction,
           { type: 'divider', key: 'font-delete-divider' },
@@ -180,7 +180,7 @@ const treeData = computed<OcNodeCollection>(() => {
     ...props.compositions.map((entry): [string, OcNode] => [treeKey('compositions', entry.key), {
       label: entry.name,
       icon: 'data.layers',
-      actions: [configureCompositionAction, removeCompositionAction],
+      tail: [configureCompositionAction, removeCompositionAction],
       contextActions: [
         configureCompositionAction,
         { type: 'divider', key: 'composition-delete-divider' },

@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import type { OcNodeAction } from '../../shared/ui/node/node.types'
+import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcTree from '../standard/OcTree.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
@@ -38,7 +39,8 @@ describe('ProjectIconSetWorkspace', () => {
       props: { series, runtime, selectedIconIndexes: [0] },
     })
     const nodeActions = (key: string): readonly OcNodeAction[] => {
-      const actions = wrapper.getComponent(OcTree).props('data').items.get(key)?.actions
+      const actions = normalizeNodeTail(wrapper.getComponent(OcTree).props('data').items.get(key)?.tail)
+        .filter(isNodeTailAction)
       expect(actions).toBeDefined()
       return actions ?? []
     }

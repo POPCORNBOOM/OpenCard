@@ -1,5 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it } from 'vitest'
+import { normalizeNodeTail } from '../../../shared/ui/node/node.types'
 import type { EditorIssue } from '../../editor-runtime/model/editorIssue'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import {
@@ -55,7 +56,7 @@ describe('workspace issue projection', () => {
       icon: 'status.error',
       iconTone: 'danger',
     })
-    expect(projection.treeData.items.get(issueKey!)?.actions).toEqual([{
+    expect(normalizeNodeTail(projection.treeData.items.get(issueKey!)?.tail)).toEqual([{
       key: 'copy-issue',
       title: COPY_ISSUE_LABEL,
       icon: 'action.copy',

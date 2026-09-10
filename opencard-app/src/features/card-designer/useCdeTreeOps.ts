@@ -163,7 +163,7 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
         renamable: true,
         draggable: true,
-        actions: [visibilityAction, moreAction],
+        tail: [visibilityAction, moreAction],
         contextActions: [
           visibilityAction,
           { type: 'divider', key: 'block-edit-divider' },

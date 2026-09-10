@@ -1,6 +1,7 @@
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
+import { normalizeNodeTail } from '../../../shared/ui/node/node.types'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
   PROJECT_ENTRY_MORE_ACTION_KEY,
@@ -28,7 +29,7 @@ describe('useShellFileTree opened editors', () => {
       ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
-    expect(openedEditorTreeData.value.items.get('session-1')?.actions).toEqual([{
+    expect(normalizeNodeTail(openedEditorTreeData.value.items.get('session-1')?.tail)).toEqual([{
       key: OPENED_EDITOR_CLOSE_ACTION_KEY,
       title: 'sidebar.closeEditor',
       icon: 'action.close',
@@ -52,7 +53,7 @@ describe('useShellFileTree opened editors', () => {
     expect(projectTreeData.value.items.get('D:/project/cards/main.ocdocument')).toMatchObject({
       renamable: true,
       draggable: true,
-      actions: [{ key: PROJECT_ENTRY_MORE_ACTION_KEY }],
+      tail: [{ key: PROJECT_ENTRY_MORE_ACTION_KEY }],
       renameSelection: { start: 0, end: 4 },
     })
   })
@@ -155,10 +156,10 @@ describe('useShellFileTree opened editors', () => {
       .toMatchObject({ icon: 'file.font', iconTone: 'config' })
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/fonts/fonts.json`)).toBe(false)
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/icons/icons.json`)).toBe(false)
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.actions)
-      .toBeUndefined()
-    expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/icons.json`)?.actions)
-      .toBeUndefined()
+    expect(normalizeNodeTail(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.tail))
+      .toEqual(['.opencard/fonts/fonts.json'])
+    expect(normalizeNodeTail(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/icons/icons.json`)?.tail))
+      .toEqual(['.opencard/icons/icons.json'])
     expect(result.projectManagementExpandedKeys.value).toEqual([])
 
     const fontRegistryKey = `${projectPath}/.opencard/fonts/fonts.json`

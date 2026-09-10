@@ -189,10 +189,9 @@ const documentTreeData = computed<OcNodeCollection>(() => {
     rootKeys: selectedDocuments.value.map(document => document.path),
     items: new Map(selectedDocuments.value.map((document): [string, OcNode] => [document.path, {
       label: document.path,
-      tail: targetResolution(document),
+      tail: [targetResolution(document), ...(busy.value ? [] : removeDocumentActions)],
       icon: 'file.opencard',
       draggable: !busy.value,
-      actions: busy.value ? [] : removeDocumentActions,
     }])),
     children: new Map(),
   }

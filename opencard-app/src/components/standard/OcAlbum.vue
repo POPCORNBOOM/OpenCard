@@ -3,7 +3,11 @@
   <div
     ref="albumRootElement"
     class="oc-album"
-    :class="{ 'is-fill': props.fill, 'is-empty': entries.length === 0 }"
+    :class="{
+      'is-fill': props.fill,
+      'is-empty': entries.length === 0,
+      'are-actions-always-visible': props.actionVisibility === 'always',
+    }"
     :role="props.selectionMode === 'none' ? 'list' : 'listbox'"
     :aria-multiselectable="props.selectionMode === 'multiple' ? 'true' : undefined"
   >
@@ -37,12 +41,13 @@
           @keydown="handleCardKeydown($event, entry.key)"
           @focus="activeKey = entry.key"
         >
-          <span class="oc-album__cover" :class="{ 'is-plain': !entry.item.thumbnailSrc }">
+          <span class="oc-album__media">
             <img
-              v-if="entry.item.thumbnailSrc"
+              v-if="entry.item.thumbnailSrc && !isThumbnailBroken(entry)"
               class="oc-album__cover-image"
               :src="entry.item.thumbnailSrc"
               :alt="entry.item.thumbnailLabel ?? entry.item.label"
+              @error="markThumbnailBroken(entry)"
             />
             <span
               v-else-if="entry.item.thumbnailStyle"
@@ -55,7 +60,7 @@
             <OcIcon v-else :name="entry.item.icon ?? 'file.generic'" :tone="entry.item.iconTone" size="lg" />
           </span>
 
-          <span class="oc-album__body">
+          <span class="oc-album__info">
             <OcText
               class="oc-album__label"
               :tone="entry.item.tone"
@@ -64,37 +69,36 @@
             >
               {{ entry.item.label }}
             </OcText>
-            <span v-if="entry.item.tail" class="oc-album__tail">
-              <template
-                v-for="(part, index) in normalizeNodeTail(entry.item.tail)"
-                :key="typeof part === 'string' ? `text:${index}` : `badge:${index}`"
-              >
-                <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
-                <span
-                  v-else
-                  class="oc-album__tail-badge"
-                  role="img"
-                  :aria-label="part.label"
-                  :data-tooltip="part.label"
+            <span class="oc-album__meta">
+              <span v-if="entry.item.tail" class="oc-album__tail">
+                <template
+                  v-for="(part, index) in normalizeNodeTail(entry.item.tail)"
+                  :key="tailPartKey(part, index)"
                 >
-                  <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
-                </span>
-              </template>
+                  <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
+                  <span
+                    v-else-if="part.type === 'badge'"
+                    class="oc-album__tail-badge"
+                    role="img"
+                    :aria-label="part.label"
+                    :data-tooltip="part.label"
+                  >
+                    <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
+                  </span>
+                  <span v-else class="oc-album__tail-action">
+                    <OcActionButton
+                      :action="part"
+                      size="sm"
+                      variant="ghost"
+                      @mousedown.stop
+                      @select="emitActionIntent(entry.key, $event.key)"
+                    />
+                  </span>
+                </template>
+              </span>
             </span>
           </span>
         </div>
-
-        <span v-if="(entry.item.actions ?? []).length > 0" class="oc-album__controls">
-          <OcActionButton
-            v-for="action in entry.item.actions"
-            :key="action.key"
-            :action="action"
-            size="sm"
-            variant="ghost"
-            @mousedown.stop
-            @select="emitActionIntent(entry.key, $event.key)"
-          />
-        </span>
       </div>
     </div>
   </div>
@@ -105,7 +109,7 @@ import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vu
 import OcActionButton from './OcActionButton.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
-import { normalizeNodeTail } from '../../shared/ui/node/node.types'
+import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import type {
   OcNode,
   OcNodeActionEvent,
@@ -113,6 +117,7 @@ import type {
   OcNodeCollection,
   OcNodeKey,
   OcNodeSelectionEvent,
+  OcNodeTailPart,
 } from '../../shared/ui/node/node.types'
 
 type OcAlbumSelectionMode = 'none' | 'single' | 'multiple'
@@ -123,6 +128,8 @@ interface OcAlbumProps {
   selectedKeys?: readonly OcNodeKey[]
   selectionMode?: OcAlbumSelectionMode
   activationMode?: OcAlbumActivationMode
+  /** Card actions stay hidden until the card is hovered or focused unless set to `always`. */
+  actionVisibility?: 'on-interaction' | 'always'
   fill?: boolean
   placeholder?: string
 }
@@ -138,6 +145,7 @@ const props = withDefaults(defineProps<OcAlbumProps>(), {
   selectedKeys: () => [],
   selectionMode: 'single',
   activationMode: 'double-click',
+  actionVisibility: 'on-interaction',
   fill: false,
   placeholder: '',
 })
@@ -152,6 +160,20 @@ const albumRootElement = ref<HTMLElement | null>(null)
 const cardRefs = new Map<OcNodeKey, HTMLElement>()
 const activeKey = ref<OcNodeKey | null>(null)
 const selectionAnchorKey = ref<OcNodeKey | null>(null)
+/** Cover sources that failed to load, so a card falls back to its icon instead of a broken image. */
+const brokenThumbnailSources = ref<ReadonlyMap<OcNodeKey, string>>(new Map())
+
+function isThumbnailBroken(entry: AlbumEntry): boolean {
+  return Boolean(entry.item.thumbnailSrc)
+    && brokenThumbnailSources.value.get(entry.key) === entry.item.thumbnailSrc
+}
+
+function markThumbnailBroken(entry: AlbumEntry): void {
+  if (isThumbnailBroken(entry) || !entry.item.thumbnailSrc) return
+  const next = new Map(brokenThumbnailSources.value)
+  next.set(entry.key, entry.item.thumbnailSrc)
+  brokenThumbnailSources.value = next
+}
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 
@@ -166,6 +188,10 @@ const entries = computed<AlbumEntry[]>(() => props.data.rootKeys.flatMap((key) =
 
 function isSelected(key: OcNodeKey): boolean {
   return selectedKeySet.value.has(key)
+}
+
+function tailPartKey(part: OcNodeTailPart, index: number): string {
+  return typeof part === 'string' ? `text:${index}` : isNodeTailAction(part) ? `action:${part.key}` : `badge:${index}`
 }
 
 function setCardRef(key: OcNodeKey): (element: Element | ComponentPublicInstance | null) => void {
@@ -305,13 +331,14 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
 }
 
 .oc-album__card {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  display: block;
   min-width: 0;
+  aspect-ratio: var(--oc-album-card-aspect-ratio);
   overflow: hidden;
   border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
-  background: var(--oc-bg-surface);
+  background: var(--oc-bg-block);
   cursor: pointer;
   transition:
     border-color var(--oc-duration-fast) var(--oc-ease),
@@ -320,7 +347,6 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
 
 .oc-album__card:hover {
   border-color: var(--oc-border-strong);
-  background: var(--oc-bg-hover);
 }
 
 .oc-album__card:focus-visible {
@@ -330,6 +356,9 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
 
 .oc-album__card.is-selected {
   border-color: var(--oc-border-accent);
+}
+
+.oc-album__card.is-selected .oc-album__info {
   background: var(--oc-bg-selected);
 }
 
@@ -337,14 +366,13 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   opacity: var(--oc-opacity-disabled);
   cursor: default;
 }
-.oc-album__cover {
+
+.oc-album__media {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: var(--oc-album-cover-aspect-ratio);
-  overflow: hidden;
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-  background: var(--oc-bg-block);
 }
 
 .oc-album__cover-image {
@@ -358,18 +386,30 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   height: 100%;
 }
 
-.oc-album__body {
+.oc-album__info {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
   display: flex;
   flex-direction: column;
   gap: var(--oc-space-1);
   min-width: 0;
-  padding: var(--oc-space-2) var(--oc-space-3);
+  padding: var(--oc-space-1) var(--oc-space-3);
+  background: var(--oc-bg-glass);
+  -webkit-backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
 }
 
 .oc-album__label {
   min-width: 0;
 }
 
+.oc-album__meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--oc-space-1);
+}
 .oc-album__tail {
   display: inline-flex;
   flex: 0 1 auto;
@@ -384,15 +424,17 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   flex: 0 0 auto;
 }
 
-.oc-album__controls {
-  position: absolute;
-  top: var(--oc-space-1);
-  right: var(--oc-space-1);
-  display: flex;
+.oc-album__tail-action {
+  display: none;
+  flex: 0 0 auto;
   align-items: center;
-  gap: var(--oc-space-1);
-  padding: 0 var(--oc-space-1);
-  border-radius: var(--oc-radius-sm);
-  background: var(--oc-bg-glass);
+}
+
+.oc-album__node:hover .oc-album__tail-action,
+.oc-album__card:focus-within .oc-album__tail-action,
+.oc-album__card.is-selected .oc-album__tail-action,
+.oc-album__tail-action:has(.oc-action-button.is-menu-open),
+.oc-album.are-actions-always-visible .oc-album__tail-action {
+  display: inline-flex;
 }
 </style>

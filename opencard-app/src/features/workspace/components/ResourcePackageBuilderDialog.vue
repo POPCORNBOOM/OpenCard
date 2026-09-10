@@ -209,8 +209,8 @@ const treeData = computed<OcNodeCollection>(() => {
       const key = `font-family:${family.key}`
       const selected = selectedFamilyKeys.value.has(family.key)
       items.set(key, {
-        label: family.name, tail: family.key, icon: 'file.font', iconTone: selected ? 'active' : 'muted',
-        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
+        label: family.name, tail: [family.key, ...toggleSelection(selected)], icon: 'file.font', iconTone: selected ? 'active' : 'muted',
+        contextActions: toggleSelection(selected),
       })
       return key
     }))
@@ -218,8 +218,8 @@ const treeData = computed<OcNodeCollection>(() => {
       const key = `font-composition:${composition.key}`
       const selected = selectedCompositionKeys.value.has(composition.key)
       items.set(key, {
-        label: composition.name, tail: composition.key, icon: 'data.layers', iconTone: selected ? 'active' : 'muted',
-        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
+        label: composition.name, tail: [composition.key, ...toggleSelection(selected)], icon: 'data.layers', iconTone: selected ? 'active' : 'muted',
+        contextActions: toggleSelection(selected),
       })
       return key
     }))
@@ -235,8 +235,8 @@ const treeData = computed<OcNodeCollection>(() => {
       const key = `icon-series:${series.key}`
       const selected = selectedIconSeriesKeys.value.has(series.key)
       items.set(key, {
-        label: series.name, tail: series.key, icon: 'file.project-icon', iconTone: selected ? 'active' : 'muted',
-        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
+        label: series.name, tail: [series.key, ...toggleSelection(selected)], icon: 'file.project-icon', iconTone: selected ? 'active' : 'muted',
+        contextActions: toggleSelection(selected),
       })
       return key
     }))
@@ -264,7 +264,7 @@ const treeData = computed<OcNodeCollection>(() => {
       items.set(entry.id, {
         label: segments[segments.length - 1] ?? entry.label,
         icon: 'file.image', iconTone: selected ? 'active' : 'muted',
-        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
+        tail: toggleSelection(selected), contextActions: toggleSelection(selected),
       })
       addChild(parentKey, entry.id)
     }

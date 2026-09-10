@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { CardDocument } from '../../entities/card/model'
+import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 
 describe('useCdeInstanceOps tree actions', () => {
@@ -34,10 +35,11 @@ describe('useCdeInstanceOps tree actions', () => {
       markDocumentChanged: vi.fn(),
     })
 
-    expect(state.instanceTreeData.value.items.get('__blueprint__')?.actions).toBeUndefined()
-    expect(state.instanceTreeData.value.items.get('instance-1')?.actions?.map(action => action.key))
-      .toEqual(['instance-more'])
-    expect(state.instanceTreeData.value.items.get('instance-1')?.actions?.[0]?.children?.map(action => action.key))
+    const nodeActions = (key: string) => normalizeNodeTail(state.instanceTreeData.value.items.get(key)?.tail)
+      .filter(isNodeTailAction)
+    expect(nodeActions('__blueprint__')).toEqual([])
+    expect(nodeActions('instance-1').map(action => action.key)).toEqual(['instance-more'])
+    expect(nodeActions('instance-1')[0]?.children?.map(action => action.key))
       .toEqual(['rename', 'duplicate-instance', 'delete-instance'])
   })
 

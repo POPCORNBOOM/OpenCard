@@ -59,6 +59,47 @@ describe('OcAlbum', () => {
     expect(wrapper.find('.oc-album__cover .oc-icon').exists()).toBe(false)
   })
 
+  it('falls back to the node icon when a cover image fails to load', async () => {
+    const wrapper = mount(OcAlbum, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Theme',
+            icon: 'file.package',
+            thumbnailSrc: 'asset://missing.png',
+          }]],
+        }),
+      },
+    })
+
+    expect(wrapper.find('.oc-album__cover-image').exists()).toBe(true)
+    await wrapper.get('.oc-album__cover-image').trigger('error')
+
+    expect(wrapper.find('.oc-album__cover-image').exists()).toBe(false)
+    expect(wrapper.find('.oc-album__media .oc-icon').exists()).toBe(true)
+  })
+
+  it('retries the cover when the node points at a different image', async () => {
+    const wrapper = mount(OcAlbum, {
+      props: {
+        data: createData({
+          items: [['root', { label: 'Theme', icon: 'file.package', thumbnailSrc: 'asset://broken.png' }]],
+        }),
+      },
+    })
+
+    await wrapper.get('.oc-album__cover-image').trigger('error')
+    expect(wrapper.find('.oc-album__cover-image').exists()).toBe(false)
+
+    await wrapper.setProps({
+      data: createData({
+        items: [['root', { label: 'Theme', icon: 'file.package', thumbnailSrc: 'asset://replaced.png' }]],
+      }),
+    })
+
+    expect(wrapper.get('.oc-album__cover-image').attributes('src')).toBe('asset://replaced.png')
+  })
+
   it('renders text and status-badge tail parts without turning them into actions', () => {
     const wrapper = mount(OcAlbum, {
       props: {
@@ -79,6 +120,48 @@ describe('OcAlbum', () => {
     expect(wrapper.find('.oc-album__tail button').exists()).toBe(false)
   })
 
+  it('stacks the label above the tail in the card overlay', () => {
+    const wrapper = mount(OcAlbum, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Theme@1.0.0',
+            icon: 'file.package',
+            tail: ['Local', { key: 'remove', title: 'Remove', icon: 'action.delete' }],
+          }]],
+        }),
+      },
+    })
+
+    const infoChildren = Array.from(wrapper.get('.oc-album__info').element.children)
+    expect(infoChildren[0]?.classList.contains('oc-album__label')).toBe(true)
+    expect(infoChildren[1]?.classList.contains('oc-album__meta')).toBe(true)
+    expect(wrapper.get('.oc-album__meta').element.children[0]?.classList.contains('oc-album__tail')).toBe(true)
+  })
+
+  it('renders card commands as the trailing parts of the tail line', () => {
+    const wrapper = mount(OcAlbum, {
+      props: {
+        data: createData({
+          items: [['theme', {
+            label: 'Theme@1.0.0',
+            icon: 'file.package',
+            tail: ['Local', { key: 'remove', title: 'No longer needed', icon: 'action.delete' }],
+          }]],
+        }),
+      },
+    })
+
+    const tail = wrapper.get('.oc-album__tail')
+    expect(tail.text()).toContain('Local')
+    const children = Array.from(tail.element.children)
+    expect(children[children.length - 1]?.classList.contains('oc-album__tail-action')).toBe(true)
+    expect(wrapper.find('button[aria-label="No longer needed"]').exists()).toBe(true)
+    // Commands stay in the card's own info row; the node has no separate overlay layer.
+    expect(tail.element.closest('.oc-album__info')).not.toBeNull()
+    expect(Array.from(wrapper.get('.oc-album__node').element.children)).toHaveLength(1)
+  })
+
   it('reports the card key and action key when a card action is invoked', async () => {
     const wrapper = mount(OcAlbum, {
       props: {
@@ -86,7 +169,7 @@ describe('OcAlbum', () => {
           items: [['theme', {
             label: 'Theme',
             icon: 'file.package',
-            actions: [{
+            tail: [{
               key: 'remove',
               title: 'No longer needed',
               icon: 'action.delete',
@@ -111,7 +194,7 @@ describe('OcAlbum', () => {
           items: [['theme', {
             label: 'Theme',
             icon: 'file.package',
-            actions: [{
+            tail: [{
               key: 'remove',
               title: 'Remove',
               icon: 'action.delete',
