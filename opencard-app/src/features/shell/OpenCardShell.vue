@@ -64,6 +64,9 @@
 
       <ShellWorkspaceFrame
         :title="workspaceTitle"
+        :icon="workspaceIcon"
+        :icon-tone="workspaceIconTone"
+        :subtitle="workspaceSubtitle"
         :actions="workspaceActions"
         lock-body-scroll
         flush-body
@@ -358,6 +361,7 @@ import {
   type SettingsIntent,
 } from '../settings/model/appSettings'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import type {
   EditorIssueSnapshot,
   SessionIssueNavigationRequest,
@@ -2170,16 +2174,33 @@ const titleBarMenus = computed<ShellTitleBarMenuGroup[]>(() => [
   },
 ])
 
+/** The active editor owns its own identity; the shell only places it. */
+const editorPresentation = computed<EditorPresentation | undefined>(() => (
+  currentEditorRef.value?.presentation
+))
+
 const workspaceTitle = computed(() => {
   if (isCreateProjectMode.value) return t('projectTemplates.title')
   if (isExportTemplateMode.value) return t('templateExport.title')
   if (isSettingsMode.value) return activeSettingsCategory.value.title
   if (isAboutMode.value) return t('app.about.title')
   if (isWelcomeMode.value) return 'OpenCard'
+  if (editorPresentation.value) return editorPresentation.value.title
   return activeSession.value
     ? formatSessionTitle(activeSession.value)
     : projectName.value || t('app.menu.workbench')
 })
+
+const workspaceIcon = computed(() => editorPresentation.value?.icon ?? undefined)
+
+const workspaceIconTone = computed(() => editorPresentation.value?.iconTone ?? undefined)
+
+const workspaceSubtitle = computed(() => editorPresentation.value?.description ?? undefined)
+
+/** The active editor owns its own header actions and exposes them through the editor ref. */
+const editorHeaderActions = computed<readonly ShellWorkspaceAction[]>(() => (
+  currentEditorRef.value?.workspaceActions ?? []
+))
 
 const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
   if (!isWorkbenchMode.value) return []
@@ -2223,7 +2244,7 @@ const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
       disabled: isDataTableWorkbookBusy.value || !canExportDataTableWorkbook.value,
     },
   ]
-  if (!isActiveCardDesignerEditor.value) return []
+  if (!isActiveCardDesignerEditor.value) return [...editorHeaderActions.value]
   const tableMode = activeCardDesignerMode.value === 'data-table'
   const modeAction: ShellAction = {
     key: CARD_DESIGNER_MODE_ACTION_KEY,
@@ -3364,6 +3385,8 @@ async function handleWorkspaceFrameAction(actionKey: string) {
     await exportDataTableWorkbook()
     return
   }
+
+  if (await currentEditorRef.value?.runWorkspaceAction?.(actionKey)) return
 
   await runShellCommand(actionKey)
 }

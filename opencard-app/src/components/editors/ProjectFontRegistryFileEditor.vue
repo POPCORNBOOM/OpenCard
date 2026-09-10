@@ -2,16 +2,7 @@
   <MonacoEditor v-if="props.mode === 'diff'" :model-value="props.modelValue ?? ''" language="json"
     :mode="props.mode" :comparison="props.comparison" :theme-id="themeId" :theme-overrides="themeOverrides" />
 
-  <ProjectRegistryEditorShell v-else icon="file.font" content-mode="workspace"
-    :heading="t('fontRegistry.title')" :description="t('fontRegistry.description')"
-    @keydown.ctrl.s.prevent="save">
-    <template #actions>
-      <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addFont')"
-        @click="openRegistrationDialog()">{{ t('projectConfig.fonts.addFont') }}</OcButton>
-      <OcButton icon="action.add" variant="soft" :aria-label="t('projectConfig.fonts.addSet')"
-        @click="openCompositionDialog()">{{ t('projectConfig.fonts.addSet') }}</OcButton>
-    </template>
-
+  <ProjectRegistryEditorShell v-else content-mode="workspace" @keydown.ctrl.s.prevent="save">
     <ProjectFontRegistryEditor v-if="document" ref="workbenchRef" :families="document.families ?? []"
       :compositions="document.compositions ?? []"
       :resolve-asset-src="source => projectStore.resolveResourceAssetSrcFromFile(props.filePath, source)"
@@ -64,6 +55,8 @@ import MonacoEditor from './MonacoEditor.vue'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { ContentHistoryOperationMeta } from '../../features/editor-runtime/history/contentHistory'
 import type { EditorIssue, EditorIssueSnapshot, EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
+import type { ShellWorkspaceAction } from '../../features/shell/shell.types'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import { reportAppError } from '../../features/logging/appErrorCatalog'
 import {
   buildProjectFontRegistry,
@@ -414,5 +407,41 @@ async function navigate(token: SessionNavigationToken): Promise<EditorNavigation
   return await workbenchRef.value?.navigateToFont(token.target.kind, token.target.key) ? 'success' : 'not-found'
 }
 
-defineExpose({ save, navigate })
+const presentation = computed<EditorPresentation>(() => ({
+  title: t('fontRegistry.title'),
+  description: t('fontRegistry.description'),
+  icon: 'file.font',
+}))
+
+const WORKSPACE_ADD_FAMILY_ACTION_KEY = 'project-font-registry.add-family'
+const WORKSPACE_ADD_COMPOSITION_ACTION_KEY = 'project-font-registry.add-composition'
+
+const workspaceActions = computed<ShellWorkspaceAction[]>(() => [
+  {
+    key: WORKSPACE_ADD_FAMILY_ACTION_KEY,
+    icon: 'action.add',
+    hoverTip: t('projectConfig.fonts.addFont'),
+    disabled: !document.value,
+  },
+  {
+    key: WORKSPACE_ADD_COMPOSITION_ACTION_KEY,
+    icon: 'action.add',
+    hoverTip: t('projectConfig.fonts.addSet'),
+    disabled: !document.value,
+  },
+])
+
+async function runWorkspaceAction(actionKey: string): Promise<boolean> {
+  if (actionKey === WORKSPACE_ADD_FAMILY_ACTION_KEY) {
+    openRegistrationDialog()
+    return true
+  }
+  if (actionKey === WORKSPACE_ADD_COMPOSITION_ACTION_KEY) {
+    openCompositionDialog()
+    return true
+  }
+  return false
+}
+
+defineExpose({ save, navigate, workspaceActions, runWorkspaceAction, presentation })
 </script>

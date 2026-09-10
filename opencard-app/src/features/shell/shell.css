@@ -773,6 +773,15 @@
   background: color-mix(in srgb, var(--oc-bg-surface) 94%, var(--oc-bg-raised));
 }
 
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--oc-space-2);
+}
+
+.workspace-subtitle { min-width: 0; }
+
 .workspace-header::after {
   content: "";
   position: absolute;

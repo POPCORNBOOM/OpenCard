@@ -36,7 +36,11 @@ describe('ProjectConfigEditor', () => {
       },
     })
 
-    expect(wrapper.get('h1').text()).toBe('projectConfig.title')
+    expect(wrapper.vm.presentation).toEqual({
+      title: 'projectConfig.title',
+      description: 'projectConfig.description',
+      icon: 'file.opencard-project',
+    })
     expect(wrapper.find('[data-field-key="extends"]').exists()).toBe(false)
     expect(wrapper.find('[data-field-key="globalvariables"]').exists()).toBe(false)
     expect(wrapper.find('.property-editor').exists()).toBe(false)

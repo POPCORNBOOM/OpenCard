@@ -45,7 +45,9 @@ describe('PackageManifestEditor', () => {
   it('renders the installed package through its dedicated viewer', () => {
     const wrapper = mountEditor()
 
-    expect(wrapper.getComponent(ProjectRegistryEditorShell).props('heading')).toBe('Theme Package')
+    expect(wrapper.vm.presentation?.title).toBe('Theme Package')
+    expect(wrapper.vm.presentation?.icon).toBe('file.package')
+    expect(wrapper.findComponent(ProjectRegistryEditorShell).exists()).toBe(true)
     expect(wrapper.text()).toContain('1.2.3')
     expect(wrapper.text()).toContain('0000000000000000000000000000000000000000000000000000000000000000')
   })

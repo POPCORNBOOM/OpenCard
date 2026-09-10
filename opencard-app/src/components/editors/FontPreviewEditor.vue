@@ -1,8 +1,7 @@
 <template>
   <FontDiffView v-if="props.mode === 'diff'" :comparison="props.comparison" :file-path="props.filePath"
     :project-root-path="props.resourceRootPath" />
-  <ProjectRegistryEditorShell v-else icon="file.font" content-mode="workspace"
-    :heading="displayName" :description="t('fontPreview.subtitle')">
+  <ProjectRegistryEditorShell v-else content-mode="workspace">
     <section class="font-preview-editor" :aria-label="t('fontPreview.title', { name: displayName })">
       <div v-if="loading" class="font-preview-editor__status">
         <OcText tone="muted">{{ t('fontPreview.loading') }}</OcText>
@@ -35,6 +34,7 @@
 import { computed, onBeforeUnmount, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import { repairTrueTypeFont } from '../../features/workspace/services/trueTypeFontRepair'
 import OcButton from '../base/OcButton.vue'
@@ -59,6 +59,14 @@ let fontObjectUrl: string | null = null
 let loadVersion = 0
 
 const displayName = computed(() => props.fileName || props.filePath.split(/[/\\]/).pop() || props.filePath)
+
+const presentation = computed<EditorPresentation>(() => ({
+  title: displayName.value,
+  description: t('fontPreview.subtitle'),
+  icon: 'file.font',
+}))
+
+defineExpose({ presentation })
 const specimenStyle = computed<CSSProperties>(() => ({ fontFamily: previewFamily }))
 const absolutePath = computed(() => {
   if (/^[a-z]:[/\\]/i.test(props.filePath) || props.filePath.startsWith('/')) return props.filePath

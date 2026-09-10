@@ -45,6 +45,7 @@ export type EditorSessionMode = 'edit' | 'diff'
 export type OpenSessionOptions = {
   preview?: boolean
   title?: string
+  description?: string
   icon?: IconToken
   iconTone?: IconTone
 }
@@ -62,6 +63,8 @@ export type EditorSession = {
   name: string
   /** Optional display label for the editor list. `name` stays the file or draft identity. */
   title?: string
+  /** Optional one-line description shown next to the title in the workspace header. */
+  description?: string
   /** Optional display icon overriding the file type icon. */
   icon?: IconToken
   iconTone?: IconTone
@@ -102,6 +105,7 @@ type CreateDraftSessionOptions = {
   fileTypeId?: string
   name?: string
   title?: string
+  description?: string
   icon?: IconToken
   iconTone?: IconTone
   content?: string
@@ -314,17 +318,18 @@ export function useEditorSessionStore() {
     )
   }
 
-  /** An unspecified title means "use the session name again". */
-  function setSessionTitle(sessionId: string, title: string | undefined): void {
+  /** Patches the display presentation; an omitted title means "use the session name again". */
+  function setSessionPresentation(
+    sessionId: string,
+    patch: { title?: string, description?: string, icon?: IconToken, iconTone?: IconTone },
+  ): void {
     sessions.value = sessions.value.map(session => session.id === sessionId
-      ? { ...session, title }
-      : session)
-  }
-
-  /** An unspecified icon means "use the file type icon again". */
-  function setSessionIcon(sessionId: string, icon: IconToken | undefined, iconTone: IconTone | undefined): void {
-    sessions.value = sessions.value.map(session => session.id === sessionId
-      ? { ...session, icon, iconTone }
+      ? {
+          ...session,
+          ...('title' in patch ? { title: patch.title } : {}),
+          ...('description' in patch ? { description: patch.description } : {}),
+          ...('icon' in patch ? { icon: patch.icon, iconTone: patch.iconTone } : {}),
+        }
       : session)
   }
 
@@ -337,8 +342,11 @@ export function useEditorSessionStore() {
       if (!preview && existingSession.isPreview) {
         setSessionPreviewState(existingSession.id, false)
       }
-      if (title !== existingSession.title) setSessionTitle(existingSession.id, title)
-      if (options?.icon !== undefined) setSessionIcon(existingSession.id, options.icon, options.iconTone)
+      setSessionPresentation(existingSession.id, {
+        title,
+        description: options?.description,
+        ...(options?.icon ? { icon: options.icon, iconTone: options.iconTone } : {}),
+      })
 
       activeSessionId.value = existingSession.id
       return existingSession
@@ -366,6 +374,7 @@ export function useEditorSessionStore() {
       fileTypeId: fileType.id,
       name: resolveOpenedSessionName(normalizedPath, fileType.id),
       ...(title ? { title } : {}),
+      ...(options?.description ? { description: options.description } : {}),
       ...(options?.icon ? { icon: options.icon, iconTone: options.iconTone } : {}),
       editorId: fileType.editorId,
       savedContent: content,
@@ -417,6 +426,7 @@ export function useEditorSessionStore() {
       fileTypeId: fileType.id,
       name,
       ...(options.title?.trim() ? { title: options.title.trim() } : {}),
+      ...(options.description ? { description: options.description } : {}),
       ...(options.icon ? { icon: options.icon, iconTone: options.iconTone } : {}),
       editorId: fileType.editorId,
       savedContent: content,

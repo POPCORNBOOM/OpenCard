@@ -29,6 +29,8 @@ import type { HistoryOperationMeta } from '../../editor-runtime/history/structur
 import type { CardFaceKey } from '../../../entities/card/model'
 import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
 import type { EditorComparisonInput } from '../../editor-runtime/registry/editorRegistry'
+import type { ShellWorkspaceAction } from '../shell.types'
+import type { EditorPresentation } from '../../../shared/ui/editorPresentation.types'
 
 const VIEWPORT_TRANSFORM_PERSIST_DELAY_MS = 200
 
@@ -39,6 +41,12 @@ export type ShellEditorRef = {
   redo?: () => Promise<void> | void
   canUndo?: boolean
   canRedo?: boolean
+  /** Actions the active editor contributes to the workspace header. */
+  workspaceActions?: readonly ShellWorkspaceAction[]
+  /** Runs one of those actions; returns false when the key does not belong to the editor. */
+  runWorkspaceAction?: (actionKey: string) => Promise<boolean> | boolean
+  /** The editor's own identity, shown in the workspace header. */
+  presentation?: EditorPresentation
   navigate?: (token: SessionNavigationToken) => Promise<EditorNavigationResult> | EditorNavigationResult
   importDataTableWorkbook?: () => Promise<void> | void
   exportDataTableWorkbook?: () => Promise<void> | void

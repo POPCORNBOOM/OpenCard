@@ -2,16 +2,6 @@
   <section ref="rootRef" class="dictionary-editor" :aria-label="t('dictionaryEditor.title')"
     @keydown="handleGridKeydown">
     <div class="dictionary-editor__content">
-      <header class="dictionary-editor__header">
-        <div class="dictionary-editor__title">
-          <OcIcon name="file.dictionary" size="lg" />
-          <div>
-            <h1>{{ t('dictionaryEditor.title') }}</h1>
-            <OcText tone="muted" size="sm">{{ t('dictionaryEditor.description') }}</OcText>
-          </div>
-        </div>
-      </header>
-
       <div v-if="dictionary && missingActiveLanguage" class="dictionary-editor__notice" role="status">
         <OcIcon name="status.warning" tone="warning" />
         <OcText size="sm">{{ t('dictionaryEditor.missingActive', { language: dictionary.active }) }}</OcText>
@@ -175,6 +165,7 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, type Ref }
 import { useI18n } from 'vue-i18n'
 import { notifyAppError, notifyError } from '../../features/notifications/titlebarNotices'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import { parseProjectDictionaryText, serializeProjectDictionary, type ProjectDictionary } from '../../features/workspace/model/projectDictionary'
 import {
@@ -632,8 +623,16 @@ function save() {
 }
 
 onBeforeUnmount(finishColumnResize)
+
+const presentation = computed<EditorPresentation>(() => ({
+  title: t('dictionaryEditor.title'),
+  description: t('dictionaryEditor.description'),
+  icon: 'file.dictionary',
+}))
+
 defineExpose({
   save,
+  presentation,
   importDataTableWorkbook: importDictionaryWorkbook,
   exportDataTableWorkbook: exportDictionaryWorkbook,
   dataTableWorkbookBusy: dictionaryWorkbookBusy,
@@ -662,14 +661,6 @@ defineExpose({
   min-height: 0;
 }
 
-.dictionary-editor__header {
-  display: flex;
-  align-items: center;
-  padding: var(--oc-space-5);
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-}
-
-.dictionary-editor__title,
 .dictionary-editor__column-heading,
 .dictionary-editor__column-actions,
 .dictionary-editor__record-heading,
@@ -677,17 +668,6 @@ defineExpose({
 .dictionary-editor__diagnostic {
   display: flex;
   align-items: center;
-}
-
-.dictionary-editor__title {
-  min-width: 0;
-  gap: var(--oc-space-3);
-}
-
-.dictionary-editor__title > div {
-  display: grid;
-  min-width: 0;
-  gap: var(--oc-space-1);
 }
 
 .dictionary-editor h1 {

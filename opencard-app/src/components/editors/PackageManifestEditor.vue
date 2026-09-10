@@ -1,7 +1,5 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.package"
-    :heading="manifest?.name ?? packageKey ?? t('packageManifest.title')"
-    :description="t('packageManifest.description')">
+  <ProjectRegistryEditorShell>
     <OcEmpty v-if="!manifest" tone="muted" inset="comfortable">
       {{ t('packageManifest.unavailable') }}
     </OcEmpty>
@@ -48,6 +46,7 @@
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import { resolveInstalledResourcePackageKey } from '../../features/workspace/model/resourcePackage'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import OcEmpty from '../base/OcEmpty.vue'
@@ -61,6 +60,14 @@ const projectStore = useProjectStore()
 
 const packageKey = computed(() => resolveInstalledResourcePackageKey(props.filePath) ?? '')
 const manifest = computed(() => projectStore.projectResourcePackages.value.get(packageKey.value)?.manifest ?? null)
+
+const presentation = computed<EditorPresentation>(() => ({
+  title: manifest.value?.name ?? packageKey.value ?? t('packageManifest.title'),
+  description: t('packageManifest.description'),
+  icon: 'file.package',
+}))
+
+defineExpose({ presentation })
 
 watch(() => props.filePath, () => emit('modified', false), { immediate: true })
 </script>

@@ -1,14 +1,5 @@
 <template>
-  <ProjectRegistryEditorShell icon="file.package" content-mode="workspace"
-    :heading="t('packageManager.title')" :description="t('packageManager.description')">
-    <template #actions>
-      <OcButton icon="action.refresh" variant="ghost" :disabled="busy" @click="synchronizePackages">
-        {{ t('packageManager.sync') }}
-      </OcButton>
-      <OcButton icon="action.add" variant="soft" :disabled="busy" @click="importPackage">
-        {{ t('packageManager.add') }}
-      </OcButton>
-    </template>
+  <ProjectRegistryEditorShell content-mode="workspace">
     <div class="package-manager">
       <OcText v-if="error" class="package-manager__error" tone="danger" role="alert">{{ error }}</OcText>
       <OcEmpty v-if="!rows.length" tone="muted" inset="comfortable">{{ t('packageManager.empty') }}</OcEmpty>
@@ -50,6 +41,8 @@ import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { ResourcePackageManifest } from '../../features/workspace/model/resourcePackage'
 import type { OcTreeData, OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
+import type { ShellWorkspaceAction } from '../../features/shell/shell.types'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import { createRemotePackageLocator, parseRemotePackageEntry } from '../../features/workspace/services/remotePackageSource'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
@@ -95,6 +88,44 @@ type PackageRow = {
   source?: string | null
   status: 'missing' | 'version' | null
 }
+const presentation = computed<EditorPresentation>(() => ({
+  title: t('packageManager.title'),
+  description: t('packageManager.description'),
+  icon: 'file.package',
+}))
+
+const WORKSPACE_SYNC_ACTION_KEY = 'project-package-manager.sync'
+const WORKSPACE_ADD_ACTION_KEY = 'project-package-manager.add'
+
+const workspaceActions = computed<ShellWorkspaceAction[]>(() => [
+  {
+    key: WORKSPACE_SYNC_ACTION_KEY,
+    icon: 'action.refresh',
+    hoverTip: t('packageManager.sync'),
+    disabled: busy.value,
+  },
+  {
+    key: WORKSPACE_ADD_ACTION_KEY,
+    icon: 'action.add',
+    hoverTip: t('packageManager.add'),
+    disabled: busy.value,
+  },
+])
+
+async function runWorkspaceAction(actionKey: string): Promise<boolean> {
+  if (actionKey === WORKSPACE_SYNC_ACTION_KEY) {
+    await synchronizePackages()
+    return true
+  }
+  if (actionKey === WORKSPACE_ADD_ACTION_KEY) {
+    await importPackage()
+    return true
+  }
+  return false
+}
+
+defineExpose({ presentation, workspaceActions, runWorkspaceAction })
+
 const rows = computed<PackageRow[]>(() => {
   return [...projectStore.projectPackageManifests.value]
     .map<PackageRow>(([key, required]) => {

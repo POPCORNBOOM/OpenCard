@@ -3,14 +3,6 @@
     @keydown.ctrl.s.prevent="save">
     <div class="project-profile-editor__layout" :class="{ 'project-profile-editor__layout--single': !profile }">
       <main class="project-profile-editor__content">
-        <header class="project-profile-editor__header">
-          <OcIcon name="file.opencard-project" size="lg" />
-          <div class="project-profile-editor__heading">
-            <h1>{{ t('projectConfig.title') }}</h1>
-            <OcText tone="muted" size="sm">{{ t('projectConfig.description') }}</OcText>
-          </div>
-        </header>
-
       <template v-if="profile">
         <ProjectConfigSection section-id="project-profile-section-information"
           content-indent="single"
@@ -134,6 +126,7 @@ import type { HistoryOperationMeta } from '../../features/editor-runtime/history
 import type { EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import { findProjectWorkspaceState, updateProjectWorkspaceState } from '../../features/settings/model/workspaceState'
 import {
   normalizeProjectAllowedHost,
@@ -165,6 +158,12 @@ const exportDocumentCandidates = ref<ExportDocumentCandidate[]>([])
 const editorRoot = ref<HTMLElement | null>(null)
 const activeSection = ref<ProjectProfileSectionKey>('information')
 let sectionObserver: IntersectionObserver | null = null
+
+const presentation = computed<EditorPresentation>(() => ({
+  title: t('projectConfig.title'),
+  description: t('projectConfig.description'),
+  icon: 'file.opencard-project',
+}))
 
 type ProjectProfileSectionKey = 'information' | 'remote-resources' | 'export'
 
@@ -380,7 +379,7 @@ function save() {
   if (profile.value && !hasInvalidRemoteHostDraft.value) emit('save')
 }
 
-defineExpose({ save, navigate })
+defineExpose({ save, navigate, presentation })
 </script>
 
 <style scoped>
@@ -417,31 +416,10 @@ defineExpose({ save, navigate })
   min-height: 100%;
 }
 
-.project-profile-editor__header,
 .project-profile-editor__diagnostic {
   display: flex;
   align-items: center;
   gap: var(--oc-space-3);
-}
-
-.project-profile-editor__header {
-  padding-bottom: var(--oc-space-5);
-  border-bottom: var(--oc-border-width) solid var(--oc-border-muted);
-}
-
-.project-profile-editor__heading {
-  min-width: 0;
-}
-
-.project-profile-editor h1 {
-  margin: 0;
-  font-weight: var(--font-weight-ui-title);
-  letter-spacing: 0;
-}
-
-.project-profile-editor h1 {
-  margin-bottom: var(--oc-space-1);
-  font-size: var(--oc-text-lg);
 }
 
 .project-profile-editor__form {

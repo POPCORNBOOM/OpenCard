@@ -1,20 +1,7 @@
 <template>
   <MonacoEditor v-if="props.mode === 'diff'" :model-value="props.modelValue ?? ''" language="json"
     :mode="props.mode" :comparison="props.comparison" :theme-id="themeId" :theme-overrides="themeOverrides" />
-  <ProjectRegistryEditorShell v-else icon="file.project-icon" content-mode="workspace"
-    :heading="t('iconRegistry.title')"
-    :description="t('iconRegistry.description')" @keydown.ctrl.s.prevent="save">
-    <template #actions>
-      <OcButton icon="action.add" variant="soft"
-        :aria-label="t('projectConfig.icons.createPack')" @click="openCreatePackDialog">
-        {{ t('projectConfig.icons.createPack') }}
-      </OcButton>
-      <OcButton icon="action.import" variant="soft"
-        :aria-label="t('projectConfig.icons.importPack')" @click="openImportPackDialog">
-        {{ t('projectConfig.icons.importPack') }}
-      </OcButton>
-    </template>
-
+  <ProjectRegistryEditorShell v-else content-mode="workspace" @keydown.ctrl.s.prevent="save">
     <ProjectIconRegistryWorkbench v-if="document" ref="workbenchRef" :series="document.iconSeries"
       :resolve-asset-src="source => projectStore.resolveResourceAssetSrcFromFile(props.filePath, source)"
       :default-open-path="iconDirectory" :import-icon-source="importIconSource"
@@ -43,6 +30,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { ShellWorkspaceAction } from '../../features/shell/shell.types'
+import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import type {
   EditorIssue,
   EditorIssueSnapshot,
@@ -71,7 +60,6 @@ import {
   readProjectIconPack,
 } from '../../features/workspace/services/projectIconPack'
 import MonacoEditor from './MonacoEditor.vue'
-import OcButton from '../base/OcButton.vue'
 import ProjectIconRegistrationDialog, {
   type ProjectIconRegistrationRequest,
 } from './ProjectIconRegistrationDialog.vue'
@@ -372,5 +360,41 @@ async function navigate(token: SessionNavigationToken): Promise<EditorNavigation
   return await workbenchRef.value?.navigateToKeyConflict(conflict) ? 'success' : 'not-found'
 }
 
-defineExpose({ save, navigate })
+const presentation = computed<EditorPresentation>(() => ({
+  title: t('iconRegistry.title'),
+  description: t('iconRegistry.description'),
+  icon: 'file.project-icon',
+}))
+
+const WORKSPACE_CREATE_PACK_ACTION_KEY = 'project-icon-registry.create-pack'
+const WORKSPACE_IMPORT_PACK_ACTION_KEY = 'project-icon-registry.import-pack'
+
+const workspaceActions = computed<ShellWorkspaceAction[]>(() => [
+  {
+    key: WORKSPACE_CREATE_PACK_ACTION_KEY,
+    icon: 'action.add',
+    hoverTip: t('projectConfig.icons.createPack'),
+    disabled: !document.value || importBusy.value,
+  },
+  {
+    key: WORKSPACE_IMPORT_PACK_ACTION_KEY,
+    icon: 'action.import',
+    hoverTip: t('projectConfig.icons.importPack'),
+    disabled: !document.value || packImportBusy.value,
+  },
+])
+
+async function runWorkspaceAction(actionKey: string): Promise<boolean> {
+  if (actionKey === WORKSPACE_CREATE_PACK_ACTION_KEY) {
+    openCreatePackDialog()
+    return true
+  }
+  if (actionKey === WORKSPACE_IMPORT_PACK_ACTION_KEY) {
+    openImportPackDialog()
+    return true
+  }
+  return false
+}
+
+defineExpose({ save, navigate, workspaceActions, runWorkspaceAction, presentation })
 </script>

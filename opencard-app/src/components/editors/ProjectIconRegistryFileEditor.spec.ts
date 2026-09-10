@@ -67,7 +67,7 @@ describe('ProjectIconRegistryFileEditor', () => {
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
   })
 
-  it('offers creating and importing icon packs from the editor header', async () => {
+  it('offers creating and importing icon packs from the workspace header', async () => {
     const wrapper = mount(ProjectIconRegistryFileEditor, {
       props: {
         filePath: 'D:/Demo/.opencard/icons/icons.json',
@@ -75,14 +75,17 @@ describe('ProjectIconRegistryFileEditor', () => {
       },
     })
 
-    const actions = wrapper.get('.project-registry-shell__actions')
-    expect(actions.findAll('button').map(button => button.attributes('aria-label'))).toEqual([
+    expect(wrapper.vm.presentation).toMatchObject({ title: 'iconRegistry.title', icon: 'file.project-icon' })
+    expect(wrapper.vm.workspaceActions.map(action => (
+      typeof action === 'string' ? action : action.hoverTip
+    ))).toEqual([
       'projectConfig.icons.createPack',
       'projectConfig.icons.importPack',
     ])
     expect(wrapper.getComponent(ProjectIconRegistrationDialog).props('open')).toBe(false)
 
-    await actions.findAll('button')[0]!.trigger('click')
+    expect(await wrapper.vm.runWorkspaceAction('project-icon-registry.create-pack')).toBe(true)
     expect(wrapper.getComponent(ProjectIconRegistrationDialog).props('open')).toBe(true)
+    expect(await wrapper.vm.runWorkspaceAction('unknown-action')).toBe(false)
   })
 })

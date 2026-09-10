@@ -41,7 +41,13 @@ describe('PackageManagerEditor', () => {
   async function openRemoteAddDialog(): Promise<ReturnType<typeof mount>> {
     const wrapper = mount(PackageManagerEditor, { props: { filePath: 'D:/project/.opencard/packages/packages.json' }, attachTo: document.body })
     await nextTick()
-    findButton('packageManager.add').click()
+    expect(wrapper.vm.workspaceActions.map(action => (
+      typeof action === 'string' ? action : action.hoverTip
+    ))).toEqual([
+      'packageManager.sync',
+      'packageManager.add',
+    ])
+    await wrapper.vm.runWorkspaceAction('project-package-manager.add')
     await nextTick()
     findButton('packageManager.remote').click()
     await nextTick()
