@@ -53,6 +53,8 @@ export type EditorSession = {
   path: string | null
   fileTypeId: string
   name: string
+  /** Optional display label for the editor list. `name` stays the file or draft identity. */
+  title?: string
   editorId: string
   savedContent: string
   draftContent: string
@@ -66,6 +68,8 @@ export type EditorSession = {
 export type OpenedEditorItem = {
   key: string
   label: string
+  /** Explicit display title, absent when the session name decides the label. */
+  title?: string
   resourceKind: SessionResourceKind
   icon: IconToken
   iconTone?: IconTone
@@ -87,6 +91,7 @@ export type EditorSessionUiState = {
 type CreateDraftSessionOptions = {
   fileTypeId?: string
   name?: string
+  title?: string
   content?: string
 }
 
@@ -174,8 +179,17 @@ export function createDefaultOpenCardContent(displayName: string) {
   }, null, 2)
 }
 
-function buildDraftName(fileTypeId: string, existingNames: string[]) {
-  const fileType = resolveFileTypeById(fileTypeId)
+/** An explicit title tracks the session name, so a rename drops it and the name decides the label again. */
+/** An explicit title tracks the session name, so a rename clears it and the name decides the label again. */
+function resolvePublishedName(session: EditorSession, content: string): Pick<EditorSession, 'name' | 'title'> {
+  if (session.resourceKind !== 'draft' || session.fileTypeId !== 'opencard') {
+    return { name: session.name, title: session.title }
+  }
+  const name = resolveOpenCardDraftName(content, session.name)
+  return { name, title: name === session.name ? session.title : undefined }
+}
+
+function buildDraftName(fileTypeId: string, existingNames: string[]) {  const fileType = resolveFileTypeById(fileTypeId)
   const extension = fileType.extensions?.[0]
   const suffix = extension ? `.${extension}` : ''
   const lowerCaseNames = new Set(existingNames.map((name) => name.toLowerCase()))
@@ -222,9 +236,7 @@ export function useEditorSessionStore() {
     sessions.value = sessions.value.map(session => session.id === sessionId
       ? {
           ...session,
-          name: session.resourceKind === 'draft' && session.fileTypeId === 'opencard'
-            ? resolveOpenCardDraftName(content, session.name)
-            : session.name,
+          ...resolvePublishedName(session, content),
           draftContent: content,
           isDirty,
           isPreview: isDirty ? false : session.isPreview,
@@ -255,6 +267,7 @@ export function useEditorSessionStore() {
       const nextItem: OpenedEditorItem = {
         key: session.id,
         label: session.isDirty ? `${session.name} *` : session.name,
+        ...(session.title ? { title: session.title } : {}),
         resourceKind: session.resourceKind,
         icon: entryIcon.icon,
         iconTone: entryIcon.tone,
@@ -262,6 +275,7 @@ export function useEditorSessionStore() {
       const previous = previousByKey.get(session.id)
       return previous
         && previous.label === nextItem.label
+        && previous.title === nextItem.title
         && previous.resourceKind === nextItem.resourceKind
         && previous.icon === nextItem.icon
         && previous.iconTone === nextItem.iconTone
@@ -288,14 +302,23 @@ export function useEditorSessionStore() {
     )
   }
 
-  async function openSession(path: string, options?: { preview?: boolean }) {
+  /** An unspecified title means "use the session name again". */
+  function setSessionTitle(sessionId: string, title: string | undefined): void {
+    sessions.value = sessions.value.map(session => session.id === sessionId
+      ? { ...session, title }
+      : session)
+  }
+
+  async function openSession(path: string, options?: { preview?: boolean, title?: string }) {
     const normalizedPath = normalizePath(path)
     const preview = options?.preview ?? false
+    const title = options?.title?.trim()
     const existingSession = sessions.value.find((session) => session.path === normalizedPath)
     if (existingSession) {
       if (!preview && existingSession.isPreview) {
         setSessionPreviewState(existingSession.id, false)
       }
+      if (title !== existingSession.title) setSessionTitle(existingSession.id, title)
 
       activeSessionId.value = existingSession.id
       return existingSession
@@ -322,6 +345,7 @@ export function useEditorSessionStore() {
       path: normalizedPath,
       fileTypeId: fileType.id,
       name: resolveOpenedSessionName(normalizedPath, fileType.id),
+      ...(title ? { title } : {}),
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
@@ -348,12 +372,12 @@ export function useEditorSessionStore() {
     return session
   }
 
-  async function openFile(path: string) {
-    return await openSession(path)
+  async function openFile(path: string, options?: { title?: string }) {
+    return await openSession(path, options)
   }
 
-  async function openPreviewFile(path: string) {
-    return await openSession(path, { preview: true })
+  async function openPreviewFile(path: string, options?: { title?: string }) {
+    return await openSession(path, { preview: true, ...options })
   }
 
   function createDraftSession(options: CreateDraftSessionOptions = {}) {
@@ -371,6 +395,7 @@ export function useEditorSessionStore() {
       path: null,
       fileTypeId: fileType.id,
       name,
+      ...(options.title?.trim() ? { title: options.title.trim() } : {}),
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
@@ -412,9 +437,7 @@ export function useEditorSessionStore() {
       const isDirty = content !== session.savedContent
       return {
         ...session,
-        name: session.resourceKind === 'draft' && session.fileTypeId === 'opencard'
-          ? resolveOpenCardDraftName(content, session.name)
-          : session.name,
+        ...resolvePublishedName(session, content),
         draftContent: content,
         isDirty,
         isPreview: isDirty ? false : session.isPreview,
@@ -645,6 +668,7 @@ export function useEditorSessionStore() {
             path: nextPath,
             resourceKind: nextResourceKind,
             name: getPathBasename(nextPath),
+            title: undefined,
             fileTypeId: nextFileTypeId,
             editorId: resolveFileTypeById(nextFileTypeId).editorId,
             savedContent,
@@ -728,6 +752,7 @@ export function useEditorSessionStore() {
         ...session,
         path: nextPath,
         name: getPathBasename(nextPath),
+        title: undefined,
         fileTypeId: nextFileType.id,
         editorId: nextFileType.editorId,
       }

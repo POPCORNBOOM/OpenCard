@@ -102,6 +102,51 @@ describe('appSettings', () => {
     })
   })
 
+  it('normalizes the remembered package-builder selection per project', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      projectCreation: {
+        workspaceStates: {
+          'D:/Cards/Demo': {
+            packageBuilder: {
+              name: 'Theme',
+              version: '2.1.0',
+              fontFamilyKeys: ['latin', 'latin', 42],
+              fontCompositionKeys: ['body'],
+              iconSeriesKeys: [],
+              imagePaths: ['images\\card.png'],
+            },
+          },
+        },
+      },
+    })
+
+    expect(settings.projectCreation.workspaceStates['D:/Cards/Demo']).toEqual({
+      expandedDirectories: [],
+      packageBuilder: {
+        name: 'Theme',
+        version: '2.1.0',
+        fontFamilyKeys: ['latin'],
+        fontCompositionKeys: ['body'],
+        iconSeriesKeys: [],
+        imagePaths: ['images/card.png'],
+      },
+    })
+  })
+
+  it('ignores a malformed remembered package-builder selection', () => {
+    const settings = normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      projectCreation: {
+        workspaceStates: { 'D:/Cards/Demo': { expandedDirectories: ['assets'], packageBuilder: 'broken' } },
+      },
+    })
+
+    expect(settings.projectCreation.workspaceStates['D:/Cards/Demo']).toEqual({
+      expandedDirectories: ['assets'],
+    })
+  })
+
   it('fills workspace behavior defaults for older current-version settings', () => {
     const settings = normalizeAppSettings({
       version: APP_SETTINGS_VERSION,

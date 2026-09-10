@@ -317,6 +317,10 @@ function handleEditorAction(intent: EditorItemActionIntent): void {
     return
   }
   const rootKey = intent.itemPath[0]
+  if (rootKey === 'identity.publisherKey' && intent.actionKey === 'regenerate') {
+    emit('intent', { type: 'identity.regenerate' })
+    return
+  }
   if (rootKey === 'themes.reset' || rootKey === 'project-workspace.reset') emit('intent', { type: rootKey })
 }
 </script>

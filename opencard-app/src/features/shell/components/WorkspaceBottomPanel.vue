@@ -88,19 +88,18 @@
             <button v-for="entry in visibleOutputEntries" :key="entry.id"
               class="workspace-bottom-panel__output-line" :data-severity="entry.severity"
               type="button" :data-tooltip="outputCopyLabel" @click="copyOutputEntry(entry)">
-              <template v-if="entry.errorCode">
-                <code class="workspace-bottom-panel__output-error-code">{{ entry.errorCode }}</code>
-                <span class="workspace-bottom-panel__output-message">
-                  {{ getAppErrorMeaning(entry.errorCode, outputLocale) }}
-                </span>
-              </template>
-              <template v-else>
-                <time :datetime="new Date(entry.timestamp).toISOString()">{{ formatOutputTime(entry.timestamp) }}</time>
-                <span class="workspace-bottom-panel__output-severity">
-                  {{ outputSeverityLabels[entry.severity] }}
-                </span>
-                <span class="workspace-bottom-panel__output-message">{{ entry.message }}</span>
-              </template>
+              <time :datetime="new Date(entry.timestamp).toISOString()">{{ formatOutputTime(entry.timestamp) }}</time>
+              <span class="workspace-bottom-panel__output-severity">
+                {{ outputSeverityLabels[entry.severity] }}
+              </span>
+              <span class="workspace-bottom-panel__output-message">
+                <template v-if="entry.code">
+                  <code class="workspace-bottom-panel__output-error-code">{{ entry.code }}</code>
+                  {{ getAppErrorMeaning(entry.code, outputLocale) }}
+                </template>
+                <template v-else>{{ entry.message }}</template>
+              </span>
+              <span v-if="entry.detail" class="workspace-bottom-panel__output-detail">{{ entry.detail }}</span>
             </button>
           </div>
         </div>
@@ -108,9 +107,9 @@
           <div class="workspace-bottom-panel__severity-dock">
             <div class="workspace-bottom-panel__severity-filters" :aria-label="outputSeverityFilterLabel">
               <button
-                v-for="severity in APP_CONSOLE_SEVERITIES"
+                v-for="severity in APP_OUTPUT_SEVERITIES"
                 :key="severity"
-                class="workspace-bottom-panel__severity-filter"
+                class="workspace-bottom-panel__toolbar-button workspace-bottom-panel__severity-filter"
                 :data-severity="severity"
                 type="button"
                 :aria-pressed="enabledSeverities.has(severity)"
@@ -121,17 +120,15 @@
                 <span class="workspace-bottom-panel__severity-count">{{ severityCounts[severity] }}</span>
               </button>
             </div>
+            <button
+              class="workspace-bottom-panel__toolbar-button workspace-bottom-panel__output-clear"
+              type="button"
+              :disabled="outputEntries.length === 0"
+              @click="emit('output-clear')"
+            >
+              {{ outputClearLabel }}
+            </button>
           </div>
-          <OcButton
-            class="workspace-bottom-panel__output-clear"
-            size="sm"
-            variant="ghost"
-            icon="action.delete"
-            :disabled="outputEntries.length === 0"
-            @click="emit('output-clear')"
-          >
-            {{ outputClearLabel }}
-          </OcButton>
         </div>
       </div>
     </div>
@@ -140,7 +137,6 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import OcButton from '../../../components/base/OcButton.vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
@@ -150,10 +146,10 @@ import type {
   SessionIssueNavigationRequest,
 } from '../../editor-runtime/model/editorIssue'
 import {
-  APP_CONSOLE_SEVERITIES,
-  type AppConsoleEntry,
-  type AppConsoleSeverity,
-} from '../../logging/appConsole'
+  APP_OUTPUT_SEVERITIES,
+  type AppOutputEntry,
+  type AppOutputSeverity,
+} from '../../logging/appOutput'
 import { getAppErrorMeaning } from '../../logging/appErrorCatalog'
 import { notifyAppError } from '../../notifications/titlebarNotices'
 
@@ -168,19 +164,19 @@ const props = defineProps<{
   issueNavigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
   issueDetails?: ReadonlyMap<string, import('../../editor-runtime/model/editorIssue').EditorIssue>
   expandedIssueKeys: readonly string[]
-  outputEntries: readonly AppConsoleEntry[]
+  outputEntries: readonly AppOutputEntry[]
   issuesLabel: string
   outputLabel: string
   issueEmptyLabel: string
   issueFilterLabel: string
-  issueCopyLabel?: string
+  issueCopyLabel: string
   outputEmptyLabel: string
   outputFilterEmptyLabel: string
   outputClearLabel: string
   outputCopyLabel: string
   outputLocale: string
   outputSeverityFilterLabel: string
-  outputSeverityLabels: Readonly<Record<AppConsoleSeverity, string>>
+  outputSeverityLabels: Readonly<Record<AppOutputSeverity, string>>
   expandLabel: string
   collapseLabel: string
   pinLabel: string
@@ -202,7 +198,7 @@ const isToggleHovered = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
 const issueFilter = ref('')
 const issueTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['copy-issue', { title: props.issueCopyLabel ?? 'Copy error information', icon: 'action.copy', iconTone: 'muted' }],
+  ['copy-issue', { title: props.issueCopyLabel, icon: 'action.copy', iconTone: 'muted' }],
 ]))
 const filteredIssueTreeData = computed<OcTreeData>(() => {
   const query = issueFilter.value.trim().toLocaleLowerCase()
@@ -219,7 +215,7 @@ const filteredIssueTreeData = computed<OcTreeData>(() => {
   return { rootKeys, items, children }
 })
 const outputScrollRef = ref<HTMLElement | null>(null)
-const enabledSeverities = ref<ReadonlySet<AppConsoleSeverity>>(new Set(APP_CONSOLE_SEVERITIES))
+const enabledSeverities = ref<ReadonlySet<AppOutputSeverity>>(new Set(APP_OUTPUT_SEVERITIES))
 const shouldFollowOutput = ref(true)
 let collapseTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -270,8 +266,10 @@ const tabs = computed<readonly { key: WorkspaceBottomTab; label: string }[]>(() 
   { key: 'output', label: props.outputLabel },
 ])
 
-const severityCounts = computed<Record<AppConsoleSeverity, number>>(() => {
-  const counts = { debug: 0, log: 0, info: 0, warn: 0, error: 0 }
+const severityCounts = computed<Record<AppOutputSeverity, number>>(() => {
+  const counts = Object.fromEntries(
+    APP_OUTPUT_SEVERITIES.map(severity => [severity, 0]),
+  ) as Record<AppOutputSeverity, number>
   for (const entry of props.outputEntries) counts[entry.severity] += 1
   return counts
 })
@@ -280,7 +278,7 @@ const visibleOutputEntries = computed(() =>
   props.outputEntries.filter(entry => enabledSeverities.value.has(entry.severity))
 )
 
-function toggleSeverity(severity: AppConsoleSeverity): void {
+function toggleSeverity(severity: AppOutputSeverity): void {
   const next = new Set(enabledSeverities.value)
   if (next.has(severity)) next.delete(severity)
   else next.add(severity)
@@ -293,10 +291,10 @@ function formatOutputTime(timestamp: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`
 }
 
-async function copyOutputEntry(entry: AppConsoleEntry): Promise<void> {
+async function copyOutputEntry(entry: AppOutputEntry): Promise<void> {
   try {
-    const content = entry.errorCode
-      ? `${entry.errorCode} ${getAppErrorMeaning(entry.errorCode, props.outputLocale)}\n${entry.message}`
+    const content = entry.code
+      ? `${entry.code} ${getAppErrorMeaning(entry.code, props.outputLocale)}\n${entry.message}`
       : entry.message
     await navigator.clipboard.writeText(content)
   } catch (error) {
@@ -452,7 +450,6 @@ async function copyIssue(key: string): Promise<void> {
   gap: var(--oc-space-1, 4px);
 }
 
-
 .workspace-bottom-panel__tab {
   position: relative;
   min-width: 72px;
@@ -546,7 +543,6 @@ async function copyIssue(key: string): Promise<void> {
 .workspace-bottom-panel__output-toolbar {
   display: flex;
   align-items: end;
-  justify-content: space-between;
   min-width: 0;
 }
 
@@ -554,6 +550,8 @@ async function copyIssue(key: string): Promise<void> {
   position: relative;
   min-width: 0;
   flex: 0 1 auto;
+  display: flex;
+  align-items: center;
   border-top-right-radius: var(--oc-radius-md);
   background: var(--oc-bg-surface);
 }
@@ -568,9 +566,7 @@ async function copyIssue(key: string): Promise<void> {
 }
 
 .workspace-bottom-panel__severity-dock::before,
-.workspace-bottom-panel__severity-dock::after,
-.workspace-bottom-panel__output-clear::before,
-.workspace-bottom-panel__output-clear::after {
+.workspace-bottom-panel__severity-dock::after {
   content: '';
   position: absolute;
   width: var(--oc-radius-md);
@@ -598,7 +594,7 @@ async function copyIssue(key: string): Promise<void> {
   );
 }
 
-.workspace-bottom-panel__severity-filter {
+.workspace-bottom-panel__toolbar-button {
   height: var(--oc-size-sm);
   padding: 0 var(--oc-space-2);
   display: inline-flex;
@@ -612,50 +608,22 @@ async function copyIssue(key: string): Promise<void> {
   font-size: var(--oc-text-xs);
 }
 
-.workspace-bottom-panel__severity-filter:hover,
-.workspace-bottom-panel__severity-filter:focus-visible {
+.workspace-bottom-panel__toolbar-button:hover:not(:disabled),
+.workspace-bottom-panel__toolbar-button:focus-visible {
   color: var(--oc-fg-default);
   outline: none;
 }
 
-.workspace-bottom-panel__severity-filter[aria-pressed='true'] {
-  color: var(--oc-fg-default);
-}
-
-.workspace-bottom-panel__severity-filter:focus-visible {
+.workspace-bottom-panel__toolbar-button:focus-visible {
   text-decoration: underline;
 }
 
-.workspace-bottom-panel__output-clear {
-  border: 0;
-  border-radius: 0;
-  border-top-left-radius: var(--oc-radius-md);
-  background: var(--oc-bg-surface);
+.workspace-bottom-panel__toolbar-button:disabled {
+  color: var(--oc-fg-disabled);
 }
 
-.workspace-bottom-panel__output-clear:hover:not(:disabled) {
-  background: var(--oc-bg-surface);
-  color: var(--oc-fg-accent);
-}
-
-.workspace-bottom-panel__output-clear::before {
-  top: calc(var(--oc-radius-md) * -1);
-  right: 0;
-  background: radial-gradient(
-    circle at top left,
-    transparent var(--oc-radius-md),
-    var(--oc-bg-surface) var(--oc-radius-md)
-  );
-}
-
-.workspace-bottom-panel__output-clear::after {
-  bottom: 0;
-  left: calc(var(--oc-radius-md) * -1);
-  background: radial-gradient(
-    circle at top left,
-    transparent var(--oc-radius-md),
-    var(--oc-bg-surface) var(--oc-radius-md)
-  );
+.workspace-bottom-panel__severity-filter[aria-pressed='true'] {
+  color: var(--oc-fg-default);
 }
 
 .workspace-bottom-panel__severity-dot {
@@ -666,20 +634,20 @@ async function copyIssue(key: string): Promise<void> {
   background: var(--oc-fg-muted);
 }
 
-.workspace-bottom-panel__severity-filter[data-severity='debug'] .workspace-bottom-panel__severity-dot {
-  background: var(--oc-fg-subtle);
-}
-
 .workspace-bottom-panel__severity-filter[data-severity='info'] .workspace-bottom-panel__severity-dot {
-  background: var(--oc-icon-accent);
+  background: var(--oc-fg-default);
 }
 
-.workspace-bottom-panel__severity-filter[data-severity='warn'] .workspace-bottom-panel__severity-dot {
-  background: var(--oc-icon-warning);
+.workspace-bottom-panel__severity-filter[data-severity='success'] .workspace-bottom-panel__severity-dot {
+  background: var(--oc-fg-success);
+}
+
+.workspace-bottom-panel__severity-filter[data-severity='warning'] .workspace-bottom-panel__severity-dot {
+  background: var(--oc-fg-warning);
 }
 
 .workspace-bottom-panel__severity-filter[data-severity='error'] .workspace-bottom-panel__severity-dot {
-  background: var(--oc-icon-danger);
+  background: var(--oc-fg-danger);
 }
 
 .workspace-bottom-panel__severity-count {
@@ -703,7 +671,7 @@ async function copyIssue(key: string): Promise<void> {
   padding: var(--oc-space-1) var(--oc-space-2);
   border: 0;
   border-radius: var(--oc-radius-sm);
-  background: var(--oc-bg-block);
+  background-color: var(--oc-bg-block);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -712,9 +680,21 @@ async function copyIssue(key: string): Promise<void> {
   overflow-wrap: anywhere;
 }
 
+.workspace-bottom-panel__output-line[data-severity='success'] {
+  background-color: var(--oc-bg-success-subtle);
+}
+
+.workspace-bottom-panel__output-line[data-severity='warning'] {
+  background-color: var(--oc-bg-warning-subtle);
+}
+
+.workspace-bottom-panel__output-line[data-severity='error'] {
+  background-color: var(--oc-bg-danger-subtle);
+}
+
 .workspace-bottom-panel__output-line:hover,
 .workspace-bottom-panel__output-line:focus-visible {
-  background: var(--oc-bg-hover);
+  background-image: linear-gradient(var(--oc-bg-hover), var(--oc-bg-hover));
   outline: none;
 }
 
@@ -722,14 +702,15 @@ async function copyIssue(key: string): Promise<void> {
   box-shadow: var(--oc-focus-ring);
 }
 
-.workspace-bottom-panel__output-line[data-severity='error'] {
-  grid-template-columns: auto minmax(0, 1fr);
-  background: var(--oc-bg-danger-subtle);
-}
-
 .workspace-bottom-panel__output-error-code {
   color: var(--oc-fg-danger);
   font: inherit;
+}
+
+.workspace-bottom-panel__output-detail {
+  grid-column: 3;
+  color: var(--oc-fg-muted);
+  font-size: var(--oc-text-xs);
 }
 
 .workspace-bottom-panel__output-line time {
@@ -742,18 +723,19 @@ async function copyIssue(key: string): Promise<void> {
   text-transform: uppercase;
 }
 
-.workspace-bottom-panel__output-line[data-severity='debug'] .workspace-bottom-panel__output-message {
-  color: var(--oc-fg-subtle);
-}
-
 .workspace-bottom-panel__output-line[data-severity='info'] .workspace-bottom-panel__output-severity,
 .workspace-bottom-panel__output-line[data-severity='info'] .workspace-bottom-panel__output-message {
-  color: var(--oc-fg-accent);
+  color: var(--oc-fg-default);
 }
 
-.workspace-bottom-panel__output-line[data-severity='warn'] .workspace-bottom-panel__output-severity,
-.workspace-bottom-panel__output-line[data-severity='warn'] .workspace-bottom-panel__output-message {
-  color: var(--oc-icon-warning);
+.workspace-bottom-panel__output-line[data-severity='success'] .workspace-bottom-panel__output-severity,
+.workspace-bottom-panel__output-line[data-severity='success'] .workspace-bottom-panel__output-message {
+  color: var(--oc-fg-success);
+}
+
+.workspace-bottom-panel__output-line[data-severity='warning'] .workspace-bottom-panel__output-severity,
+.workspace-bottom-panel__output-line[data-severity='warning'] .workspace-bottom-panel__output-message {
+  color: var(--oc-fg-warning);
 }
 
 .workspace-bottom-panel__output-line[data-severity='error'] .workspace-bottom-panel__output-severity,

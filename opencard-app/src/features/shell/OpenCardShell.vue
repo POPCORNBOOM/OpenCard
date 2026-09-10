@@ -141,7 +141,7 @@
             :issue-navigation-targets="issueNavigationTargets"
             :issue-details="visibleIssueDetails"
             :expanded-issue-keys="expandedIssueKeys"
-            :output-entries="appConsoleEntries"
+            :output-entries="appOutputEntries"
             :issues-label="t('app.problems.tab')"
             :output-label="t('app.problems.outputTab')"
             :issue-empty-label="t('app.problems.empty')"
@@ -154,10 +154,9 @@
             :output-locale="locale"
             :output-severity-filter-label="t('app.problems.severityFilter')"
             :output-severity-labels="{
-              debug: t('app.problems.severities.debug'),
-              log: t('app.problems.severities.log'),
               info: t('app.problems.severities.info'),
-              warn: t('app.problems.severities.warn'),
+              success: t('app.problems.severities.success'),
+              warning: t('app.problems.severities.warning'),
               error: t('app.problems.severities.error'),
             }"
             :expand-label="t('app.shell.expandBottomPanel')"
@@ -168,7 +167,7 @@
             @tab-change="activeBottomTab = $event"
             @issue-expansion-change="setIssueNodeExpanded"
             @issue-navigate="handleWorkspaceIssueNavigate"
-            @output-clear="clearAppConsoleEntries"
+            @output-clear="clearAppOutputEntries"
           />
         </div>
       </ShellWorkspaceFrame>
@@ -314,8 +313,8 @@ import {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
   type ProjectWorkspaceSidebarState,
-  type ProjectWorkspaceState,
 } from '../settings/model/appSettings'
+import { updateProjectWorkspaceState } from '../settings/model/workspaceState'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
@@ -334,7 +333,7 @@ import type { ProjectExportTask } from '../workspace/model/projectMetadata'
 import type { FeedbackKind, FeedbackPage } from '../feedback/model/feedback'
 import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagnostics'
 import { useFeedbackInbox } from '../feedback/composables/useFeedbackInbox'
-import { appConsoleEntries, clearAppConsoleEntries } from '../logging/appConsole'
+import { appOutputEntries, clearAppOutputEntries, publishAppOutput } from '../logging/appOutput'
 import { reportAppError } from '../logging/appErrorCatalog'
 import type {
   ProjectTemplate,
@@ -352,6 +351,7 @@ import { useProjectIconPackStore } from '../workspace/store/projectIconPackStore
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import {
+  createPublisherKey,
   parseAppTheme,
   serializeAppTheme,
   type SettingsCategoryKey,
@@ -395,6 +395,7 @@ import {
   projectEntryDeleteActionKey,
   projectEntryMoreActionKey,
   projectPackageDeleteActionKey,
+  projectPackageVerifyActionKey,
   useShellFileTree,
 } from './composables/useShellFileTree'
 import ShellSidebar from './components/ShellSidebar.vue'
@@ -653,25 +654,18 @@ const sidebarPersistedLayout = computed<ProjectWorkspaceSidebarState | undefined
 function handleSidebarLayoutChange(layout: ProjectWorkspaceSidebarState): void {
   const key = sidebarWorkspaceStateKey.value
   if (!key) return
-  const states = settingsStore.settings.value.projectCreation.workspaceStates
-  const current = states[key]
-  const nextState: ProjectWorkspaceState = {
-    ...(current ? {
-      projectProfile: current.projectProfile
-        ? { collapsedSections: [...current.projectProfile.collapsedSections] }
-        : undefined,
-    } : {}),
-    expandedDirectories: [...(current?.expandedDirectories ?? [])],
-    sidebar: {
-      collapsedLists: [...layout.collapsedLists],
-      listWeights: { ...layout.listWeights },
-    },
-  }
   settingsStore.updateProjectCreation({
-    workspaceStates: {
-      ...states,
-      [key]: nextState,
-    } as Record<string, ProjectWorkspaceState>,
+    workspaceStates: updateProjectWorkspaceState(
+      settingsStore.settings.value.projectCreation.workspaceStates,
+      key,
+      current => {
+        current.sidebar = {
+          collapsedLists: [...layout.collapsedLists],
+          listWeights: { ...layout.listWeights },
+        }
+        return current
+      },
+    ),
   })
 }
 const exportRendererRef = ref<InstanceType<typeof CardFaceRenderer>>()
@@ -764,6 +758,7 @@ watch(isExportTemplateBusy, busy => {
     removeShellProgressTask(EXPORT_TEMPLATE_PROGRESS_TASK_KEY)
   }
 })
+
 const titleBarBrandLabel = computed(() => {
   if (titleBarTasks.value.length === 0) return 'OPENCARD'
   const activeTasks = titleBarTasks.value.filter(task => task.active !== false)
@@ -1054,19 +1049,24 @@ const {
   },
 })
 
-function formatSessionTitle(session: { name: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
+/** The list label already carries the unsaved marker, so an explicit title replaces only the name part. */
+function formatSessionTitle(session: { name: string; title?: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
+  const isDirty = session.name.endsWith(' *')
+  const name = session.title
+    ? `${session.title}${isDirty ? ' *' : ''}`
+    : session.name
   if (session.resourceKind === 'external') {
-    return t('sidebar.editorTitles.external', { name: session.name })
+    return t('sidebar.editorTitles.external', { name })
   }
   if (session.resourceKind === 'draft') {
-    return t('sidebar.editorTitles.draft', { name: session.name })
+    return t('sidebar.editorTitles.draft', { name })
   }
-  return session.name
+  return name
 }
 
 const localizedOpenedEditorItems = computed(() => openedEditorItems.value.map((item) => ({
   ...item,
-  label: formatSessionTitle({ name: item.label, resourceKind: item.resourceKind }),
+  label: formatSessionTitle({ name: item.label, title: item.title, resourceKind: item.resourceKind }),
 })))
 
 function getPathDirectory(path: string): string {
@@ -1515,6 +1515,10 @@ const updateOperationTask = computed<{
 const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
   const actions = new Map<string, OcTreeActionDefinition>()
   for (const packageKey of projectPackageManifests.value.keys()) {
+    actions.set(projectPackageVerifyActionKey(packageKey), {
+      title: t('packageManager.verify'),
+      icon: 'action.check',
+    })
     const deleteActionKey = projectPackageDeleteActionKey(packageKey)
     actions.set(deleteActionKey, {
       title: t('resourcePackage.delete'),
@@ -1992,6 +1996,11 @@ const debugMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
       {
         key: 'send-debug-test-messages',
         title: t('app.debug.sendTestMessages'),
+        icon: 'action.refresh',
+      },
+      {
+        key: 'send-debug-output-entries',
+        title: t('app.debug.sendOutputEntries'),
         icon: 'action.refresh',
       },
     ]
@@ -2551,6 +2560,11 @@ async function handleSettingsIntent(intent: SettingsIntent): Promise<void> {
     return
   }
 
+  if (intent.type === 'identity.regenerate') {
+    settingsStore.updateSetting('identity.publisherKey', createPublisherKey())
+    return
+  }
+
   await resetProjectWorkspaceState()
 }
 
@@ -2600,15 +2614,28 @@ async function handleOpenedEditorAuxClick(event: MouseEvent): Promise<void> {
 async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
   if (intent.type === 'action.invoke') {
     const packageKey = findProjectPackageKeyByNodeKey(intent.key)
-    if (!packageKey || intent.actionKey !== projectPackageDeleteActionKey(packageKey)) return
-    const manifest = projectPackageManifests.value.get(packageKey)
-    if (!manifest) return
+    if (!packageKey) return
+    if (intent.actionKey === projectPackageVerifyActionKey(packageKey)) {
+      const result = await projectStore.checkResourcePackage(packageKey)
+      if (!result) return
+      const status = t(`packageManager.status.${result.status}`)
+      if (result.status === 'ok') {
+        notifySuccess(`${packageKey}: ${status}`)
+      } else {
+        notifyWarning(`${packageKey}: ${status}`)
+      }
+      return
+    }
+    if (intent.actionKey !== projectPackageDeleteActionKey(packageKey)) return
+    const required = projectPackageManifests.value.get(packageKey)
+    if (!required) return
+    const installed = projectStore.projectResourcePackages.value.get(packageKey)
     const packageRootPath = resolveInstalledResourcePackageRootPath(projectPath.value, packageKey)
     try {
       if (!await removeResourcePackage(packageKey)) return
       closeSessionsByPath(packageRootPath)
       selectedManagementKeys.value = []
-      notifySuccess(t('resourcePackage.deleted', { name: manifest.name }))
+      notifySuccess(t('resourcePackage.deleted', { name: installed?.manifest.name ?? packageKey }))
     } catch (error) {
       notifyAppError('OC-E3016', { path: packageRootPath, error }, locale.value)
     }
@@ -2762,10 +2789,10 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
           notifyWarning(t('resourcePackage.openProjectFirst'))
           continue
         }
-        const installed = await projectStore.installResourcePackageFile(normalizedPath, async (next, previous) => {
-          return await showConfirm(t('resourcePackage.confirmUpgrade', {
+        const installed = await projectStore.installResourcePackageFile(normalizedPath, {
+          confirmReplacement: async (next, previous) => await showConfirm(t('resourcePackage.confirmUpgrade', {
             name: next.name, version: next.version, previousVersion: previous.version,
-          }), { title: t('resourcePackage.title'), kind: 'warning' })
+          }), { title: t('resourcePackage.title'), kind: 'warning' }),
         })
         notifySuccess(t('resourcePackage.installed', { name: path.split('/').pop() ?? installed.manifest.name }))
         continue
@@ -2895,6 +2922,16 @@ function sendDebugTestMessages(): void {
   debugNoticeTimer = window.setInterval(sendNext, DEBUG_NOTICE_INTERVAL_MS)
 }
 
+function sendDebugOutputEntries(): void {
+  isBottomPanelExpanded.value = true
+  activeBottomTab.value = 'output'
+  publishAppOutput({ severity: 'info', message: t('app.debug.outputInfo') })
+  publishAppOutput({ severity: 'success', message: t('app.debug.outputSuccess') })
+  publishAppOutput({ severity: 'warning', message: t('app.debug.outputWarning'), detail: t('app.debug.outputWarningDetail') })
+  publishAppOutput({ severity: 'error', message: t('app.debug.outputError') })
+  reportAppError('OC-E2003', { path: 'cards/output-test.ocdocument' })
+}
+
 async function runShellCommand(actionKey: string) {
   if ((isCreateProjectMode.value && isProjectTemplateBusy.value) || isExportTemplateBusy.value) return
 
@@ -2932,6 +2969,11 @@ async function runShellCommand(actionKey: string) {
 
   if (actionKey === 'send-debug-test-messages' && import.meta.env.DEV) {
     sendDebugTestMessages()
+    return
+  }
+
+  if (actionKey === 'send-debug-output-entries' && import.meta.env.DEV) {
+    sendDebugOutputEntries()
     return
   }
 

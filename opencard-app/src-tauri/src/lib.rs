@@ -319,6 +319,7 @@ pub fn run() {
             icon_spritesheet::compose_project_icon_spritesheet,
             resource_package::recover_resource_package_transactions,
             resource_package::inspect_resource_package,
+            resource_package::inspect_installed_resource_package,
             resource_package::install_resource_package,
         ])
         .build(tauri::generate_context!())

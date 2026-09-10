@@ -1,4 +1,4 @@
-import type { ResourcePackageManifest } from './resourcePackage'
+import { normalizeKeySlug } from '../../../shared/model/keySlug'
 
 export const PROJECT_PACKAGE_MANIFEST_TYPE = 'opencard-project-packages' as const
 
@@ -6,19 +6,13 @@ export type ProjectPackageManifest = {
   readonly type: typeof PROJECT_PACKAGE_MANIFEST_TYPE
   readonly packages: Readonly<Record<string, RequiredPackage>>
 }
-export type RequiredPackage = Pick<ResourcePackageManifest, 'key' | 'name' | 'version' | 'contentHash'>
+export type RequiredPackage = {
+  readonly version: string
+  readonly source?: string | null
+}
 
 export type ProjectPackageManifestIssue = { readonly path: string; readonly message: string }
 export type ProjectPackageManifestReadResult = { readonly manifest: ProjectPackageManifest; readonly issues: readonly ProjectPackageManifestIssue[] }
-
-export function reconcileProjectPackageManifest(
-  current: ProjectPackageManifest | undefined,
-  _installed: ReadonlyMap<string, ResourcePackageManifest | null>,
-): ProjectPackageManifest {
-  const packages: Record<string, RequiredPackage> = {}
-  for (const [key, required] of Object.entries(current?.packages ?? {})) packages[key] = required
-  return { type: PROJECT_PACKAGE_MANIFEST_TYPE, packages }
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -33,15 +27,20 @@ export function normalizeProjectPackageManifest(value: unknown): ProjectPackageM
   const packages: Record<string, RequiredPackage> = {}
   for (const [rawKey, candidate] of Object.entries(rawPackages)) {
     if (!isRecord(candidate)) { issues.push({ path: `packages.${rawKey}`, message: 'Invalid package requirement was ignored' }); continue }
-    const key = typeof candidate.key === 'string' ? candidate.key : rawKey
-    const name = typeof candidate.name === 'string' ? candidate.name : ''
+    const key = normalizeKeySlug(rawKey)
+    if (!key) {
+      issues.push({ path: `packages.${rawKey}`, message: 'Package Key that is not a single safe slug was ignored' })
+      continue
+    }
     const version = typeof candidate.version === 'string' ? candidate.version : ''
-    const contentHash = typeof candidate.contentHash === 'string' ? candidate.contentHash : ''
-    if (!key || !name || !version || !contentHash || key !== rawKey || packages[key]) {
+    const source = candidate.source === undefined || candidate.source === null
+      ? undefined
+      : typeof candidate.source === 'string' && candidate.source.trim() ? candidate.source.trim() : null
+    if (!version || packages[key] || (candidate.source !== undefined && candidate.source !== null && source === null)) {
       issues.push({ path: `packages.${rawKey}`, message: 'Invalid or duplicate package manifest was ignored' })
       continue
     }
-    packages[key] = { key, name, version, contentHash }
+    packages[key] = { version, ...(source ? { source } : {}) }
   }
   return { manifest: { type: PROJECT_PACKAGE_MANIFEST_TYPE, packages }, issues }
 }

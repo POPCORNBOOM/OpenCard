@@ -8,12 +8,9 @@ import {
   setOcTheme,
 } from "./shared/ui/foundation";
 import { useAppSettingsStore } from "./features/settings/store/appSettingsStore";
-import { installAppConsoleCapture } from "./features/logging/appConsole";
 import { addTitleBarNotice } from "./features/notifications/titlebarNotices";
 import "./features/shell/shell.css";
 import "./styles.css";
-
-installAppConsoleCapture();
 
 const startupStartedAt = performance.getEntriesByName("opencard:startup:html")[0]?.startTime
   ?? performance.now();

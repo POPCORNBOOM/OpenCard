@@ -25,6 +25,8 @@ static PACKAGE_MUTATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 pub struct InspectResourcePackageRequest {
     pub project_root_path: String,
     pub source_path: String,
+    #[serde(default)]
+    pub target_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -36,8 +38,6 @@ pub struct NativeResourcePackageInspection {
     pub existing_fingerprint: Option<String>,
     pub entry_count: usize,
     pub unpacked_bytes: u64,
-    pub package_key: String,
-    pub package_version: String,
     pub entry_paths: Vec<String>,
     pub fonts_json: Option<String>,
     pub icons_json: Option<String>,
@@ -48,9 +48,28 @@ pub struct NativeResourcePackageInspection {
 pub struct InstallResourcePackageRequest {
     pub project_root_path: String,
     pub source_path: String,
+    pub target_key: String,
     pub expected_content_hash: String,
     pub expected_existing_fingerprint: Option<String>,
     pub manifest_json: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectInstalledResourcePackageRequest {
+    pub project_root_path: String,
+    pub package_key: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeInstalledResourcePackageInspection {
+    pub exists: bool,
+    pub manifest_json: Option<String>,
+    pub content_hash: Option<String>,
+    pub entry_paths: Vec<String>,
+    pub fonts_json: Option<String>,
+    pub icons_json: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -239,6 +258,15 @@ fn manifest_identity(manifest_json: &str) -> Result<(String, String), String> {
 
 fn package_target(root: &Path, key: &str) -> PathBuf { root.join(".opencard").join("packages").join(key) }
 
+fn normalize_package_key(value: &str) -> Result<String, String> {
+    let key = value.trim().to_ascii_lowercase();
+    if key.is_empty() || !key.bytes().next().is_some_and(|byte| byte.is_ascii_alphanumeric())
+        || !key.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')) {
+        return Err("Package Key is invalid".to_string());
+    }
+    Ok(key)
+}
+
 fn transaction_base<'a>(name: &'a str, marker: &str) -> Option<&'a str> {
     let (base, suffix) = name.rsplit_once(marker)?;
     (!base.is_empty() && !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())).then_some(base)
@@ -251,6 +279,29 @@ fn validate_existing_target(root: &Path, target: &Path) -> Result<(), String> {
     let canonical = std::fs::canonicalize(target).map_err(|e| e.to_string())?;
     if !canonical.starts_with(root) { return Err("Installed package target escapes the project root".to_string()); }
     Ok(())
+}
+
+#[tauri::command]
+pub fn inspect_installed_resource_package(request: InspectInstalledResourcePackageRequest) -> Result<NativeInstalledResourcePackageInspection, String> {
+    let root = canonical_project_root(&request.project_root_path)?;
+    let key = normalize_package_key(&request.package_key)?;
+    let target = package_target(&root, &key);
+    if !target.exists() {
+        return Ok(NativeInstalledResourcePackageInspection { exists: false, manifest_json: None, content_hash: None, entry_paths: Vec::new(), fonts_json: None, icons_json: None });
+    }
+    validate_existing_target(&root, &target)?;
+    let manifest_path = target.join(MANIFEST_PATH);
+    let manifest_json = std::fs::read_to_string(&manifest_path).map_err(|e| format!("Cannot read installed manifest: {e}"))?;
+    let (_, _) = manifest_identity(&manifest_json)?;
+    let mut files = Vec::new();
+    collect_installed_files(&target, &target, &mut files)?;
+    let entry_paths = files.iter().map(|(relative, _, _)| relative.clone()).collect::<Vec<_>>();
+    let fonts_json = files.iter().find(|(relative, _, _)| relative.eq_ignore_ascii_case(".opencard/fonts/fonts.json"))
+        .map(|(_, path, _)| std::fs::read_to_string(path).map_err(|e| format!("Cannot read installed font registry: {e}"))).transpose()?;
+    let icons_json = files.iter().find(|(relative, _, _)| relative.eq_ignore_ascii_case(".opencard/icons/icons.json"))
+        .map(|(_, path, _)| std::fs::read_to_string(path).map_err(|e| format!("Cannot read installed icon registry: {e}"))).transpose()?;
+    let (_, content_hash) = fingerprint(&target)?;
+    Ok(NativeInstalledResourcePackageInspection { exists: true, manifest_json: Some(manifest_json), content_hash: Some(content_hash), entry_paths, fonts_json, icons_json })
 }
 
 fn fingerprint(path: &Path) -> Result<(String, String), String> {
@@ -309,37 +360,42 @@ pub fn inspect_resource_package(request: InspectResourcePackageRequest) -> Resul
     let mut projection = open_archive(&source)?;
     let manifest_bytes = read_zip_entry(&mut projection.archive, projection.manifest_index, MAX_MANIFEST_BYTES)?;
     let manifest_json = String::from_utf8(manifest_bytes).map_err(|_| "Package manifest must be UTF-8".to_string())?;
-    let (package_key, package_version) = manifest_identity(&manifest_json)?;
+    let (package_key, _) = manifest_identity(&manifest_json)?;
+    let target_key = match request.target_key.as_deref() {
+        Some(value) => normalize_package_key(value)?,
+        None => package_key.clone(),
+    };
     let fonts_json = projection.entries.iter().find(|entry| entry.path.eq_ignore_ascii_case(".opencard/fonts/fonts.json")).map(|entry| read_zip_entry(&mut projection.archive, entry.index, MAX_MANIFEST_BYTES).and_then(|bytes| String::from_utf8(bytes).map_err(|_| "Font registry must be UTF-8".to_string()))).transpose()?;
     let icons_json = projection.entries.iter().find(|entry| entry.path.eq_ignore_ascii_case(".opencard/icons/icons.json")).map(|entry| read_zip_entry(&mut projection.archive, entry.index, MAX_MANIFEST_BYTES).and_then(|bytes| String::from_utf8(bytes).map_err(|_| "Icon registry must be UTF-8".to_string()))).transpose()?;
     let content_hash = hash_projection(&mut projection)?;
-    let target = package_target(&root, &package_key);
+    let target = package_target(&root, &target_key);
     validate_existing_target(&root, &target)?;
     let existing_manifest_path = target.join(MANIFEST_PATH);
     let existing_manifest_json = std::fs::read_to_string(&existing_manifest_path).ok();
     let existing_projection = if target.exists() { Some(fingerprint(&target)?) } else { None };
     let existing_fingerprint = existing_projection.as_ref().map(|value| value.0.clone());
     let entry_paths = projection.entries.iter().map(|entry| entry.path.clone()).collect();
-    Ok(NativeResourcePackageInspection { manifest_json, content_hash, existing_manifest_json, existing_fingerprint, entry_count: projection.entries.len() + 1, unpacked_bytes: projection.unpacked_bytes, package_key, package_version, entry_paths, fonts_json, icons_json })
+    Ok(NativeResourcePackageInspection { manifest_json, content_hash, existing_manifest_json, existing_fingerprint, entry_count: projection.entries.len() + 1, unpacked_bytes: projection.unpacked_bytes, entry_paths, fonts_json, icons_json })
 }
 
 #[tauri::command]
 pub fn install_resource_package(request: InstallResourcePackageRequest) -> Result<NativeResourcePackageInstallResult, String> {
     let _guard = PACKAGE_MUTATION_LOCK.get_or_init(|| Mutex::new(())).lock().map_err(|_| "Package mutation lock is poisoned".to_string())?;
-    let inspected = inspect_resource_package(InspectResourcePackageRequest { project_root_path: request.project_root_path.clone(), source_path: request.source_path.clone() })?;
+    let target_key = normalize_package_key(&request.target_key)?;
+    let inspected = inspect_resource_package(InspectResourcePackageRequest { project_root_path: request.project_root_path.clone(), source_path: request.source_path.clone(), target_key: Some(target_key.clone()) })?;
     if inspected.content_hash != request.expected_content_hash { return Err("Package source changed since inspection".to_string()); }
     if inspected.existing_fingerprint != request.expected_existing_fingerprint { return Err("Installed package changed since inspection".to_string()); }
     let (canonical_key, _) = manifest_identity(&request.manifest_json)?;
     let canonical_value: serde_json::Value = serde_json::from_str(&request.manifest_json).map_err(|_| "Validated manifest is invalid JSON".to_string())?;
-    if canonical_key != inspected.package_key || canonical_value.get("contentHash").and_then(|value| value.as_str()) != Some(inspected.content_hash.as_str()) { return Err("Validated manifest does not match the inspected package".to_string()); }
+    if canonical_key != target_key || canonical_value.get("contentHash").and_then(|value| value.as_str()) != Some(inspected.content_hash.as_str()) { return Err("Validated manifest does not match the inspected package".to_string()); }
     let root = canonical_project_root(&request.project_root_path)?;
     let packages = root.join(".opencard").join("packages"); std::fs::create_dir_all(&packages).map_err(|e| e.to_string())?;
     let canonical_packages = std::fs::canonicalize(&packages).map_err(|e| e.to_string())?;
     if !canonical_packages.starts_with(&root) { return Err("Package directory escapes the project root".to_string()); }
-    let target = package_target(&root, &inspected.package_key);
+    let target = package_target(&root, &target_key);
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
-    let staging = packages.join(format!("{}.install-{}", inspected.package_key, stamp));
-    let backup = packages.join(format!("{}.backup-{}", inspected.package_key, stamp));
+    let staging = packages.join(format!("{}.install-{}", target_key, stamp));
+    let backup = packages.join(format!("{}.backup-{}", target_key, stamp));
     let mut projection = open_archive(&std::fs::canonicalize(&request.source_path).map_err(|e| e.to_string())?)?;
     if hash_projection(&mut projection)? != request.expected_content_hash { return Err("Package source changed before extraction".to_string()); }
     std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
@@ -374,5 +430,14 @@ mod tests {
     fn manifest_identity_requires_current_shape_identity() {
         assert_eq!(manifest_identity(r#"{"key":"Theme","version":"1.2.3"}"#).unwrap(), ("theme".to_string(), "1.2.3".to_string()));
         assert!(manifest_identity("{}").is_err());
+    }
+
+    #[test]
+    fn package_keys_are_single_portable_segments() {
+        assert_eq!(normalize_package_key(" Owner-Repo ").unwrap(), "owner-repo");
+        assert_eq!(normalize_package_key("alice.my_theme-2").unwrap(), "alice.my_theme-2");
+        for key in ["", "owner/repo", "../escape", "-lead", "空 格"] {
+            assert!(normalize_package_key(key).is_err(), "accepted {:?}", key);
+        }
     }
 }

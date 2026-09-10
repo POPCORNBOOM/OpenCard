@@ -48,7 +48,7 @@ import {
   type ResolvedProjectDictionary,
 } from '../model/projectDictionary'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
-import type { ProjectWorkspaceState } from '../../settings/model/appSettings'
+import { findProjectWorkspaceState, updateProjectWorkspaceState } from '../../settings/model/workspaceState'
 import { taskScheduler } from '../../../utils/taskScheduler'
 import type { OcTreeDropPosition } from '../../../shared/ui/tree/tree.types'
 import { reportAppError } from '../../logging/appErrorCatalog'
@@ -83,19 +83,22 @@ import {
 import {
   previewResourcePackage,
   decideResourcePackageInstallation,
+  checkInstalledResourcePackage,
   installResourcePackage,
+  type ResourcePackageCheckResult,
   type ResourcePackageInstallResult,
 } from '../services/resourcePackageInstaller'
+import { downloadRemotePackage, parseRemotePackageSource } from '../services/remotePackageSource'
 import {
   PROJECT_PACKAGE_MANIFEST_TYPE,
-  reconcileProjectPackageManifest,
   serializeProjectPackageManifest,
   type RequiredPackage,
 } from '../model/projectPackageManifest'
 import {
   resolveInstalledResourcePackageRootPath,
-  type ResourcePackageManifest,
 } from '../model/resourcePackage'
+import { toKeySlug } from '../../../shared/model/keySlug'
+import { resolveAppDownloadPath } from '../../../shared/storage/appStoragePaths'
 import {
   createProjectResourceNamespace,
   loadProjectResourceEnvironment,
@@ -293,25 +296,11 @@ function toRelativeProjectPath(path: string): string {
 
 async function saveProjectWorkspaceState() {
   if (!projectPath.value) return
-  const workspaceStates: Record<string, ProjectWorkspaceState> = Object.fromEntries(
-    Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
-    .map(([path, state]) => [path, {
-      expandedDirectories: [...state.expandedDirectories],
-      ...(state.sidebar ? {
-        sidebar: {
-          collapsedLists: [...state.sidebar.collapsedLists],
-          listWeights: { ...state.sidebar.listWeights },
-        },
-      } : {}),
-      ...(state.projectProfile
-        ? { projectProfile: { collapsedSections: [...state.projectProfile.collapsedSections] } }
-        : {}),
-    }]))
-  const currentState = workspaceStates[normalizePath(projectPath.value)]
-  workspaceStates[normalizePath(projectPath.value)] = {
-    ...currentState,
-    expandedDirectories: Array.from(expandedDirectories.value).sort(),
-  }
+  const states = settingsStore.settings.value.projectCreation.workspaceStates
+  const workspaceStates = updateProjectWorkspaceState(states, projectPath.value, (current) => {
+    current.expandedDirectories = Array.from(expandedDirectories.value).sort()
+    return current
+  })
   settingsStore.updateProjectCreation({ workspaceStates })
 }
 
@@ -446,28 +435,11 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
       generation: fileChangeRevision.value,
     })
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
-    const installedPackages = new Map<string, ResourcePackageManifest | null>(
-      [...(environment.packages ?? new Map())].map(([key, pkg]) => [
-        key,
-        pkg.unavailable ? null : pkg.manifest,
-      ]),
-    )
-    const packageIndex = reconcileProjectPackageManifest(environment.packageIndex, installedPackages)
-    const packageIndexText = serializeProjectPackageManifest(packageIndex)
-    const previousPackageIndexText = serializeProjectPackageManifest(environment.packageIndex ?? {
+    const packageIndex = environment.packageIndex ?? {
       type: PROJECT_PACKAGE_MANIFEST_TYPE,
       packages: {},
-    })
-    const issues = [...environment.issues]
-    if ((environment.packageIndex || installedPackages.size > 0) && packageIndexText !== previousPackageIndexText) {
-      try {
-        await fileSystemService.writeFile(`${expectedProjectPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, packageIndexText)
-      } catch (cause) {
-        const error = cause instanceof Error ? cause : new Error(String(cause))
-        issues.push({ resource: 'packages', path: `${expectedProjectPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, message: error.message })
-        reportAppError('OC-E3016', { path: `${expectedProjectPath}/${PROJECT_PACKAGE_MANIFEST_FILE_NAME}`, error })
-      }
     }
+    const issues = [...environment.issues]
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
     projectResourcePackages.value = environment.packages ?? new Map()
     projectPackageManifests.value = new Map(Object.entries(packageIndex.packages))
@@ -590,10 +562,11 @@ async function reloadProjectDictionary(): Promise<boolean> {
 }
 
 function loadProjectWorkspaceState() {
-  const identity = pathIdentity(projectPath.value)
-  const entry = Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
-    .find(([path]) => pathIdentity(path) === identity)
-  expandedDirectories.value = new Set(entry?.[1].expandedDirectories ?? [])
+  const state = findProjectWorkspaceState(
+    settingsStore.settings.value.projectCreation.workspaceStates,
+    projectPath.value,
+  )
+  expandedDirectories.value = new Set(state?.expandedDirectories ?? [])
   registeredDirectories.value = new Map([['', PROJECT_TREE_LOOKAHEAD_DEPTH]])
   for (const directory of PROJECT_INTERNAL_DIRECTORIES) {
     registeredDirectories.value.set(directory, 1)
@@ -1102,24 +1075,34 @@ async function importProjectIconFile(
   )
 }
 
+type ResourcePackageInstallOptions = {
+  confirmReplacement?: (next: ResourcePackageInstallResult['manifest'], previous: ResourcePackageInstallResult['manifest']) => boolean | Promise<boolean>
+  /** 安装到指定 Key 而不是归档内的 Key，用于远程包或解决 Key 冲突。 */
+  targetKey?: string
+}
+
 async function installResourcePackageFile(
   sourcePath: string,
-  confirmReplacement?: (next: ResourcePackageInstallResult['manifest'], previous: ResourcePackageInstallResult['manifest']) => boolean | Promise<boolean>,
- ): Promise<ImportedResourcePackage> {
+  options: ResourcePackageInstallOptions = {},
+): Promise<ImportedResourcePackage> {
   const projectRootPath = ensureProjectOpen()
-  const preview = await previewResourcePackage({ projectRootPath, sourcePath: normalizePath(sourcePath) })
+  const preview = await previewResourcePackage({
+    projectRootPath,
+    sourcePath: normalizePath(sourcePath),
+    ...(options.targetKey ? { targetKey: options.targetKey } : {}),
+  })
   const decision = decideResourcePackageInstallation(preview.manifest, preview.existingManifest)
   if (decision === 'unchanged' && preview.existingManifest && preview.existingFingerprint) {
     await persistProjectPackageIndex(preview.existingManifest)
     return { manifest: preview.existingManifest, targetPath: preview.targetPath, replaced: false, unchanged: true, fingerprint: preview.existingFingerprint }
   }
   if (decision === 'replace' && preview.existingManifest) {
-    if (!confirmReplacement) throw new Error('Package replacement requires confirmation')
-    const accepted = await confirmReplacement(preview.manifest, preview.existingManifest)
+    if (!options.confirmReplacement) throw new Error('Package replacement requires confirmation')
+    const accepted = await options.confirmReplacement(preview.manifest, preview.existingManifest)
     if (!accepted) throw new Error('Package installation was cancelled')
   }
+  await persistProjectPackageIndex(preview.manifest)
   const installed = await installResourcePackage({ preview })
-  await persistProjectPackageIndex(installed.manifest)
   await reloadProjectResourceEnvironment()
   await refreshIndexedEntries()
   return installed
@@ -1127,9 +1110,85 @@ async function installResourcePackageFile(
 
 async function persistProjectPackageIndex(manifest: ResourcePackageInstallResult['manifest']): Promise<void> {
   const next = new Map(projectPackageManifests.value)
-  next.set(manifest.key, { key: manifest.key, name: manifest.name, version: manifest.version, contentHash: manifest.contentHash })
+  next.set(manifest.key, { version: manifest.version })
   await writeProjectPackageIndex(next)
   projectPackageManifests.value = next
+}
+
+type RequiredPackageInput = {
+  readonly key: string
+  readonly version: string
+  readonly source?: string | null
+}
+
+async function addRequiredPackages(entries: readonly RequiredPackageInput[]): Promise<void> {
+  if (!entries.length) return
+  const next = new Map(projectPackageManifests.value)
+  for (const entry of entries) {
+    const key = entry.key.trim()
+    const version = entry.version.trim()
+    if (!key || !version) throw new Error('Package Key and version are required')
+    next.set(key, { version, ...(entry.source?.trim() ? { source: entry.source.trim() } : {}) })
+  }
+  await writeProjectPackageIndex(next)
+  projectPackageManifests.value = next
+}
+
+async function addRequiredPackage(packageKey: string, version: string, source?: string | null): Promise<void> {
+  await addRequiredPackages([{ key: packageKey, version, source }])
+}
+
+async function installMissingRemotePackages(
+  entries: readonly { key: string; version: string; source?: string | null }[],
+  onProgress?: (completed: number, total: number) => void,
+): Promise<{ succeeded: string[]; failed: string[] }> {
+  ensureProjectOpen()
+  const succeeded: string[] = []
+  const failed: string[] = []
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index]!
+    let downloadedPath: string | null = null
+    try {
+      const source = parseRemotePackageSource(entry.source ?? '', entry.version)
+      const downloadsDirectory = await resolveAppDownloadPath()
+      const target = await resolveAppDownloadPath(`${toKeySlug(entry.key)}-${toKeySlug(entry.version, 'version')}.zip`)
+      await fileSystemService.createDirectory(downloadsDirectory)
+      await downloadRemotePackage(source, target)
+      downloadedPath = target
+      const installed = await installResourcePackageFile(target, { targetKey: entry.key })
+      const next = new Map(projectPackageManifests.value)
+      next.set(entry.key, { version: installed.manifest.version, source: entry.source })
+      await writeProjectPackageIndex(next)
+      projectPackageManifests.value = next
+      succeeded.push(entry.key)
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      reportAppError('OC-E3017', `${entry.key} (${entry.source ? `${entry.source}@${entry.version}` : entry.version}): ${message}`)
+      failed.push(entry.key)
+    } finally {
+      // 下载件只用于本次安装，无论成功失败都不留在磁盘上。
+      if (downloadedPath) {
+        try {
+          await fileSystemService.deleteFile(downloadedPath)
+        } catch {
+          // 临时文件删除失败不影响安装结果。
+        }
+      }
+      onProgress?.(index + 1, entries.length)
+    }
+  }
+  return { succeeded, failed }
+}
+
+async function removeRequiredPackage(packageKey: string): Promise<boolean> {
+  const key = packageKey.trim().toLocaleLowerCase()
+  const entry = [...projectPackageManifests.value].find(([candidate]) => candidate.toLocaleLowerCase() === key)
+  if (!entry) return false
+  const next = new Map(projectPackageManifests.value)
+  next.delete(entry[0])
+  await writeProjectPackageIndex(next)
+  projectPackageManifests.value = next
+  return true
 }
 
 async function writeProjectPackageIndex(manifests: ReadonlyMap<string, RequiredPackage>): Promise<void> {
@@ -1144,19 +1203,34 @@ async function removeResourcePackage(packageKey: string): Promise<boolean> {
   const projectRootPath = ensureProjectOpen()
   const key = packageKey.trim().toLocaleLowerCase()
   const manifestEntry = [...projectPackageManifests.value].find(([candidate]) => candidate.toLocaleLowerCase() === key)
-  if (!manifestEntry) return false
-
-  const [storedKey] = manifestEntry
+  const storedKey = manifestEntry?.[0] ?? key
   const packageRootPath = resolveInstalledResourcePackageRootPath(projectRootPath, storedKey)
   const exists = await fileSystemService.fileExists(packageRootPath)
+  if (!manifestEntry && !exists) return false
   if (exists) await fileSystemService.deleteFile(packageRootPath)
 
   const next = new Map(projectPackageManifests.value)
-  next.delete(storedKey)
+  for (const candidate of next.keys()) {
+    if (candidate.toLocaleLowerCase() === key) next.delete(candidate)
+  }
+  await writeProjectPackageIndex(next)
   projectPackageManifests.value = next
   await reloadProjectResourceEnvironment()
   await refreshIndexedEntries()
   return true
+}
+
+async function checkResourcePackage(packageKey: string): Promise<ResourcePackageCheckResult | null> {
+  const projectRootPath = ensureProjectOpen()
+  const key = packageKey.trim().toLocaleLowerCase()
+  const manifestEntry = [...projectPackageManifests.value].find(([candidate]) => candidate.toLocaleLowerCase() === key)
+  if (!manifestEntry) return null
+  const [storedKey, required] = manifestEntry
+  return await checkInstalledResourcePackage({
+    projectRootPath,
+    packageKey: storedKey,
+    requiredVersion: required.version,
+  })
 }
 
 async function getProjectIconImportConflict(
@@ -1610,7 +1684,12 @@ export function useProjectStore() {
     importProjectIconFile,
     getProjectIconImportConflict,
     installResourcePackageFile,
+    addRequiredPackage,
+    addRequiredPackages,
+    installMissingRemotePackages,
+    removeRequiredPackage,
     removeResourcePackage,
+    checkResourcePackage,
     createEntryWithAvailableName,
     trashFile,
     trashUnusedProjectFontFiles,

@@ -11,9 +11,6 @@
               <OcText id="resource-package-selection-title" as="h3" size="sm">{{ t('resourcePackage.contents') }}</OcText>
               <OcText size="xs" tone="muted">{{ t('resourcePackage.contentsDescription') }}</OcText>
             </div>
-            <OcButton icon-only size="sm" variant="ghost" icon="action.discard"
-              :aria-label="t('resourcePackage.clearSelection')" :data-tooltip="t('resourcePackage.clearSelection')"
-              :disabled="selectedCount === 0" @click="clearSelection" />
           </div>
           <OcPanel fill padding="none" overflow="auto">
             <OcTree v-if="treeData.rootKeys.length" fill :data="treeData" :actions="treeActions"
@@ -38,22 +35,19 @@
                 @input="name = ($event.target as HTMLInputElement).value" />
             </label>
             <label>
+              <OcText as="span" size="sm">{{ t('resourcePackage.author') }}</OcText>
+              <OcFieldInput variant="underline" full-width mono :value="author" :disabled="busy"
+                @input="author = ($event.target as HTMLInputElement).value" />
+            </label>
+            <label>
               <OcText as="span" size="sm">{{ t('resourcePackage.key') }}</OcText>
-              <OcFieldInput variant="underline" full-width mono :value="packageKey" :placeholder="generatedKey" :disabled="busy"
-                @input="packageKey = ($event.target as HTMLInputElement).value" />
+              <OcFieldInput variant="underline" full-width mono readonly :value="packageKey" :disabled="busy" />
             </label>
             <label>
               <OcText as="span" size="sm">{{ t('resourcePackage.version') }}</OcText>
               <OcFieldInput variant="underline" full-width mono :value="version" :disabled="busy"
                 @input="version = ($event.target as HTMLInputElement).value" />
             </label>
-          </div>
-          <OcText v-if="selectedCount" size="sm" tone="muted">
-            {{ t('resourcePackage.selectedCount', { count: selectedCount }) }}
-          </OcText>
-          <div class="resource-package-builder__resource-count">
-            <OcText as="span" size="sm" tone="muted">{{ t('resourcePackage.resources') }}</OcText>
-            <code>{{ selectedResourceCount }}</code>
           </div>
           <OcText v-if="errorText" class="resource-package-builder__error" tone="danger" role="alert">{{ errorText }}</OcText>
         </aside>
@@ -80,7 +74,10 @@ import OcText from '../../../components/base/OcText.vue'
 import OcDialog from '../../../components/standard/OcDialog.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import { resolveFileType } from '../model/fileTypes'
-import { toKeySlug } from '../../../shared/model/keySlug'
+import { createPackageKey, toKeySlug } from '../../../shared/model/keySlug'
+import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
+import type { ProjectPackageBuilderState } from '../../settings/model/appSettings'
+import { findProjectWorkspaceState, updateProjectWorkspaceState, type ProjectWorkspaceStateRead } from '../../settings/model/workspaceState'
 import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
 import { buildResourcePackageFromProject } from '../services/buildResourcePackage'
 import { fileSystemService } from '../services/fileSystemService'
@@ -90,8 +87,9 @@ const props = defineProps<{ open: boolean, projectRootPath: string, projectName:
 const emit = defineEmits<{ close: [], built: [path: string] }>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
+const appSettingsStore = useAppSettingsStore()
 const name = ref('')
-const packageKey = ref('')
+const author = ref('')
 const version = ref('1.0.0')
 const selectedFamilyKeys = ref<Set<string>>(new Set())
 const selectedCompositionKeys = ref<Set<string>>(new Set())
@@ -123,6 +121,20 @@ function projectRelativePath(path: string): string | null {
     : null
 }
 
+/** A remembered build with no selection at all still counts as remembered, so it must not fall back to "all". */
+function restoreSelection(available: readonly string[], cached: readonly string[] | undefined): Set<string> {
+  if (!cached) return new Set(available)
+  const next = new Set(available)
+  for (const key of next) {
+    if (!cached.includes(key)) next.delete(key)
+  }
+  return next
+}
+
+/** Image selection ids are the project-relative paths the package stores, so the cache can be reused directly. */
+const IMAGE_SELECTION_PREFIX = 'image:'
+const imageSelectionId = (imagePath: string): string => `${IMAGE_SELECTION_PREFIX}${imagePath}`
+
 const imageCandidates = computed<readonly PackageCandidate[]>(() => [
   ...props.entries.map(projectRelativePath)
     .filter((relative): relative is string => Boolean(relative))
@@ -133,19 +145,22 @@ const imageCandidates = computed<readonly PackageCandidate[]>(() => [
         && !lower.startsWith('.opencard/')
     })
     .map(relative => ({
-      id: `image:${relative}`,
+      id: imageSelectionId(relative),
       label: relative.split('/').pop() ?? relative,
       detail: relative,
     })),
 ])
 const expandedKeys = computed(() => [...expandedKeySet.value])
 const expandedKeySet = ref<Set<string>>(new Set())
+const packageKey = computed(() => {
+  const packageName = name.value.trim()
+  const packageAuthor = toKeySlug(author.value.trim(), '')
+  if (!packageName || !packageAuthor) return ''
+  return createPackageKey({ source: 'local', author: packageAuthor, name: packageName })
+})
 const selectedCount = computed(() => selectedFamilyKeys.value.size
   + selectedCompositionKeys.value.size + selectedIconSeriesKeys.value.size + selectedImageIds.value.size)
-const selectedResourceCount = selectedCount
-const generatedKey = computed(() => toKeySlug(name.value.trim(), ''))
-const normalizedKey = computed(() => toKeySlug(packageKey.value.trim() || generatedKey.value, ''))
-const canBuild = computed(() => Boolean(name.value.trim() && normalizedKey.value && version.value.trim() && selectedResourceCount.value > 0))
+const canBuild = computed(() => Boolean(packageKey.value && version.value.trim() && selectedCount.value > 0))
 
 const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
   ['select', { title: t('resourcePackage.select'), icon: 'action.checkbox-blank' }],
@@ -168,15 +183,12 @@ const treeData = computed<OcTreeData>(() => {
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
       label: t('resourcePackage.fonts'), icon: 'file.font', iconTone: 'config',
-      tail: `${selectedFamilyKeys.value.size + selectedCompositionKeys.value.size}/${families.length + compositions.length}`,
     })
     items.set(familyGroupKey, {
       label: t('resourcePackage.projectFonts'), icon: 'file.font',
-      tail: `${selectedFamilyKeys.value.size}/${families.length}`,
     })
     items.set(compositionGroupKey, {
       label: t('resourcePackage.fontCompositions'), icon: 'data.layers',
-      tail: `${selectedCompositionKeys.value.size}/${compositions.length}`,
     })
     children.set(categoryKey, [familyGroupKey, compositionGroupKey])
     children.set(familyGroupKey, families.map(family => {
@@ -204,7 +216,6 @@ const treeData = computed<OcTreeData>(() => {
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
       label: t('resourcePackage.icons'), icon: 'file.project-icon', iconTone: 'config',
-      tail: `${selectedIconSeriesKeys.value.size}/${iconSeries.length}`,
     })
     children.set(categoryKey, iconSeries.map(series => {
       const key = `icon-series:${series.key}`
@@ -221,7 +232,6 @@ const treeData = computed<OcTreeData>(() => {
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
       label: t('resourcePackage.images'), icon: 'file.image', iconTone: 'config',
-      tail: `${imageCandidates.value.filter(entry => selectedImageIds.value.has(entry.id)).length}/${imageCandidates.value.length}`,
     })
     for (const entry of imageCandidates.value) {
       const segments = (entry.detail ?? entry.label).split('/')
@@ -239,7 +249,6 @@ const treeData = computed<OcTreeData>(() => {
       const selected = selectedImageIds.value.has(entry.id)
       items.set(entry.id, {
         label: segments[segments.length - 1] ?? entry.label,
-        tail: entry.detail,
         icon: 'file.image', iconTone: selected ? 'active' : 'muted',
         actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
       })
@@ -251,27 +260,40 @@ const treeData = computed<OcTreeData>(() => {
 
 watch(() => props.open, open => {
   if (!open) return
-  name.value = props.projectName
-  packageKey.value = ''
-  version.value = '1.0.0'
-  selectedFamilyKeys.value = new Set()
-  selectedCompositionKeys.value = new Set()
-  selectedIconSeriesKeys.value = new Set()
-  selectedImageIds.value = new Set()
+  const cached = packageBuilderCache()
+  name.value = cached?.name || props.projectName
+  author.value = appSettingsStore.settings.value.identity.publisherKey
+  version.value = cached?.version || '1.0.0'
+  selectedFamilyKeys.value = restoreSelection(
+    projectStore.projectFontFamilies.value.map(family => family.key),
+    cached?.fontFamilyKeys,
+  )
+  selectedCompositionKeys.value = restoreSelection(
+    projectStore.projectFontCompositions.value.map(composition => composition.key),
+    cached?.fontCompositionKeys,
+  )
+  selectedIconSeriesKeys.value = restoreSelection(
+    projectStore.projectIconSeries.value.map(series => series.key),
+    cached?.iconSeriesKeys,
+  )
+  selectedImageIds.value = restoreSelection(
+    imageCandidates.value.map(candidate => candidate.id),
+    cached?.imagePaths.map(imageSelectionId),
+  )
   expandedKeySet.value = new Set([
     'category:fonts', 'font-group:families', 'font-group:compositions', 'category:icons', 'category:images',
   ])
   errorText.value = ''
-})
+}, { immediate: true })
 
 function close(): void {
   if (!busy.value) emit('close')
 }
-function clearSelection(): void {
-  selectedFamilyKeys.value = new Set()
-  selectedCompositionKeys.value = new Set()
-  selectedIconSeriesKeys.value = new Set()
-  selectedImageIds.value = new Set()
+function packageBuilderCache(): ProjectWorkspaceStateRead['packageBuilder'] {
+  return findProjectWorkspaceState(
+    appSettingsStore.settings.value.projectCreation.workspaceStates,
+    props.projectRootPath,
+  )?.packageBuilder
 }
 function handleTreeIntent(intent: OcTreeIntent): void {
   if (intent.type === 'expansion.change') {
@@ -317,16 +339,19 @@ async function build(): Promise<void> {
   busy.value = true
   errorText.value = ''
   try {
+    appSettingsStore.updateSetting('identity.publisherKey', toKeySlug(author.value.trim(), 'publisher'))
+    const selected = imageCandidates.value.filter(candidate => selectedImageIds.value.has(candidate.id))
+    const imagePaths = selected.map(candidate => candidate.detail ?? candidate.label)
     const outputPath = await fileSystemService.pickSavePath({
-      defaultPath: `${normalizedKey.value}.ocpack`, fileTypeName: t('resourcePackage.fileType'),
+      defaultPath: `${toKeySlug(name.value.trim(), 'package')}.ocpack`, fileTypeName: t('resourcePackage.fileType'),
       extensions: ['ocpack'], title: t('resourcePackage.buildTitle'),
     })
+    rememberBuildInputs(imagePaths)
     if (!outputPath) return
-    const selected = imageCandidates.value.filter(candidate => selectedImageIds.value.has(candidate.id))
     const result = await buildResourcePackageFromProject({
-      fs: fileSystemService, projectRootPath: props.projectRootPath, key: normalizedKey.value,
+      fs: fileSystemService, projectRootPath: props.projectRootPath, key: packageKey.value,
       name: name.value.trim(), version: version.value.trim(),
-      imageSelection: { paths: selected.map(candidate => candidate.detail ?? candidate.label) },
+      imageSelection: { paths: imagePaths },
       fontSelection: {
         familyKeys: [...selectedFamilyKeys.value],
         compositionKeys: [...selectedCompositionKeys.value],
@@ -342,6 +367,27 @@ async function build(): Promise<void> {
     busy.value = false
   }
 }
+
+function rememberBuildInputs(imagePaths: readonly string[]): void {
+  const cache: ProjectPackageBuilderState = {
+    name: name.value.trim(),
+    version: version.value.trim(),
+    fontFamilyKeys: [...selectedFamilyKeys.value],
+    fontCompositionKeys: [...selectedCompositionKeys.value],
+    iconSeriesKeys: [...selectedIconSeriesKeys.value],
+    imagePaths: [...imagePaths],
+  }
+  appSettingsStore.updateProjectCreation({
+    workspaceStates: updateProjectWorkspaceState(
+      appSettingsStore.settings.value.projectCreation.workspaceStates,
+      props.projectRootPath,
+      (current) => {
+        current.packageBuilder = cache
+        return current
+      },
+    ),
+  })
+}
 </script>
 
 <style scoped>
@@ -353,10 +399,9 @@ async function build(): Promise<void> {
 .resource-package-builder__selection { display: grid; grid-template-rows: auto minmax(0, 1fr); border-right: var(--oc-border-width) solid var(--oc-border-muted); background: var(--oc-bg-base); }
 .resource-package-builder__summary { padding: var(--oc-space-6); background: var(--oc-bg-inset); }
 .resource-package-builder__summary .resource-package-builder__fields { grid-template-columns: 1fr; margin-top: var(--oc-space-5); }
-.resource-package-builder__section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--oc-space-3); padding: var(--oc-space-4) var(--oc-space-5); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
+.resource-package-builder__section-heading { display: flex; align-items: flex-start; gap: var(--oc-space-3); padding: var(--oc-space-4) var(--oc-space-5); border-bottom: var(--oc-border-width) solid var(--oc-border-muted); }
 .resource-package-builder__section-heading > div { display: grid; gap: var(--oc-space-1); min-width: 0; }
 .resource-package-builder__section-heading h3 { margin: 0; }
-.resource-package-builder__resource-count { display: flex; align-items: center; justify-content: space-between; gap: var(--oc-space-3); margin-top: var(--oc-space-4); padding-top: var(--oc-space-3); border-top: var(--oc-border-width) solid var(--oc-border-muted); }
 .resource-package-builder__error { margin-top: var(--oc-space-5); }
 @media (max-width: 760px) { .resource-package-builder__fields, .resource-package-builder__workspace { grid-template-columns: 1fr; } .resource-package-builder__workspace { overflow: auto; } .resource-package-builder__selection { min-height: 22rem; border-right: 0; border-bottom: var(--oc-border-width) solid var(--oc-border-muted); } }
 </style>

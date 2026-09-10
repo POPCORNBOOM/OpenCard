@@ -134,7 +134,7 @@ import type { HistoryOperationMeta } from '../../features/editor-runtime/history
 import type { EditorNavigationResult, SessionNavigationToken } from '../../features/editor-runtime/model/editorIssue'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
-import type { ProjectWorkspaceState } from '../../features/settings/model/appSettings'
+import { findProjectWorkspaceState, updateProjectWorkspaceState } from '../../features/settings/model/workspaceState'
 import {
   normalizeProjectAllowedHost,
   parseProjectMetadataText,
@@ -183,11 +183,10 @@ const projectDirectoryKey = computed(() => {
     ? normalized.slice(0, -PROJECT_PROFILE_FILE_NAME.length - 1)
     : normalized
 })
-const projectWorkspaceState = computed(() => {
-  const identity = projectDirectoryKey.value.toLocaleLowerCase()
-  return Object.entries(settingsStore.settings.value.projectCreation.workspaceStates)
-    .find(([path]) => path.toLocaleLowerCase() === identity)?.[1]
-})
+const projectWorkspaceState = computed(() => findProjectWorkspaceState(
+  settingsStore.settings.value.projectCreation.workspaceStates,
+  projectDirectoryKey.value,
+))
 const remoteResourceMode = computed(() => profile.value?.remoteResources?.mode ?? 'deny')
 const remoteResourceModeOptions = computed<readonly OcOption[]>(() => [
   { value: 'deny', label: t('projectConfig.remoteResources.deny') },
@@ -303,33 +302,20 @@ function isProjectSectionCollapsed(sectionKey: ProjectProfileSectionKey): boolea
 function setProjectSectionCollapsed(sectionKey: ProjectProfileSectionKey, collapsed: boolean): void {
   const workspaceKey = projectDirectoryKey.value
   if (!workspaceKey) return
-  const collapsedSections = new Set(projectWorkspaceState.value?.projectProfile?.collapsedSections
-    .filter(key => projectProfileSections.some(section => section.key === key)) ?? [])
-  if (collapsed) collapsedSections.add(sectionKey)
-  else collapsedSections.delete(sectionKey)
 
-  const workspaceStates: Record<string, ProjectWorkspaceState> = Object.fromEntries(
-    Object.entries(settingsStore.settings.value.projectCreation.workspaceStates).map(([path, state]) => [path, {
-      expandedDirectories: [...state.expandedDirectories],
-      ...(state.projectProfile
-        ? { projectProfile: { collapsedSections: [...state.projectProfile.collapsedSections] } }
-        : {}),
-    }]),
+  const workspaceStates = updateProjectWorkspaceState(
+    settingsStore.settings.value.projectCreation.workspaceStates,
+    workspaceKey,
+    (current) => {
+      const collapsedSections = new Set(current.projectProfile?.collapsedSections
+        .filter(key => projectProfileSections.some(section => section.key === key)) ?? [])
+      if (collapsed) collapsedSections.add(sectionKey)
+      else collapsedSections.delete(sectionKey)
+      if (collapsedSections.size > 0) current.projectProfile = { collapsedSections: [...collapsedSections] }
+      else delete current.projectProfile
+      return current
+    },
   )
-  const existingKey = Object.keys(workspaceStates)
-    .find(path => path.toLocaleLowerCase() === workspaceKey.toLocaleLowerCase())
-  const currentState = existingKey ? workspaceStates[existingKey] : undefined
-  if (existingKey && existingKey !== workspaceKey) delete workspaceStates[existingKey]
-  if (collapsedSections.size > 0) {
-    workspaceStates[workspaceKey] = {
-      expandedDirectories: [...(currentState?.expandedDirectories ?? [])],
-      projectProfile: { collapsedSections: [...collapsedSections] },
-    }
-  } else {
-    workspaceStates[workspaceKey] = {
-      expandedDirectories: [...(currentState?.expandedDirectories ?? [])],
-    }
-  }
   settingsStore.updateProjectCreation({ workspaceStates })
 }
 

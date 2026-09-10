@@ -30,6 +30,7 @@ const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
 const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
 const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
 const PROJECT_PACKAGE_DELETE_ACTION_PREFIX = 'project-package-delete:'
+const PROJECT_PACKAGE_VERIFY_ACTION_PREFIX = 'project-package-verify:'
 type ProjectManagementEntry = {
   path: string
   labelKey: string
@@ -69,6 +70,7 @@ export function isProjectEntryConfirmDeleteActionKey(actionKey: string): boolean
 export function projectPackageDeleteActionKey(packageKey: string): string {
   return `${PROJECT_PACKAGE_DELETE_ACTION_PREFIX}${packageKey}`
 }
+export function projectPackageVerifyActionKey(packageKey: string): string { return `${PROJECT_PACKAGE_VERIFY_ACTION_PREFIX}${packageKey}` }
 
 type IndexedEntry = {
   name: string
@@ -93,7 +95,7 @@ type UseShellFileTreeOptions = {
   hideDotFiles?: Readonly<Ref<boolean>>
   isDirectoryExpanded: (path: string) => boolean
   activateSession: (sessionId: string) => void
-  openPreviewFile: (path: string) => Promise<unknown>
+  openPreviewFile: (path: string, options?: { title?: string }) => Promise<unknown>
   ensureProjectManagementStructure: () => Promise<void>
   translate: (key: string) => string
   registeredFontSources?: Readonly<Ref<readonly string[] | null>>
@@ -228,6 +230,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
         : resolveEntryIcon(key, false, false, options.projectPath.value)
       items.set(key, {
         label: options.translate(entry.labelKey),
+        tail: entry.path,
         icon: presentation.icon,
         iconTone: presentation.tone,
       })
@@ -242,7 +245,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
             label: packageKey,
             icon: 'file.package',
             iconTone: 'config',
-            actions: [projectPackageDeleteActionKey(packageKey)],
+            actions: [projectPackageVerifyActionKey(packageKey), projectPackageDeleteActionKey(packageKey)],
           })
           targetByNodeKey.set(nodeKey, targetPath)
           nodeKeyByTargetPath.set(targetPath, nodeKey)

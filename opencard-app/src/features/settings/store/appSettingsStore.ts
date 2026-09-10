@@ -102,7 +102,8 @@ export function createAppSettingsStore(
   }
 
   function applySetting(candidate: AppSettings, key: AppSettingKey, value: unknown): void {
-    if (key === 'appearance.theme') candidate.appearance.theme = value as AppSettings['appearance']['theme']
+    if (key === 'identity.publisherKey') candidate.identity.publisherKey = value as string
+    else if (key === 'appearance.theme') candidate.appearance.theme = value as AppSettings['appearance']['theme']
     else if (key === 'appearance.locale') candidate.appearance.locale = value as AppSettings['appearance']['locale']
     else if (key === 'appearance.glassIntensity') candidate.appearance.glassIntensity = value as number
     else if (key === 'appearance.baseFontSize') candidate.appearance.baseFontSize = value as number

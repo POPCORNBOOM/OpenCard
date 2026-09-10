@@ -58,10 +58,25 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
     resourceScopes,
   })
   const parsed = parseRenderDocument(resolved.document, { instanceId: request.instance?.id ?? null })
+  const resources = createCardRenderResourceContext({
+    resourceRootPath: request.resourceRootPath,
+    sourceFilePath: request.sourceFilePath,
+    hostEnvironment: request.environment.projectResourceEnvironment,
+    packageEnvironments: request.environment.projectResourceEnvironment?.packageEnvironments,
+    remoteResourcePolicy: request.environment.remoteResourcePolicy,
+    resolveRemoteResource: request.environment.resolveRemoteResource,
+    projectIconCatalog: request.environment.projectIconCatalog,
+    resourceScopes,
+    richText: richText.catalog,
+    resolveFontFamily: request.environment.resolveFontFamily,
+    bindingProject: request.environment.project,
+    bindingDictionary: request.environment.dictionary,
+  })
   const resourceIssues = validateRenderResources(
     parsed.document,
     request.environment.remoteResourcePolicy,
     request.instance?.id ?? null,
+    resources,
   )
   const result: RenderPipelineResult = {
     document: parsed.document,
@@ -71,19 +86,6 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
   }
   return {
     ...result,
-    resources: createCardRenderResourceContext({
-      resourceRootPath: request.resourceRootPath,
-      sourceFilePath: request.sourceFilePath,
-      hostEnvironment: request.environment.projectResourceEnvironment,
-      packageEnvironments: request.environment.projectResourceEnvironment?.packageEnvironments,
-      remoteResourcePolicy: request.environment.remoteResourcePolicy,
-      resolveRemoteResource: request.environment.resolveRemoteResource,
-      projectIconCatalog: request.environment.projectIconCatalog,
-      resourceScopes,
-      richText: richText.catalog,
-      resolveFontFamily: request.environment.resolveFontFamily,
-      bindingProject: request.environment.project,
-      bindingDictionary: request.environment.dictionary,
-    }),
+    resources,
   }
 }

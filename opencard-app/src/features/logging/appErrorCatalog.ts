@@ -1,3 +1,5 @@
+import { publishAppOutput } from './appOutput'
+
 export type AppErrorDefinition = {
   area: string
   meaning: Readonly<{
@@ -8,11 +10,6 @@ export type AppErrorDefinition = {
 }
 
 export const APP_ERROR_CATALOG = {
-  'OC-E1001': {
-    area: '应用',
-    meaning: { 'zh-CN': '发生未分类的应用错误', 'en-US': 'An unclassified application error occurred' },
-    solution: '复制输出条目并连同复现步骤提交反馈；开发调试时在 DevTools Console 查看原始错误详情。',
-  },
   'OC-E1002': {
     area: '应用',
     meaning: { 'zh-CN': '无法写入系统剪贴板', 'en-US': 'Could not write to the system clipboard' },
@@ -138,6 +135,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法更新项目包', 'en-US': 'Could not update the project package' },
     solution: '确认包目录未被其他程序占用且项目可写，然后重新打开项目再试。',
   },
+  'OC-E3017': {
+    area: '项目与资源',
+    meaning: { 'zh-CN': '无法从远程来源安装包', 'en-US': 'Could not install the package from its remote source' },
+    solution: '在输出面板查看该包的来源与失败详情，确认来源地址和标签正确、网络可用、包归档完整后重新同步。',
+  },
   'OC-E4001': {
     area: '编辑器与文档',
     meaning: { 'zh-CN': '无法在预览会话中打开文件', 'en-US': 'Could not open the file in a preview session' },
@@ -236,6 +238,45 @@ export function isAppErrorReport(value: unknown): value is AppErrorReport {
     && candidate.code in APP_ERROR_CATALOG
 }
 
+function formatValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'bigint') return `${value}n`
+  if (typeof value === 'symbol' || typeof value === 'function') return String(value)
+  if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`
+  if (value === undefined) return 'undefined'
+
+  try {
+    const seen = new WeakSet<object>()
+    const serialized = JSON.stringify(value, (_key, nestedValue: unknown) => {
+      if (typeof nestedValue === 'bigint') return `${nestedValue}n`
+      if (nestedValue instanceof Error) {
+        return { name: nestedValue.name, message: nestedValue.message, stack: nestedValue.stack }
+      }
+      if (nestedValue && typeof nestedValue === 'object') {
+        if (seen.has(nestedValue)) return '[Circular]'
+        seen.add(nestedValue)
+      }
+      return nestedValue
+    }, 2)
+    return serialized ?? String(value)
+  } catch {
+    return String(value)
+  }
+}
+
+/** 输出面板按行展示，明细折叠成单行。 */
+function compactValue(value: unknown): string {
+  return formatValue(value).replace(/\s*\n\s*/g, ' ')
+}
+
 export function reportAppError(code: AppErrorCode, details?: unknown): void {
-  console.error(createAppErrorReport(code, details))
+  const report = createAppErrorReport(code, details)
+  const diagnostic = report.stack || report.message
+  publishAppOutput({
+    severity: 'error',
+    code,
+    message: details === undefined ? diagnostic : `${formatValue(details)}\n${diagnostic}`,
+    ...(details === undefined ? {} : { detail: compactValue(details) }),
+  })
+  console.error(report)
 }

@@ -140,6 +140,17 @@ export function useSettingsWorkspace(
             title: options.translate('settings.fields.openCdeWorkbookAfterExport', 'Open CDE workbook after export'),
             fieldType: 'boolean',
           }, settings.exporting.openCdeWorkbookAfterExport),
+          {
+            key: 'identity.publisherKey',
+            title: options.translate('settings.fields.publisherKey', 'Author ID'),
+            content: [
+              editorPart('value', {
+                title: options.translate('settings.fields.publisherKey', 'Author ID'),
+                fieldType: 'string', commitMode: 'blur',
+              }, settings.identity.publisherKey),
+              actionPart('regenerate', options.translate('settings.actions.regeneratePublisherKey', 'Generate a new author ID'), 'action.refresh', { iconOnly: true }),
+            ],
+          },
         ],
       }
     }

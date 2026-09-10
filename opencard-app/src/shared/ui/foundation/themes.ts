@@ -194,6 +194,7 @@ const darkTheme: OcThemeTokens = {
 
   '--oc-bg-danger-subtle': 'rgba(241, 76, 76, 0.12)',
   '--oc-bg-warning-subtle': 'rgba(210, 153, 34, 0.12)',
+  '--oc-bg-success-subtle': 'rgba(63, 185, 80, 0.12)',
 
   '--oc-bg-glass': 'rgba(28, 28, 28, 0.76)',
   '--oc-bg-modal-backdrop': 'rgba(15, 15, 15, 0.68)',
@@ -271,6 +272,7 @@ const lightTheme: OcThemeTokens = {
 
   '--oc-bg-danger-subtle': 'rgba(209, 67, 67, 0.1)',
   '--oc-bg-warning-subtle': 'rgba(183, 126, 24, 0.1)',
+  '--oc-bg-success-subtle': 'rgba(31, 157, 104, 0.1)',
 
   '--oc-bg-glass': 'rgba(245, 247, 253, 0.52)',
   '--oc-bg-modal-backdrop': 'rgba(31, 36, 48, 0.38)',

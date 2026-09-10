@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createImageBlock, createTextBlock, type CardDocument } from '../../entities/card/model'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import { normalizeResourcePackageManifest } from '../workspace/model/resourcePackage'
+import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
+import { createCardRenderResourceContext } from './cardRenderResources'
 import { parseRenderDocument } from './renderParser'
 import { prepareCardRender } from './renderPipeline'
 import { validateRenderResources } from './validateRenderResources'
@@ -96,6 +99,59 @@ describe('validateRenderResources', () => {
 
     expect(result.issues).toContainEqual(expect.objectContaining({
       type: 'card-designer.resource.remote-blocked',
+    }))
+  })
+
+  it('reports a missing package separately from a missing package resource file', () => {
+    const missingPackage = validateRenderResources(
+      readyImage('missing@images/portrait.png'),
+      undefined,
+      null,
+      createCardRenderResourceContext({}),
+    )
+    expect(missingPackage).toContainEqual(expect.objectContaining({
+      type: 'card-designer.resource.package-missing',
+      parameters: expect.objectContaining({ packageKey: 'missing' }),
+    }))
+
+    const packageEnvironment: ProjectResourceEnvironment = {
+      kind: 'package',
+      namespace: 'package-theme',
+      rootPath: '/project/.opencard/packages/theme',
+      fontDocument: {},
+      fonts: {},
+      iconDocument: {},
+      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+      issues: [],
+    }
+    const hostEnvironment: ProjectResourceEnvironment = {
+      kind: 'project',
+      namespace: 'project',
+      rootPath: '/project',
+      fontDocument: {},
+      fonts: {},
+      iconDocument: {},
+      iconCatalog: EMPTY_PROJECT_ICON_CATALOG,
+      packages: new Map([['theme', {
+        manifest: normalizeResourcePackageManifest({}, 'theme').manifest,
+        rootPath: packageEnvironment.rootPath!,
+        issues: [],
+      }]]),
+      packageEnvironments: new Map([['theme', packageEnvironment]]),
+      issues: [],
+    }
+    const missingFile = validateRenderResources(
+      parseRenderDocument(documentWithFont('theme@font:body'), { instanceId: null }).document,
+      undefined,
+      null,
+      createCardRenderResourceContext({
+        hostEnvironment,
+        packageEnvironments: hostEnvironment.packageEnvironments,
+      }),
+    )
+    expect(missingFile).toContainEqual(expect.objectContaining({
+      type: 'card-designer.resource.file-missing',
+      parameters: expect.objectContaining({ reference: 'theme@font:body' }),
     }))
   })
 })

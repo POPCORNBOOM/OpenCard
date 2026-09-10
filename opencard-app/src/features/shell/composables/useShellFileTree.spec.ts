@@ -139,6 +139,15 @@ describe('useShellFileTree opened editors', () => {
     ])
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.label)
       .toBe('translated:fileTypes.opencardFontRegistry')
+    expect(result.projectManagementTreeData.value.rootKeys.map(rootKey => (
+      result.projectManagementTreeData.value.items.get(rootKey)?.tail
+    ))).toEqual([
+      '.opencard/project.json',
+      '.opencard/locale.json',
+      '.opencard/fonts/fonts.json',
+      '.opencard/icons/icons.json',
+      '.opencard/packages/packages.json',
+    ])
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`))
       .toMatchObject({ icon: 'file.font', iconTone: 'config' })
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/fonts/fonts.json`)).toBe(false)

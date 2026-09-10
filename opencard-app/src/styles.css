@@ -21,6 +21,7 @@
 @property --oc-bg-accent-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-bg-danger-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-bg-warning-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --oc-bg-success-subtle { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-bg-glass { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-bg-modal-backdrop { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-border-default { syntax: '<color>'; inherits: true; initial-value: transparent; }
@@ -94,6 +95,7 @@ html.oc-theme-transitioning {
     --oc-bg-accent-subtle var(--oc-duration-theme) var(--oc-ease),
     --oc-bg-danger-subtle var(--oc-duration-theme) var(--oc-ease),
     --oc-bg-warning-subtle var(--oc-duration-theme) var(--oc-ease),
+    --oc-bg-success-subtle var(--oc-duration-theme) var(--oc-ease),
     --oc-bg-glass var(--oc-duration-theme) var(--oc-ease),
     --oc-bg-modal-backdrop var(--oc-duration-theme) var(--oc-ease),
     --oc-border-default var(--oc-duration-theme) var(--oc-ease),

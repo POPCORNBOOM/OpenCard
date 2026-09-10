@@ -25,7 +25,7 @@ export type ProjectResourcePackage = {
   readonly issues: readonly ResourcePackageManifestIssue[]
   readonly unavailable?: boolean
   readonly required?: RequiredPackage
-  readonly requirementStatus?: 'ok' | 'missing' | 'version' | 'hash'
+  readonly requirementStatus?: 'ok' | 'missing' | 'version'
 }
 
 export type ProjectResourcePackageCatalog = ReadonlyMap<string, ProjectResourcePackage>
@@ -198,12 +198,11 @@ export async function loadProjectResourceEnvironment(options: {
       }
     }
   }
-  const packages = root ? await discoverProjectResourcePackages({ fs: options.fs, root }) : new Map<string, ProjectResourcePackage>()
+  const packages = new Map(root ? await discoverProjectResourcePackages({ fs: options.fs, root }) : [])
   for (const [key, required] of Object.entries(packageIndex?.packages ?? {})) {
     const pkg = packages.get(key)
     if (!pkg) continue
-    const requirementStatus = pkg.manifest.version !== required.version ? 'version'
-      : pkg.manifest.contentHash !== required.contentHash ? 'hash' : 'ok'
+    const requirementStatus = pkg.manifest.version !== required.version ? 'version' : 'ok'
     packages.set(key, { ...pkg, required, requirementStatus })
   }
   for (const [, pkg] of packages) {

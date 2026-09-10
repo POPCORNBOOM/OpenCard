@@ -24,7 +24,15 @@ describe('useSettingsWorkspace', () => {
       'shell.titleBarNoticeHistoryLimit',
       'updates.suppressReleaseNotesAfterUpdate',
       'exporting.openCdeWorkbookAfterExport',
+      'identity.publisherKey',
     ])
+    const publisherKey = activeCategory.value.items[4]!
+    expect(editor(publisherKey)).toMatchObject({
+      value: createDefaultAppSettings().identity.publisherKey,
+      definition: { fieldType: 'string', commitMode: 'blur' },
+    })
+    expect(publisherKey.content?.filter(part => typeof part !== 'string' && part.type === 'action'))
+      .toMatchObject([{ key: 'regenerate', icon: 'action.refresh', iconOnly: true }])
     expect(editor(activeCategory.value.items[0]!)).toMatchObject({
       value: 'system',
       definition: { fieldType: 'string', presentation: 'option-group' },

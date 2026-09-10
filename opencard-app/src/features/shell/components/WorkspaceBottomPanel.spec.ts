@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
 import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
-import type { AppConsoleEntry } from '../../logging/appConsole'
+import { APP_OUTPUT_SEVERITIES, type AppOutputEntry } from '../../logging/appOutput'
 import WorkspaceBottomPanel from './WorkspaceBottomPanel.vue'
 
 const issueTreeData: OcTreeData = {
@@ -20,15 +22,15 @@ const issueNavigationTargets = new Map([
   ['issue:a', { sessionId: 'a', token: navigationToken }],
 ])
 
-const outputEntries: AppConsoleEntry[] = [
-  { id: 1, severity: 'debug', timestamp: 1_000, message: 'debug message' },
-  { id: 2, severity: 'warn', timestamp: 2_000, message: 'warning message' },
-  { id: 3, severity: 'error', timestamp: 3_000, message: 'error details', errorCode: 'OC-E2003' },
+const outputEntries: AppOutputEntry[] = [
+  { id: 1, severity: 'info', timestamp: 1_000, message: 'info message' },
+  { id: 2, severity: 'warning', timestamp: 2_000, message: 'warning message' },
+  { id: 3, severity: 'error', timestamp: 3_000, message: 'error details', detail: 'path: missing.ocdocument', code: 'OC-E2003' },
 ]
 
 function mountPanel(
   expanded = true,
-  output: readonly AppConsoleEntry[] = [],
+  output: readonly AppOutputEntry[] = [],
   activeTab: 'issues' | 'output' = 'issues',
 ) {
   return mount(WorkspaceBottomPanel, {
@@ -44,6 +46,7 @@ function mountPanel(
       issuesLabel: 'Problems',
       outputLabel: 'Output',
       issueEmptyLabel: 'No problems',
+      issueCopyLabel: 'Copy error information',
       issueFilterLabel: 'Filter problems',
       outputEmptyLabel: 'No output',
       outputFilterEmptyLabel: 'No matching output',
@@ -52,7 +55,7 @@ function mountPanel(
       outputLocale: 'en-US',
       outputSeverityFilterLabel: 'Severity filters',
       outputSeverityLabels: {
-        debug: 'Debug', log: 'Log', info: 'Info', warn: 'Warning', error: 'Error',
+        info: 'Info', success: 'Success', warning: 'Warning', error: 'Error',
       },
       expandLabel: 'Expand panel',
       collapseLabel: 'Collapse panel',
@@ -246,27 +249,45 @@ describe('WorkspaceBottomPanel', () => {
       .toBe(wrapper.get('.workspace-bottom-panel__output-toolbar').element)
     expect(wrapper.get('.workspace-bottom-panel__severity-dock')
       .find('.workspace-bottom-panel__severity-filters').exists()).toBe(true)
-    expect(wrapper.get('[data-severity="warn"] .workspace-bottom-panel__output-message').text())
+    expect(wrapper.get('[data-severity="warning"] .workspace-bottom-panel__output-message').text())
       .toBe('warning message')
     const errorEntry = wrapper.get('.workspace-bottom-panel__output-line[data-severity="error"]')
+    expect(errorEntry.find('time').exists()).toBe(true)
+    expect(errorEntry.get('.workspace-bottom-panel__output-severity').text()).toBe('Error')
     expect(errorEntry.text()).toContain('OC-E2003')
     expect(errorEntry.text()).toContain('Could not open the file')
+    expect(errorEntry.get('.workspace-bottom-panel__output-detail').text()).toBe('path: missing.ocdocument')
     expect(errorEntry.text()).not.toContain('error details')
     await errorEntry.trigger('click')
     expect(writeText).toHaveBeenCalledWith(
       'OC-E2003 Could not open the file\nerror details',
     )
-    expect(wrapper.get('.workspace-bottom-panel__severity-filter[data-severity="warn"]')
+    expect(wrapper.get('.workspace-bottom-panel__severity-filter[data-severity="warning"]')
       .text()).toContain('1')
 
-    await wrapper.get('.workspace-bottom-panel__severity-filter[data-severity="warn"]').trigger('click')
+    await wrapper.get('.workspace-bottom-panel__severity-filter[data-severity="warning"]').trigger('click')
     expect(wrapper.findAll('.workspace-bottom-panel__output-line')).toHaveLength(2)
-    expect(wrapper.find('.workspace-bottom-panel__output-line[data-severity="warn"]').exists()).toBe(false)
+    expect(wrapper.find('.workspace-bottom-panel__output-line[data-severity="warning"]').exists()).toBe(false)
 
     const clear = wrapper.findAll('button').find(button => button.text() === 'Clear')!
     expect(clear.classes()).toContain('workspace-bottom-panel__output-clear')
+    expect(clear.classes()).toContain('workspace-bottom-panel__toolbar-button')
+    for (const filter of wrapper.findAll('.workspace-bottom-panel__severity-filter')) {
+      expect(filter.classes()).toContain('workspace-bottom-panel__toolbar-button')
+    }
     await clear.trigger('click')
     expect(wrapper.emitted('output-clear')).toEqual([[]])
+  })
+
+  it('styles every output severity declared by the output channel', () => {
+    const source = readFileSync(join(process.cwd(), 'src/features/shell/components/WorkspaceBottomPanel.vue'), 'utf8')
+
+    for (const severity of APP_OUTPUT_SEVERITIES) {
+      expect(source).toContain(`[data-severity='${severity}']`)
+    }
+    for (const stale of ['debug', 'log', 'warn']) {
+      expect(source).not.toContain(`[data-severity='${stale}']`)
+    }
   })
 
   it('follows new output only while the log view is at the end', async () => {
@@ -278,7 +299,7 @@ describe('WorkspaceBottomPanel', () => {
     })
 
     await wrapper.setProps({ outputEntries: [...outputEntries, {
-      id: 4, severity: 'log', timestamp: 4_000, message: 'new message',
+      id: 4, severity: 'info', timestamp: 4_000, message: 'new message',
     }] })
     await flushPromises()
     expect(scroll.element.scrollTop).toBe(300)
@@ -286,7 +307,7 @@ describe('WorkspaceBottomPanel', () => {
     scroll.element.scrollTop = 50
     await scroll.trigger('scroll')
     await wrapper.setProps({ outputEntries: [...outputEntries, {
-      id: 5, severity: 'log', timestamp: 5_000, message: 'later message',
+      id: 5, severity: 'info', timestamp: 5_000, message: 'later message',
     }] })
     await flushPromises()
     expect(scroll.element.scrollTop).toBe(50)

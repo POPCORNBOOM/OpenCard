@@ -1,24 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   normalizeProjectPackageManifest,
-  reconcileProjectPackageManifest,
   serializeProjectPackageManifest,
 } from './projectPackageManifest'
-import type { ResourcePackageManifest } from './resourcePackage'
-
-const hash = 'a'.repeat(64)
-const packageManifest = { type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.2.0', contentHash: hash, public: { fonts: [], iconSeries: [] } } satisfies ResourcePackageManifest
 
 describe('project package manifest', () => {
-  it('does not declare discovered packages when the required file is absent', () => {
-    expect(reconcileProjectPackageManifest(undefined, new Map([['theme', packageManifest]]))).toEqual({
-      type: 'opencard-project-packages', packages: {},
-    })
-  })
-  it('stores one complete manifest per package Key', () => {
-    const result = normalizeProjectPackageManifest({ type: 'opencard-project-packages', packages: { theme: packageManifest } })
+  it('stores only a required version per package Key', () => {
+    const result = normalizeProjectPackageManifest({ type: 'opencard-project-packages', packages: { theme: { key: 'theme', version: '1.2.0', name: 'ignored', contentHash: 'ignored' } } })
     expect(result.issues).toEqual([])
-    expect(result.manifest.packages.theme).toEqual({ key: 'theme', name: 'Theme', version: '1.2.0', contentHash: hash })
+    expect(result.manifest.packages.theme).toEqual({ version: '1.2.0' })
     expect(JSON.parse(serializeProjectPackageManifest(result.manifest)).packages.theme).toEqual(result.manifest.packages.theme)
   })
 
@@ -28,19 +18,20 @@ describe('project package manifest', () => {
     expect(result.issues).not.toHaveLength(0)
   })
 
-  it('reconciles the persisted index with installed package directories', () => {
-    const current = normalizeProjectPackageManifest({
+  it('drops package keys that are not single safe slugs', () => {
+    const result = normalizeProjectPackageManifest({
       type: 'opencard-project-packages',
-      packages: { theme: packageManifest, removed: { ...packageManifest, key: 'removed' } },
-    }).manifest
-    const added = { ...packageManifest, key: 'added', name: 'Added' } satisfies ResourcePackageManifest
-
-    expect(reconcileProjectPackageManifest(current, new Map([
-      ['theme', null],
-      ['added', added],
-    ]))).toEqual({
-      type: 'opencard-project-packages',
-      packages: { theme: { key: 'theme', name: 'Theme', version: '1.2.0', contentHash: hash }, removed: { key: 'removed', name: 'Theme', version: '1.2.0', contentHash: hash } },
+      packages: {
+        '../outside': { version: '1.0.0' },
+        'nested/key': { version: '1.0.0' },
+        'Upper Case': { version: '1.0.0' },
+        'github-alice-theme-a1b2c3': { version: '1.0.0' },
+      },
     })
+
+    expect(Object.keys(result.manifest.packages)).toEqual(['github-alice-theme-a1b2c3'])
+    expect(result.issues.map(issue => issue.path)).toEqual([
+      'packages.../outside', 'packages.nested/key', 'packages.Upper Case',
+    ])
   })
 })

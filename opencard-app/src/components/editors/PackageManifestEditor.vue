@@ -35,7 +35,7 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 
 const packageKey = computed(() => resolveInstalledResourcePackageKey(props.filePath) ?? '')
-const manifest = computed(() => projectStore.projectPackageManifests.value.get(packageKey.value) ?? null)
+const manifest = computed(() => projectStore.projectResourcePackages.value.get(packageKey.value)?.manifest ?? null)
 
 watch(() => props.filePath, () => emit('modified', false), { immediate: true })
 </script>

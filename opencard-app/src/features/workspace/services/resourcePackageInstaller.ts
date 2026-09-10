@@ -1,13 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
-import { normalizeResourcePackageManifest, serializeResourcePackageManifest, type ResourcePackageManifest } from '../model/resourcePackage'
+import { normalizeResourcePackageManifest, resolveInstalledResourcePackageRootPath, serializeResourcePackageManifest, type ResourcePackageManifest } from '../model/resourcePackage'
 import { parseProjectFontRegistryText, projectFontSources } from '../model/projectFontRegistry'
 import { parseProjectIconRegistryText } from '../model/projectIconRegistry'
 import { resolveResourcePath } from '../model/scopedResourcePath'
 
-type NativeInspection = { manifestJson: string; contentHash: string; existingManifestJson: string | null; existingFingerprint: string | null; entryCount: number; unpackedBytes: number; packageKey: string; entryPaths: string[]; fontsJson: string | null; iconsJson: string | null }
+type NativeInspection = { manifestJson: string; contentHash: string; existingManifestJson: string | null; existingFingerprint: string | null; entryCount: number; unpackedBytes: number; entryPaths: string[]; fontsJson: string | null; iconsJson: string | null }
+type NativeInstalledInspection = { exists: boolean; manifestJson: string | null; contentHash: string | null; entryPaths: string[]; fontsJson: string | null; iconsJson: string | null }
 export type ResourcePackagePreview = { manifest: ResourcePackageManifest; contentHash: string; existingManifest: ResourcePackageManifest | null; existingFingerprint: string | null; targetPath: string; projectRootPath: string; entryCount: number; unpackedBytes: number; sourcePath: string }
 export type ResourcePackageInstallResult = { manifest: ResourcePackageManifest; targetPath: string; replaced: boolean; unchanged: boolean; fingerprint: string }
 export type ResourcePackageInstallDecision = 'install' | 'unchanged' | 'replace'
+export type ResourcePackageCheckResult = {
+  readonly status: 'ok' | 'missing' | 'version' | 'hash' | 'invalid'
+  readonly manifest?: ResourcePackageManifest
+  readonly message?: string
+}
 
 export function decideResourcePackageInstallation(next: ResourcePackageManifest, existing: ResourcePackageManifest | null): ResourcePackageInstallDecision {
   if (!existing) return 'install'
@@ -49,17 +55,42 @@ function archivePathForReference(sourceFilePath: string, reference: string): str
   return resolved.value.slice(root.length + 1)
 }
 
-export async function previewResourcePackage(options: { projectRootPath: string; sourcePath: string }): Promise<ResourcePackagePreview> {
-  const native = await invoke<NativeInspection>('inspect_resource_package', { request: options })
-  const manifest = projectManifest(native.manifestJson)
-  validateProjection(native, manifest)
-  if (manifest.contentHash !== native.contentHash) throw new Error('Package content hash does not match its manifest')
-  return { manifest, contentHash: native.contentHash, existingManifest: native.existingManifestJson ? projectManifest(native.existingManifestJson) : null, existingFingerprint: native.existingFingerprint, targetPath: `${options.projectRootPath.replace(/[\\/]+$/, '')}/.opencard/packages/${native.packageKey}`, projectRootPath: options.projectRootPath, entryCount: native.entryCount, unpackedBytes: native.unpackedBytes, sourcePath: options.sourcePath }
+export async function previewResourcePackage(options: { projectRootPath: string; sourcePath: string; targetKey?: string }): Promise<ResourcePackagePreview> {
+  const native = await invoke<NativeInspection>('inspect_resource_package', { request: { projectRootPath: options.projectRootPath, sourcePath: options.sourcePath, targetKey: options.targetKey } })
+  const inspected = projectManifest(native.manifestJson)
+  validateProjection(native, inspected)
+  if (inspected.contentHash !== native.contentHash) throw new Error('Package content hash does not match its manifest')
+  const manifest = options.targetKey ? { ...inspected, key: options.targetKey } : inspected
+  return { manifest, contentHash: native.contentHash, existingManifest: native.existingManifestJson ? projectManifest(native.existingManifestJson) : null, existingFingerprint: native.existingFingerprint, targetPath: resolveInstalledResourcePackageRootPath(options.projectRootPath, manifest.key), projectRootPath: options.projectRootPath, entryCount: native.entryCount, unpackedBytes: native.unpackedBytes, sourcePath: options.sourcePath }
 }
 
 export async function installResourcePackage(options: { preview: ResourcePackagePreview }): Promise<ResourcePackageInstallResult> {
-  const native = await invoke<{ targetPath: string; replaced: boolean; fingerprint: string }>('install_resource_package', { request: { projectRootPath: options.preview.projectRootPath, sourcePath: options.preview.sourcePath, expectedContentHash: options.preview.contentHash, expectedExistingFingerprint: options.preview.existingFingerprint, manifestJson: serializeResourcePackageManifest(options.preview.manifest) } })
+  const native = await invoke<{ targetPath: string; replaced: boolean; fingerprint: string }>('install_resource_package', { request: { projectRootPath: options.preview.projectRootPath, sourcePath: options.preview.sourcePath, targetKey: options.preview.manifest.key, expectedContentHash: options.preview.contentHash, expectedExistingFingerprint: options.preview.existingFingerprint, manifestJson: serializeResourcePackageManifest(options.preview.manifest) } })
   return { manifest: options.preview.manifest, unchanged: false, ...native }
+}
+
+export async function checkInstalledResourcePackage(options: {
+  projectRootPath: string
+  packageKey: string
+  requiredVersion: string
+}): Promise<ResourcePackageCheckResult> {
+  try {
+    const native = await invoke<NativeInstalledInspection>('inspect_installed_resource_package', {
+      request: { projectRootPath: options.projectRootPath, packageKey: options.packageKey },
+    })
+    if (!native.exists) return { status: 'missing' }
+    if (!native.manifestJson || !native.contentHash) return { status: 'invalid', message: 'Installed package inspection is incomplete' }
+    const manifest = projectManifest(native.manifestJson)
+    if (manifest.key.toLocaleLowerCase() !== options.packageKey.toLocaleLowerCase()) {
+      return { status: 'invalid', manifest, message: 'Package Key does not match its directory name' }
+    }
+    validateProjection(native as unknown as NativeInspection, manifest)
+    if (manifest.version !== options.requiredVersion) return { status: 'version', manifest }
+    if (manifest.contentHash !== native.contentHash) return { status: 'hash', manifest }
+    return { status: 'ok', manifest }
+  } catch (cause) {
+    return { status: 'invalid', message: cause instanceof Error ? cause.message : String(cause) }
+  }
 }
 
 export async function recoverResourcePackageTransactions(projectRootPath: string): Promise<void> {

@@ -35,6 +35,9 @@ export const OC_THEME_TOKEN_KEYS = [
   // 背景 — 警告
   '--oc-bg-warning-subtle',
 
+  // 背景 — 成功
+  '--oc-bg-success-subtle',
+
   // 背景 — 特殊
   '--oc-bg-glass',
   '--oc-bg-modal-backdrop',

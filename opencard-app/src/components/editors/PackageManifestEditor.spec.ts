@@ -19,7 +19,7 @@ const manifest: ResourcePackageManifest = {
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('../../features/workspace/store/projectStore', () => ({
-  useProjectStore: () => ({ projectPackageManifests: ref(new Map([['theme', manifest]])) }),
+  useProjectStore: () => ({ projectResourcePackages: ref(new Map([['theme', { manifest }]])) }),
 }))
 
 describe('PackageManifestEditor', () => {
@@ -29,7 +29,7 @@ describe('PackageManifestEditor', () => {
     })
 
     expect(wrapper.getComponent(ProjectRegistryEditorShell).props('heading')).toBe('Theme Package')
-    expect(wrapper.text()).toContain('body')
-    expect(wrapper.text()).toContain('actions')
+    expect(wrapper.text()).toContain('1.2.3')
+    expect(wrapper.text()).toContain('0000000000000000000000000000000000000000000000000000000000000000')
   })
 })

@@ -48,12 +48,23 @@ export type ProjectWorkspaceSidebarState = {
   listWeights: Record<string, number>
 }
 
+/** Last package-builder input for one project; absent means "no build was made yet". */
+export type ProjectPackageBuilderState = {
+  name: string
+  version: string
+  fontFamilyKeys: string[]
+  fontCompositionKeys: string[]
+  iconSeriesKeys: string[]
+  imagePaths: string[]
+}
+
 export type ProjectWorkspaceState = {
   expandedDirectories: string[]
   sidebar?: ProjectWorkspaceSidebarState
   projectProfile?: {
     collapsedSections: string[]
   }
+  packageBuilder?: ProjectPackageBuilderState
 }
 export type AppUserThemePreset = {
   name: string
@@ -108,6 +119,7 @@ const BUILTIN_THEME_DEFINITIONS: Partial<Record<AppThemePresetId, AppThemeDefini
   },
 }
 export type AppSettingKey =
+  | 'identity.publisherKey'
   | 'appearance.theme'
   | 'appearance.locale'
   | 'appearance.glassIntensity'
@@ -204,6 +216,7 @@ export type SettingsIntent =
   | { type: 'theme-font.change'; themeId: OcThemeId; value: string }
   | { type: 'theme.import' | 'theme.export'; themeId: OcThemeId }
   | { type: 'themes.reset' }
+  | { type: 'identity.regenerate' }
   | {
       type: 'project-workspace.reset'
     }
@@ -496,11 +509,41 @@ function normalizeUserThemePresets(value: unknown): AppUserThemePreset[] {
   return result
 }
 
+function normalizeTextList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const text = item.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+    if (!text || /[\u0000-\u001F\u007F]/.test(text) || seen.has(text)) continue
+    seen.add(text)
+    result.push(text)
+  }
+  return result
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' && !/[\u0000-\u001F\u007F]/.test(value) ? value : ''
+}
+
+function normalizePackageBuilderState(value: unknown): ProjectPackageBuilderState | null {
+  if (!isRecord(value)) return null
+  return {
+    name: normalizeText(value.name),
+    version: normalizeText(value.version),
+    fontFamilyKeys: normalizeTextList(value.fontFamilyKeys),
+    fontCompositionKeys: normalizeTextList(value.fontCompositionKeys),
+    iconSeriesKeys: normalizeTextList(value.iconSeriesKeys),
+    imagePaths: normalizeTextList(value.imagePaths),
+  }
+}
+
 function normalizeWorkspaceStates(value: unknown): Record<string, ProjectWorkspaceState> {
   if (!isRecord(value)) return {}
   const result: Record<string, ProjectWorkspaceState> = {}
   for (const [pathInput, state] of Object.entries(value)) {
-    if (!isRecord(state) || !Array.isArray(state.expandedDirectories)) continue
+    if (!isRecord(state)) continue
     const path = pathInput.trim().replace(/\\/g, '/').replace(/\/+$/, '')
     if (!path) continue
     const collapsedSections = isRecord(state.projectProfile) && Array.isArray(state.projectProfile.collapsedSections)
@@ -520,20 +563,25 @@ function normalizeWorkspaceStates(value: unknown): Record<string, ProjectWorkspa
             : {},
         }
       : null
+    const packageBuilder = normalizePackageBuilderState(state.packageBuilder)
     result[path] = {
-      expandedDirectories: state.expandedDirectories
-        .filter((item): item is string => typeof item === 'string')
-        .map(item => item.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
-        .filter(Boolean),
+      expandedDirectories: Array.isArray(state.expandedDirectories)
+        ? state.expandedDirectories
+          .filter((item): item is string => typeof item === 'string')
+          .map(item => item.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''))
+          .filter(Boolean)
+        : [],
       ...(sidebar && (sidebar.collapsedLists.length > 0 || Object.keys(sidebar.listWeights).length > 0) ? { sidebar } : {}),
       ...(collapsedSections.length > 0 ? { projectProfile: { collapsedSections } } : {}),
+      ...(packageBuilder ? { packageBuilder } : {}),
     }
   }
   return result
 }
 
-function createPublisherKey(): string {
-  return `publisher-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`
+/** 生成新的发布者身份，用于默认值和"重新生成"操作。 */
+export function createPublisherKey(): string {
+  return `publisher-${crypto.randomUUID().replace(/-/g, '').slice(0, 6)}`
 }
 export function createDefaultAppSettings(): AppSettings {
   return {
