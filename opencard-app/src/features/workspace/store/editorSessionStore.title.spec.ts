@@ -120,4 +120,57 @@ describe('editorSessionStore session titles', () => {
     expect(saved?.name).toBe('卡片.ocdocument')
     expect(saved?.title).toBeUndefined()
   })
+
+  it('falls back to the file type icon when the session carries no icon', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('D:/project/.opencard/icons/icons.json')
+
+    expect(session.icon).toBeUndefined()
+    expect(store.openedEditorItems.value[0]).toMatchObject({
+      icon: 'file.project-icon',
+      iconTone: 'config',
+    })
+  })
+
+  it('lists an opened file under its explicit icon and tone', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('D:/project/.opencard/icons/icons.json', {
+      title: '图标',
+      icon: 'file.package',
+      iconTone: 'opencard',
+    })
+
+    expect(session.icon).toBe('file.package')
+    expect(store.openedEditorItems.value[0]).toMatchObject({
+      title: '图标',
+      icon: 'file.package',
+      iconTone: 'opencard',
+    })
+  })
+
+  it('applies an icon passed by a later open and drops it when none is passed', async () => {
+    const store = useEditorSessionStore()
+    await store.openPreviewFile('D:/project/cards/main.ocdocument')
+    await store.openFile('D:/project/cards/main.ocdocument', { icon: 'file.package', iconTone: 'config' })
+    expect(store.openedEditorItems.value[0]).toMatchObject({ icon: 'file.package', iconTone: 'config' })
+
+    await store.openFile('D:/project/cards/main.ocdocument')
+    expect(store.sessions.value[0]?.icon).toBe('file.package')
+    expect(store.openedEditorItems.value[0]).toMatchObject({ icon: 'file.package' })
+  })
+
+  it('keeps an explicit icon when a rename rewrites the file name', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('D:/project/cards/main.ocdocument', {
+      title: '主卡',
+      icon: 'file.package',
+    })
+
+    store.remapSessionPaths('D:/project/cards', 'D:/project/archive')
+
+    const renamed = store.sessions.value.find(candidate => candidate.id === session.id)
+    expect(renamed?.title).toBeUndefined()
+    expect(renamed?.icon).toBe('file.package')
+    expect(store.openedEditorItems.value[0]?.icon).toBe('file.package')
+  })
 })

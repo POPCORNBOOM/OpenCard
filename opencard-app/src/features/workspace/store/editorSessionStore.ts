@@ -41,6 +41,13 @@ function resolveOpenedSessionName(path: string, fileTypeId: string): string {
 export type SessionResourceKind = 'workspace' | 'external' | 'draft'
 export type SessionSaveResult = 'saved' | 'cancelled' | 'skipped'
 export type EditorSessionMode = 'edit' | 'diff'
+/** Optional display presentation a caller may attach when opening a session. */
+export type OpenSessionOptions = {
+  preview?: boolean
+  title?: string
+  icon?: IconToken
+  iconTone?: IconTone
+}
 export interface EditorSessionDiffState {
   beforeRevisionId: string | null
   afterRevisionId: string | null
@@ -55,6 +62,9 @@ export type EditorSession = {
   name: string
   /** Optional display label for the editor list. `name` stays the file or draft identity. */
   title?: string
+  /** Optional display icon overriding the file type icon. */
+  icon?: IconToken
+  iconTone?: IconTone
   editorId: string
   savedContent: string
   draftContent: string
@@ -92,6 +102,8 @@ type CreateDraftSessionOptions = {
   fileTypeId?: string
   name?: string
   title?: string
+  icon?: IconToken
+  iconTone?: IconTone
   content?: string
 }
 
@@ -261,7 +273,7 @@ export function useEditorSessionStore() {
     const previousByKey = new Map(openedEditorItemCache.map((item) => [item.key, item]))
     const nextItems = sessions.value.map((session) => {
       const fileType = resolveSessionFileType(session)
-      const entryIcon = session.resourceKind === 'workspace' && session.path
+      const derivedIcon = session.resourceKind === 'workspace' && session.path
         ? resolveEntryIcon(session.path, false, false, projectPath.value)
         : { icon: fileType.icon, tone: fileType.iconTone }
       const nextItem: OpenedEditorItem = {
@@ -269,8 +281,8 @@ export function useEditorSessionStore() {
         label: session.isDirty ? `${session.name} *` : session.name,
         ...(session.title ? { title: session.title } : {}),
         resourceKind: session.resourceKind,
-        icon: entryIcon.icon,
-        iconTone: entryIcon.tone,
+        icon: session.icon ?? derivedIcon.icon,
+        iconTone: session.icon ? session.iconTone : derivedIcon.tone,
       }
       const previous = previousByKey.get(session.id)
       return previous
@@ -309,7 +321,14 @@ export function useEditorSessionStore() {
       : session)
   }
 
-  async function openSession(path: string, options?: { preview?: boolean, title?: string }) {
+  /** An unspecified icon means "use the file type icon again". */
+  function setSessionIcon(sessionId: string, icon: IconToken | undefined, iconTone: IconTone | undefined): void {
+    sessions.value = sessions.value.map(session => session.id === sessionId
+      ? { ...session, icon, iconTone }
+      : session)
+  }
+
+  async function openSession(path: string, options?: OpenSessionOptions) {
     const normalizedPath = normalizePath(path)
     const preview = options?.preview ?? false
     const title = options?.title?.trim()
@@ -319,6 +338,7 @@ export function useEditorSessionStore() {
         setSessionPreviewState(existingSession.id, false)
       }
       if (title !== existingSession.title) setSessionTitle(existingSession.id, title)
+      if (options?.icon !== undefined) setSessionIcon(existingSession.id, options.icon, options.iconTone)
 
       activeSessionId.value = existingSession.id
       return existingSession
@@ -346,6 +366,7 @@ export function useEditorSessionStore() {
       fileTypeId: fileType.id,
       name: resolveOpenedSessionName(normalizedPath, fileType.id),
       ...(title ? { title } : {}),
+      ...(options?.icon ? { icon: options.icon, iconTone: options.iconTone } : {}),
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
@@ -372,11 +393,11 @@ export function useEditorSessionStore() {
     return session
   }
 
-  async function openFile(path: string, options?: { title?: string }) {
+  async function openFile(path: string, options?: OpenSessionOptions) {
     return await openSession(path, options)
   }
 
-  async function openPreviewFile(path: string, options?: { title?: string }) {
+  async function openPreviewFile(path: string, options?: OpenSessionOptions) {
     return await openSession(path, { preview: true, ...options })
   }
 
@@ -396,6 +417,7 @@ export function useEditorSessionStore() {
       fileTypeId: fileType.id,
       name,
       ...(options.title?.trim() ? { title: options.title.trim() } : {}),
+      ...(options.icon ? { icon: options.icon, iconTone: options.iconTone } : {}),
       editorId: fileType.editorId,
       savedContent: content,
       draftContent: content,
