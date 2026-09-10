@@ -5,4 +5,5 @@ export const PROJECT_FILE_TYPE_TITLE_KEYS: Readonly<Record<string, string>> = {
   'opencard-font-registry': 'fileTypes.opencardFontRegistry',
   'opencard-icon-registry': 'fileTypes.opencardIconRegistry',
   'opencard-project-package-manifest': 'fileTypes.opencardResourcePackage',
+  'opencard-installed-package-manifest': 'fileTypes.opencardResourcePackage',
 }

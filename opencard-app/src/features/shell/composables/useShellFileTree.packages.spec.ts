@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveFileType } from '../../workspace/model/fileTypes'
 import { RESOURCE_PACKAGE_TYPE, type ResourcePackageManifest } from '../../workspace/model/resourcePackage'
-import { projectPackageDeleteActionKey, useShellFileTree } from './useShellFileTree'
+import { projectPackageDeleteActionKey, projectPackageVerifyActionKey, useShellFileTree } from './useShellFileTree'
 
 describe('useShellFileTree package navigation', () => {
   it('previews the package manager and child manifests through their semantic targets', async () => {
@@ -37,14 +37,18 @@ describe('useShellFileTree package navigation', () => {
     })
 
     await tree.handleProjectManagementSelect([`${projectPath}/.opencard/packages/packages.json`])
-    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/packages/packages.json`)
+    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/packages/packages.json`, {
+      title: 'fileTypes.opencardResourcePackage',
+    })
 
     await tree.handleProjectManagementSelect([`${projectPath}/.opencard/packages/theme`])
-    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/packages/theme/.opencard/manifest.json`)
+    expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/packages/theme/.opencard/manifest.json`, {
+      title: 'fileTypes.opencardResourcePackage',
+    })
     expect(tree.projectManagementTreeData.value.children.get(`${projectPath}/.opencard/packages/packages.json`))
       .toEqual([`${projectPath}/.opencard/packages/theme`])
     expect(tree.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/packages/theme`)?.actions)
-      .toEqual([projectPackageDeleteActionKey('theme')])
+      .toEqual([projectPackageVerifyActionKey('theme'), projectPackageDeleteActionKey('theme')])
     expect(tree.findProjectPackageKeyByNodeKey(`${projectPath}/.opencard/packages/theme`)).toBe('theme')
 
     packageManifests.value = new Map()

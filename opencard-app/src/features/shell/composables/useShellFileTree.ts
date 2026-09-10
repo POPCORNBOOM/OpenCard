@@ -324,16 +324,17 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       const isManagementRoot = projectManagementTreeData.value.rootKeys.includes(selectedKey)
       if (isManagementRoot) await options.ensureProjectManagementStructure()
       const targetPath = projectManagementProjection.value.targetByNodeKey.get(selectedKey)
-      if (targetPath) await options.openPreviewFile(targetPath, { title: resolveManagedFileTitle(targetPath) })
+      if (targetPath) await options.openPreviewFile(targetPath, ...resolveOpenOptions(targetPath))
     } catch (error) {
       notifyAppError('OC-E4001', { path: selectedKey, error })
     }
   }
 
-  /** Managed project files open under the name they carry in the file tree instead of their JSON file name. */
-  function resolveManagedFileTitle(targetPath: string): string | undefined {
+  /** Managed and installed package files open under the name they carry in the file tree, not their file name. */
+  function resolveOpenOptions(targetPath: string): [{ title: string }?] {
     const titleKey = PROJECT_FILE_TYPE_TITLE_KEYS[resolveFileType(targetPath, options.projectPath.value).id]
-    return titleKey ? options.translate(titleKey) : undefined
+    const title = titleKey ? options.translate(titleKey) : ''
+    return title ? [{ title }] : []
   }
 
   function syncSelectionFromActiveSession(session: EditorSession | null): void {
@@ -372,7 +373,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     const selectedEntry = findProjectEntryByKey(nextSelectedKeys[0])
     if (!selectedEntry || selectedEntry.isDirectory) return
     try {
-      await options.openPreviewFile(selectedEntry.key)
+      await options.openPreviewFile(selectedEntry.key, ...resolveOpenOptions(selectedEntry.key))
     } catch (error) {
       notifyAppError('OC-E4001', { path: selectedEntry.key, error })
     }
