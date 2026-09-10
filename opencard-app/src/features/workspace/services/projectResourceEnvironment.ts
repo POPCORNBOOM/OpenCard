@@ -15,6 +15,8 @@ import type { ProjectIconCatalog, ProjectImageDimensionLoader } from './projectI
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from './projectIconCatalog'
 import type { FileSystemService } from './fileSystemService'
 import { recoverResourcePackageTransactions } from './resourcePackageInstaller'
+import { resolveProjectCover } from './projectCoverService'
+import type { ProjectCover } from '../model/projectCover'
 import { resolveResourcePath } from '../model/scopedResourcePath'
 
 export type ProjectResourceScopeKind = 'project' | 'package'
@@ -22,6 +24,8 @@ export type ProjectResourceScopeKind = 'project' | 'package'
 export type ProjectResourcePackage = {
   readonly manifest: ResourcePackageManifest
   readonly rootPath: string
+  /** 包封面：清单声明且文件存在时才有值。 */
+  readonly cover: ProjectCover | null
   readonly issues: readonly ResourcePackageManifestIssue[]
   readonly unavailable?: boolean
   readonly required?: RequiredPackage
@@ -116,6 +120,7 @@ async function discoverProjectResourcePackages(options: {
     packages.set(key, {
       manifest: manifest.key.toLocaleLowerCase() === key ? manifest : { ...manifest, key },
       rootPath: packageRoot,
+      cover: await resolveProjectCover({ fs: options.fs, rootPath: packageRoot, relativePath: manifest.cover }),
       issues,
       ...(issues.length > 0 ? { unavailable: true } : {}),
     })

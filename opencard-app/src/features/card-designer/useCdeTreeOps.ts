@@ -20,8 +20,18 @@ import {
   type BlockContainer,
   type ParentLookup,
 } from '../../entities/card/tree'
-import type { OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeCollection,
+  OcNodeContextEntry,
+  OcNodeMoveEvent,
+  OcNodeRenameCommitEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import { getBlockPresentation } from './blockPresentation'
+import { getCdeShortcutParts } from './useCdeShortcuts'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
 
 type CardLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
@@ -32,6 +42,111 @@ type IndexedBlock = {
   order: number
 }
 
+type BlockActionSet = {
+  show: OcNodeAction
+  hide: OcNodeAction
+  copyBlock: OcNodeAction
+  pasteBlock: OcNodeAction
+  rename: OcNodeAction
+  duplicate: OcNodeAction
+  remove: OcNodeAction
+  add: OcNodeAction
+  package: OcNodeAction
+  unpackage: OcNodeAction
+  blockMore: OcNodeAction
+  containerMore: OcNodeAction
+  packagedContainerMore: OcNodeAction
+}
+
+const BLOCK_ADD_ACTION_DEFINITIONS: readonly { key: string; type: CardBlock['type']; title: string }[] = [
+  { key: 'add-text-block', type: 'text-block', title: '文本块' },
+  { key: 'add-markdown-text-block', type: 'markdown-text-block', title: 'Markdown 文本块' },
+  { key: 'add-image-block', type: 'image-block', title: '图片块' },
+  { key: 'add-qrcode-block', type: 'qrcode-block', title: '二维码' },
+  { key: 'add-shape-block', type: 'shape-block', title: '形状' },
+  { key: 'add-simple-container-block', type: 'simple-container-block', title: '简单容器' },
+  { key: 'add-flow-container-block', type: 'flow-container-block', title: '流式容器' },
+]
+
+export function createBlockAddActions(): OcNodeAction[] {
+  return BLOCK_ADD_ACTION_DEFINITIONS.map(({ key, type, title }) => ({
+    key,
+    title,
+    ...getBlockPresentation(type),
+  }))
+}
+
+function createBlockActions(translate: (messageKey: string) => string): BlockActionSet {
+  const copyBlock: OcNodeAction = {
+    key: 'copy-block',
+    icon: 'action.copy',
+    title: '复制块',
+    shortcut: getCdeShortcutParts('block.copy'),
+  }
+  const pasteBlock: OcNodeAction = {
+    key: 'paste-block',
+    icon: 'action.copy',
+    title: '粘贴块',
+    shortcut: getCdeShortcutParts('block.paste'),
+  }
+  const rename: OcNodeAction = {
+    key: 'rename',
+    icon: 'action.edit',
+    title: '重命名',
+    shortcut: getCdeShortcutParts('block.rename'),
+  }
+  const duplicate: OcNodeAction = {
+    key: 'duplicate',
+    icon: 'action.copy',
+    title: '复制',
+    shortcut: getCdeShortcutParts('block.duplicate'),
+  }
+  const remove: OcNodeAction = {
+    key: 'delete',
+    icon: 'action.delete',
+    title: '删除',
+    shortcut: getCdeShortcutParts('block.delete'),
+  }
+  const add: OcNodeAction = {
+    key: 'add',
+    icon: 'action.add',
+    title: '添加子块',
+    children: createBlockAddActions(),
+  }
+  const pack: OcNodeAction = {
+    key: 'package',
+    icon: 'entity.block-package',
+    title: translate('cardDesigner.treeActions.package'),
+  }
+  const unpack: OcNodeAction = {
+    key: 'unpackage',
+    icon: 'entity.block-package',
+    title: translate('cardDesigner.treeActions.unpackage'),
+  }
+  const more = (key: string, children: readonly OcNodeAction[]): OcNodeAction => ({
+    key,
+    icon: 'nav.more',
+    title: '更多操作',
+    children,
+  })
+
+  return {
+    show: { key: 'show-block', icon: 'status.eye-off', title: '显示' },
+    hide: { key: 'hide-block', icon: 'status.eye', title: '隐藏' },
+    copyBlock,
+    pasteBlock,
+    rename,
+    duplicate,
+    remove,
+    add,
+    package: pack,
+    unpackage: unpack,
+    blockMore: more('block-more', [copyBlock, pasteBlock, rename, duplicate, remove]),
+    containerMore: more('container-more', [copyBlock, pasteBlock, rename, add, pack, duplicate, remove]),
+    packagedContainerMore: more('packaged-container-more', [rename, unpack, duplicate, remove]),
+  }
+}
+
 type UseCdeTreeOpsOptions = {
   activeFace: Readonly<Ref<CardFace | null>>
   cardDoc?: Readonly<Ref<CardDocument | null>>
@@ -39,6 +154,7 @@ type UseCdeTreeOpsOptions = {
   parentLookup: Ref<ParentLookup>
   selectedBlockKeys: Ref<string[]>
   getDefaultBlockName: (type: CardBlock['type']) => string
+  translate: (messageKey: string) => string
   refreshDocumentState: (structural?: boolean) => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
 }
@@ -60,46 +176,50 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     return index
   })
 
-  const blockTreeData = computed<OcTreeData>(() => {
+  const blockTreeData = computed<OcNodeCollection>(() => {
     options.documentRevision.value
     const rootKeys: string[] = []
-    const items = new Map<string, OcTreeItem>()
+    const items = new Map<string, OcNode>()
     const children = new Map<string, readonly string[]>()
+    const actions = createBlockActions(options.translate)
 
     function visit(block: CardBlock): void {
       const packaged = isBlockPackaged(block)
-      const childKeys = isBlockContainer(block) && !packaged
+      const container = isBlockContainer(block)
+      const childKeys = container && !packaged
         ? block.children.map((child) => child.block.id)
         : []
       const visibility = getBlockProperty<string>(block, 'visible') === 'false' ? 'hidden' : 'visible'
       const presentation = getBlockPresentation(block.type)
+      const visibilityAction = visibility === 'hidden' ? actions.show : actions.hide
+      const moreAction = container
+        ? (packaged ? actions.packagedContainerMore : actions.containerMore)
+        : actions.blockMore
+      const structureEntries: OcNodeContextEntry[] = container
+        ? (packaged ? [actions.unpackage] : [actions.add, actions.package])
+        : []
       items.set(block.id, {
         label: getBlockProperty<string>(block, 'name')?.trim() || block.id,
         icon: packaged ? 'entity.block-package' : presentation.icon,
         iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
         renamable: true,
         draggable: true,
-        actions: [
-          visibility === 'hidden' ? 'show-block' : 'hide-block',
-          isBlockContainer(block)
-            ? (packaged ? 'packaged-container-more' : 'container-more')
-            : 'block-more',
-        ],
+        actions: [visibilityAction, moreAction],
         contextActions: [
-          visibility === 'hidden' ? 'show-block' : 'hide-block',
+          visibilityAction,
           { type: 'divider', key: 'block-edit-divider' },
-          'copy-block',
-          'paste-block',
-          'rename',
-          'duplicate',
+          actions.copyBlock,
+          actions.pasteBlock,
+          actions.rename,
+          actions.duplicate,
           { type: 'divider', key: 'block-structure-divider' },
-          ...(isBlockContainer(block) ? (packaged ? ['unpackage'] : ['add', 'package']) : []),
+          ...structureEntries,
           { type: 'divider', key: 'block-delete-divider' },
-          'delete',
+          actions.remove,
         ],
       })
       if (childKeys.length > 0) children.set(block.id, childKeys)
-      if (isBlockContainer(block) && !packaged) {
+      if (container && !packaged) {
         for (const child of block.children) visit(child.block)
       }
     }
@@ -177,34 +297,31 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     if (options.selectedBlockKeys.value.length > 0) options.selectedBlockKeys.value = []
   }
 
-  function handleTreeIntent(intent: OcTreeIntent): void {
-    switch (intent.type) {
-      case 'selection.change':
-        selectKeys(intent.selectedKeys)
-        return
-      case 'action.invoke':
-        if (intent.actionKey === 'delete' && options.selectedBlockKeys.value.includes(intent.key)) {
-          deleteBlocks(options.selectedBlockKeys.value)
-          return
-        }
-        selectKeys([intent.key])
-        executeBlockAction(intent.actionKey, blockIndex.value.get(intent.key)?.block ?? null)
-        return
-      case 'rename.commit':
-        renameBlock(intent.key, intent.name)
-        return
-      case 'move.request':
-        moveBlocks(
-          options.selectedBlockKeys.value.includes(intent.key)
-            ? options.selectedBlockKeys.value
-            : [intent.key],
-          intent.targetKey,
-          intent.position,
-        )
-        return
-      default:
-        return
+  function handleBlockSelection(event: OcNodeSelectionEvent): void {
+    selectKeys(event.selectedKeys)
+  }
+
+  function handleBlockAction(event: OcNodeActionEvent): void {
+    if (event.actionKey === 'delete' && options.selectedBlockKeys.value.includes(event.key)) {
+      deleteBlocks(options.selectedBlockKeys.value)
+      return
     }
+    selectKeys([event.key])
+    executeBlockAction(event.actionKey, blockIndex.value.get(event.key)?.block ?? null)
+  }
+
+  function handleBlockRenameCommit(event: OcNodeRenameCommitEvent): void {
+    renameBlock(event.key, event.name)
+  }
+
+  function handleBlockMove(event: OcNodeMoveEvent): void {
+    moveBlocks(
+      options.selectedBlockKeys.value.includes(event.key)
+        ? options.selectedBlockKeys.value
+        : [event.key],
+      event.targetKey,
+      event.position,
+    )
   }
 
   function handleRootAction(actionKey: string): void {
@@ -582,7 +699,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
     insertBlockAtRoot,
     exportSelectedBlockPayloads,
     pasteBlockPayloads,
-    handleTreeIntent,
+    handleBlockSelection,
+    handleBlockAction,
+    handleBlockRenameCommit,
+    handleBlockMove,
+    selectBlockKeys: selectKeys,
     handleRootAction,
     handleViewportBlockClick,
     resolveVisibleBlockKey,

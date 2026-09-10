@@ -1,4 +1,4 @@
-<!-- Standard tree/list view: consumes key-only UI data and emits user intents. -->
+<!-- Standard tree/list view: consumes a key-only node collection and emits narrow node events. -->
 <template>
   <div
     ref="treeRootElement"
@@ -77,8 +77,8 @@
             :style="entry.item.thumbnailStyle" role="img"
             :aria-label="entry.item.thumbnailLabel ?? entry.item.label" />
           <OcIcon v-else
-            :name="entry.item.action?.icon ?? entry.item.icon ?? 'tree.chevron-right'"
-            :tone="entry.item.action?.iconTone ?? entry.item.iconTone"
+            :name="entry.item.icon ?? 'tree.chevron-right'"
+            :tone="entry.item.iconTone"
             size="md"
             class="oc-tree__node-icon"
             :class="{ 'is-expanded': isExpandable(entry.key) && isExpanded(entry.key) }"
@@ -121,12 +121,12 @@
         <span
           v-if="entry.item.tail"
           class="oc-tree__tail"
-          :class="{ 'is-action-only': normalizeItemTail(entry.item.tail).every(part => typeof part !== 'string') }"
+          :class="{ 'is-badge-only': normalizeNodeTail(entry.item.tail).every(part => typeof part !== 'string') }"
         >
-          <template v-for="(part, index) in normalizeItemTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
+          <template v-for="(part, index) in normalizeNodeTail(entry.item.tail)" :key="typeof part === 'string' ? `text:${index}` : `badge:${index}`">
             <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
-            <span v-else class="oc-tree__tail-action" :data-tooltip="part.title" aria-hidden="true">
-              <OcIcon v-if="part.icon" :name="part.icon" :tone="part.iconTone" size="sm" />
+            <span v-else class="oc-tree__tail-badge" role="img" :aria-label="part.label" :data-tooltip="part.label">
+              <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
             </span>
           </template>
         </span>
@@ -156,27 +156,32 @@ import OcActionButton from './OcActionButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
-import { normalizeItemTail } from '../../shared/ui/itemViewModel.types'
+import { normalizeNodeTail } from '../../shared/ui/node/node.types'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import type {
-  OcTreeActionDefinition,
-  OcTreeData,
-  OcTreeDropPosition,
-  OcTreeIntent,
-  OcTreeKey,
-  OcTreeSelectionInput,
-} from '../../shared/ui/tree/tree.types'
+  OcNode,
+  OcNodeActionEvent,
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeDropPosition,
+  OcNodeExpansionEvent,
+  OcNodeExpansionSyncEvent,
+  OcNodeKey,
+  OcNodeMoveEvent,
+  OcNodeRenameCommitEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import { resolveOcPixelToken } from '../../shared/ui/foundation'
 
 type OcTreeSelectionMode = 'none' | 'single' | 'multiple'
 type OcTreeActivationMode = 'none' | 'single-click' | 'double-click'
 type OcTreeRole = 'tree' | 'listbox' | 'menu'
+type OcTreeSelectionInput = 'left' | 'middle' | 'right' | 'keyboard'
 
 interface OcTreeProps {
-  data: OcTreeData
-  actions?: ReadonlyMap<string, OcTreeActionDefinition>
-  selectedKeys?: readonly OcTreeKey[]
-  expandedKeys?: readonly OcTreeKey[]
+  data: OcNodeCollection
+  selectedKeys?: readonly OcNodeKey[]
+  expandedKeys?: readonly OcNodeKey[]
   selectionMode?: OcTreeSelectionMode
   activationMode?: OcTreeActivationMode
   role?: OcTreeRole
@@ -191,10 +196,10 @@ interface OcTreeProps {
 }
 
 type VisibleEntry = {
-  key: OcTreeKey
-  item: OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never
+  key: OcNodeKey
+  item: OcNode
   level: number
-  parentKey: OcTreeKey | null
+  parentKey: OcNodeKey | null
   guideRows: number
   index: number
 }
@@ -202,7 +207,6 @@ type VisibleEntry = {
 defineOptions({ name: 'OcTree' })
 
 const props = withDefaults(defineProps<OcTreeProps>(), {
-  actions: () => new Map(),
   selectedKeys: () => [],
   expandedKeys: () => [],
   selectionMode: 'single',
@@ -219,35 +223,41 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
 })
 
 const emit = defineEmits<{
-  intent: [intent: OcTreeIntent]
+  'selection-change': [event: OcNodeSelectionEvent]
+  'expansion-change': [event: OcNodeExpansionEvent]
+  'expansion-sync': [event: OcNodeExpansionSyncEvent]
+  'node-activate': [event: OcNodeActivateEvent]
+  action: [event: OcNodeActionEvent]
+  'rename-commit': [event: OcNodeRenameCommitEvent]
+  move: [event: OcNodeMoveEvent]
 }>()
 const { openContextMenu } = useFloatingMenu()
 
 const treeRootElement = ref<HTMLElement | null>(null)
-const rowRefs = new Map<OcTreeKey, HTMLElement>()
-const renameInputRefs = new Map<OcTreeKey, InstanceType<typeof OcFieldInput>>()
-const activeKey = ref<OcTreeKey | null>(null)
-const renamingKey = ref<OcTreeKey | null>(null)
+const rowRefs = new Map<OcNodeKey, HTMLElement>()
+const renameInputRefs = new Map<OcNodeKey, InstanceType<typeof OcFieldInput>>()
+const activeKey = ref<OcNodeKey | null>(null)
+const renamingKey = ref<OcNodeKey | null>(null)
 const renameDraft = ref('')
-const selectionAnchorKey = ref<OcTreeKey | null>(null)
-const pendingDrag = ref<{ key: OcTreeKey; startX: number; startY: number } | null>(null)
-const draggedKey = ref<OcTreeKey | null>(null)
-const dropTargetKey = ref<OcTreeKey | null>(null)
-const dropPosition = ref<OcTreeDropPosition | null>(null)
+const selectionAnchorKey = ref<OcNodeKey | null>(null)
+const pendingDrag = ref<{ key: OcNodeKey; startX: number; startY: number } | null>(null)
+const draggedKey = ref<OcNodeKey | null>(null)
+const dropTargetKey = ref<OcNodeKey | null>(null)
+const dropPosition = ref<OcNodeDropPosition | null>(null)
 const suppressClick = ref(false)
 const warnedMessages = new Set<string>()
 const virtualScrollTop = ref(0)
 const virtualViewportHeight = ref(0)
 const virtualRowHeight = ref(1)
-const collapsedActionKeys = ref<ReadonlySet<OcTreeKey>>(new Set())
-const directActionWidths = new Map<OcTreeKey, number>()
+const collapsedActionKeys = ref<ReadonlySet<OcNodeKey>>(new Set())
+const directActionWidths = new Map<OcNodeKey, number>()
 const VIRTUAL_OVERSCAN_ROWS = 6
 let treeResizeObserver: ResizeObserver | null = null
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 const expandedKeySet = computed(() => new Set(props.expandedKeys))
 const parentKeyLookup = computed(() => {
-  const lookup = new Map<OcTreeKey, OcTreeKey>()
+  const lookup = new Map<OcNodeKey, OcNodeKey>()
   for (const [parentKey, childKeys] of props.data.children) {
     for (const childKey of childKeys) lookup.set(childKey, parentKey)
   }
@@ -266,8 +276,8 @@ function warnContract(message: string): void {
 }
 
 function validateContract(): void {
-  const referenceCounts = new Map<OcTreeKey, number>()
-  const countReference = (key: OcTreeKey) => {
+  const referenceCounts = new Map<OcNodeKey, number>()
+  const countReference = (key: OcNodeKey) => {
     referenceCounts.set(key, (referenceCounts.get(key) ?? 0) + 1)
   }
 
@@ -281,9 +291,9 @@ function validateContract(): void {
     if (count > 1) warnContract(`Node "${key}" is referenced more than once.`)
   }
 
-  const visited = new Set<OcTreeKey>()
-  const visiting = new Set<OcTreeKey>()
-  function visitNode(key: OcTreeKey): void {
+  const visited = new Set<OcNodeKey>()
+  const visiting = new Set<OcNodeKey>()
+  function visitNode(key: OcNodeKey): void {
     if (visiting.has(key)) {
       warnContract(`Children cycle detected at key "${key}".`)
       return
@@ -295,36 +305,15 @@ function validateContract(): void {
     visited.add(key)
   }
   for (const key of props.data.items.keys()) visitNode(key)
-
-  function visitAction(actionKey: string, ancestors: Set<string>): void {
-    const definition = props.actions.get(actionKey)
-    if (!definition) {
-      warnContract(`Missing action definition for key "${actionKey}".`)
-      return
-    }
-    if (ancestors.has(actionKey)) {
-      warnContract(`Action children cycle detected at key "${actionKey}".`)
-      return
-    }
-    const nextAncestors = new Set(ancestors)
-    nextAncestors.add(actionKey)
-    for (const childKey of definition.children ?? []) visitAction(childKey, nextAncestors)
-  }
-  for (const item of props.data.items.values()) {
-    for (const actionKey of item.actions ?? []) visitAction(actionKey, new Set())
-    for (const entry of item.contextActions ?? []) {
-      if (typeof entry === 'string') visitAction(entry, new Set())
-    }
-  }
 }
 
 watchEffect(validateContract)
 
 const visibleEntries = computed<VisibleEntry[]>(() => {
   const entries: VisibleEntry[] = []
-  const visited = new Set<OcTreeKey>()
+  const visited = new Set<OcNodeKey>()
 
-  function visit(key: OcTreeKey, level: number, parentKey: OcTreeKey | null, ancestors: Set<OcTreeKey>): void {
+  function visit(key: OcNodeKey, level: number, parentKey: OcNodeKey | null, ancestors: Set<OcNodeKey>): void {
     const item = props.data.items.get(key)
     if (!item) {
       warnContract(`Missing item for key "${key}".`)
@@ -442,9 +431,9 @@ function syncTreeMetrics(): void {
   syncActionOverflow()
 }
 
-function resolveSelectionAncestorKeys(key: OcTreeKey): OcTreeKey[] {
-  const ancestors: OcTreeKey[] = []
-  const visited = new Set<OcTreeKey>([key])
+function resolveSelectionAncestorKeys(key: OcNodeKey): OcNodeKey[] {
+  const ancestors: OcNodeKey[] = []
+  const visited = new Set<OcNodeKey>([key])
   let currentKey = key
 
   while (true) {
@@ -456,9 +445,9 @@ function resolveSelectionAncestorKeys(key: OcTreeKey): OcTreeKey[] {
   }
 }
 
-function isSameOrDescendantKey(key: OcTreeKey, ancestorKey: OcTreeKey): boolean {
-  const visited = new Set<OcTreeKey>()
-  let currentKey: OcTreeKey | undefined = key
+function isSameOrDescendantKey(key: OcNodeKey, ancestorKey: OcNodeKey): boolean {
+  const visited = new Set<OcNodeKey>()
+  let currentKey: OcNodeKey | undefined = key
 
   while (currentKey && !visited.has(currentKey)) {
     if (currentKey === ancestorKey) return true
@@ -495,11 +484,7 @@ watch(
       return
     }
 
-    emit('intent', {
-      type: 'expansion.sync',
-      expandedKeys: nextKeys,
-      reason: 'selection',
-    })
+    emit('expansion-sync', { expandedKeys: nextKeys })
   },
   { immediate: true },
 )
@@ -509,7 +494,7 @@ const selectionRevealKey = computed(() => {
   return props.selectedKeys[props.selectedKeys.length - 1] ?? null
 })
 
-function scrollRowIntoTreeViewport(key: OcTreeKey): void {
+function scrollRowIntoTreeViewport(key: OcNodeKey): void {
   const root = treeRootElement.value
   if (!root) return
   if (props.virtualized) {
@@ -562,33 +547,33 @@ watch(renderedEntries, entries => {
     ?? null
 })
 
-function isSelected(key: OcTreeKey): boolean {
+function isSelected(key: OcNodeKey): boolean {
   return selectedKeySet.value.has(key)
 }
 
-function isExpandable(key: OcTreeKey): boolean {
+function isExpandable(key: OcNodeKey): boolean {
   return (props.data.children.get(key)?.length ?? 0) > 0
 }
 
-function formatChildCount(key: OcTreeKey): string {
+function formatChildCount(key: OcNodeKey): string {
   const count = props.data.children.get(key)?.length ?? 0
   return count > 99 ? '99+' : String(count)
 }
 
-function isExpanded(key: OcTreeKey): boolean {
+function isExpanded(key: OcNodeKey): boolean {
   return expandedKeySet.value.has(key)
 }
 
-function toggleExpanded(key: OcTreeKey): void {
+function toggleExpanded(key: OcNodeKey): void {
   if (!isExpandable(key)) return
-  emit('intent', { type: 'expansion.change', key, expanded: !isExpanded(key) })
+  emit('expansion-change', { key, expanded: !isExpanded(key) })
 }
 
-function handleIconMouseDown(event: MouseEvent, key: OcTreeKey): void {
+function handleIconMouseDown(event: MouseEvent, key: OcNodeKey): void {
   if (isExpandable(key)) event.stopPropagation()
 }
 
-function handleIconClick(event: MouseEvent, key: OcTreeKey): void {
+function handleIconClick(event: MouseEvent, key: OcNodeKey): void {
   if (!isExpandable(key)) return
   event.stopPropagation()
   focusRowFromPointer(key)
@@ -596,7 +581,7 @@ function handleIconClick(event: MouseEvent, key: OcTreeKey): void {
 }
 
 function emitSelectionIntent(
-  key: OcTreeKey,
+  key: OcNodeKey,
   toggle: boolean,
   input: OcTreeSelectionInput,
   range: boolean,
@@ -606,7 +591,7 @@ function emitSelectionIntent(
   const mode = canRangeSelect
     ? 'range'
     : props.selectionMode === 'multiple' && toggle ? 'toggle' : 'replace'
-  let selectedKeys: OcTreeKey[]
+  let selectedKeys: OcNodeKey[]
   if (mode === 'range') {
     const anchorKey = selectionAnchorKey.value && visibleEntries.value.some(entry => entry.key === selectionAnchorKey.value)
       ? selectionAnchorKey.value
@@ -631,71 +616,36 @@ function emitSelectionIntent(
     selectedKeys = [key]
   }
   if (input !== 'right' && mode !== 'range') selectionAnchorKey.value = key
-  emit('intent', { type: 'selection.change', triggerKey: key, selectedKeys, mode, input })
+  emit('selection-change', { triggerKey: key, selectedKeys })
 }
 
-function handleRowClick(event: MouseEvent, key: OcTreeKey): void {
+function handleRowClick(event: MouseEvent, key: OcNodeKey): void {
   if (props.data.items.get(key)?.disabled || suppressClick.value || renamingKey.value === key) return
   focusRowFromPointer(key)
   emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'left', event.shiftKey)
-  if (props.activationMode === 'single-click') emit('intent', { type: 'node.activate', key })
+  if (props.activationMode === 'single-click') emit('node-activate', { key })
 }
 
-function focusRowFromPointer(key: OcTreeKey): void {
+function focusRowFromPointer(key: OcNodeKey): void {
   activeKey.value = key
   rowRefs.get(key)?.focus({ preventScroll: true })
 }
 
-function handleRowAuxClick(event: MouseEvent, key: OcTreeKey): void {
+function handleRowAuxClick(event: MouseEvent, key: OcNodeKey): void {
   if (event.button !== 1 || props.data.items.get(key)?.disabled) return
   event.preventDefault()
   emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'middle', event.shiftKey)
 }
 
-function handleRowDoubleClick(event: MouseEvent, key: OcTreeKey): void {
+function handleRowDoubleClick(event: MouseEvent, key: OcNodeKey): void {
   if (props.data.items.get(key)?.disabled) return
   event.preventDefault()
-  if (props.activationMode === 'double-click') emit('intent', { type: 'node.activate', key })
+  if (props.activationMode === 'double-click') emit('node-activate', { key })
 }
 
-function resolveAction(
-  itemKey: OcTreeKey,
-  actionKey: string,
-  ancestors: Set<string>,
-): OcActionButtonAction | null {
-  const definition = props.actions.get(actionKey)
-  if (!definition) {
-    warnContract(`Missing action definition for key "${actionKey}".`)
-    return null
-  }
-  if (ancestors.has(actionKey)) {
-    warnContract(`Action children cycle detected at key "${actionKey}".`)
-    return null
-  }
-
-  const nextAncestors = new Set(ancestors)
-  nextAncestors.add(actionKey)
-  const disabledReason = props.data.items.get(itemKey)?.disabledActions?.get(actionKey)
-  const children = definition.children
-    ?.map((childKey) => resolveAction(itemKey, childKey, nextAncestors))
-    .filter((child): child is OcActionButtonAction => child !== null)
-
-  return {
-    key: actionKey,
-    icon: definition.icon,
-    iconTone: definition.iconTone,
-    title: disabledReason ? `${definition.title}: ${disabledReason}` : definition.title,
-    shortcut: definition.shortcut,
-    disabled: disabledReason !== undefined,
-    children,
-  }
-}
-
-function resolveItemActions(key: OcTreeKey): OcActionButtonAction[] {
-  const actions = (props.data.items.get(key)?.actions ?? [])
-    .map((actionKey) => resolveAction(key, actionKey, new Set()))
-    .filter((action): action is OcActionButtonAction => action !== null)
-  if (actions.length <= 1 || !collapsedActionKeys.value.has(key)) return actions
+function resolveItemActions(key: OcNodeKey): OcActionButtonAction[] {
+  const actions = props.data.items.get(key)?.actions ?? []
+  if (actions.length <= 1 || !collapsedActionKeys.value.has(key)) return [...actions]
   return [{
     key: `__oc-tree-action-overflow__:${key}`,
     icon: 'nav.more',
@@ -704,21 +654,20 @@ function resolveItemActions(key: OcTreeKey): OcActionButtonAction[] {
   }]
 }
 
-function resolveContextActions(key: OcTreeKey): FloatingMenuItem[] {
+function resolveContextActions(key: OcNodeKey): FloatingMenuItem[] {
   const result: FloatingMenuItem[] = []
   for (const entry of props.data.items.get(key)?.contextActions ?? []) {
-    if (typeof entry === 'string') {
-      const action = resolveAction(key, entry, new Set())
-      if (action) result.push(action)
+    if (entry.type === 'divider') {
+      if (result.length > 0 && result[result.length - 1]?.type !== 'divider') result.push(entry)
       continue
     }
-    if (result.length > 0 && result[result.length - 1]?.type !== 'divider') result.push(entry)
+    result.push(entry)
   }
   if (result[result.length - 1]?.type === 'divider') result.pop()
   return result
 }
 
-function openItemContextMenu(key: OcTreeKey, event?: MouseEvent): boolean {
+function openItemContextMenu(key: OcNodeKey, event?: MouseEvent): boolean {
   const item = props.data.items.get(key)
   if (!item || item.disabled) return false
   const actions = resolveContextActions(key)
@@ -732,17 +681,15 @@ function openItemContextMenu(key: OcTreeKey, event?: MouseEvent): boolean {
   })
 }
 
-function handleRowContextMenu(event: MouseEvent, key: OcTreeKey): void {
+function handleRowContextMenu(event: MouseEvent, key: OcNodeKey): void {
   openItemContextMenu(key, event)
 }
 
-function emitActionIntent(key: OcTreeKey, actionKey: string, source: 'inline' | 'context' = 'inline'): void {
-  const disabledReason = props.data.items.get(key)?.disabledActions?.get(actionKey)
-  if (disabledReason !== undefined) return
-  emit('intent', { type: 'action.invoke', key, actionKey, source })
+function emitActionIntent(key: OcNodeKey, actionKey: string, source: 'inline' | 'context' = 'inline'): void {
+  emit('action', { key, actionKey, source })
 }
 
-async function startRename(key: OcTreeKey): Promise<void> {
+async function startRename(key: OcNodeKey): Promise<void> {
   const item = props.data.items.get(key)
   if (!item?.renamable || item.disabled) return
   renamingKey.value = key
@@ -772,11 +719,11 @@ function cancelRename(): void {
   renameDraft.value = ''
 }
 
-function commitRename(key: OcTreeKey): void {
+function commitRename(key: OcNodeKey): void {
   if (renamingKey.value !== key) return
   const name = renameDraft.value
   cancelRename()
-  emit('intent', { type: 'rename.commit', key, name })
+  emit('rename-commit', { key, name })
 }
 
 function handleRenameInput(event: Event): void {
@@ -784,7 +731,7 @@ function handleRenameInput(event: Event): void {
   if (target instanceof HTMLInputElement) renameDraft.value = target.value
 }
 
-function handleRenameKeydown(event: KeyboardEvent, key: OcTreeKey): void {
+function handleRenameKeydown(event: KeyboardEvent, key: OcNodeKey): void {
   if (event.key === 'Enter') {
     event.preventDefault()
     commitRename(key)
@@ -813,7 +760,7 @@ function findFocusableIndex(start: number, direction: -1 | 1): number {
   return start
 }
 
-function handleRowKeydown(event: KeyboardEvent, key: OcTreeKey, index: number): void {
+function handleRowKeydown(event: KeyboardEvent, key: OcNodeKey, index: number): void {
   if (props.data.items.get(key)?.disabled) return
   if (event.key === 'ArrowDown') {
     event.preventDefault()
@@ -836,27 +783,27 @@ function handleRowKeydown(event: KeyboardEvent, key: OcTreeKey, index: number): 
     toggleExpanded(key)
   } else if (event.key === 'F2') {
     event.preventDefault()
-    if (props.data.items.get(key)?.renamable) emit('intent', { type: 'rename.request', key })
+    if (props.data.items.get(key)?.renamable) void startRename(key)
   } else if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
     if (openItemContextMenu(key)) event.preventDefault()
   } else if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
     emitSelectionIntent(key, event.ctrlKey || event.metaKey, 'keyboard', event.shiftKey)
-    if (props.activationMode !== 'none') emit('intent', { type: 'node.activate', key })
+    if (props.activationMode !== 'none') emit('node-activate', { key })
   }
 }
 
-function setRowRef(key: OcTreeKey, element: Element | ComponentPublicInstance | null): void {
+function setRowRef(key: OcNodeKey, element: Element | ComponentPublicInstance | null): void {
   if (element instanceof HTMLElement) rowRefs.set(key, element)
   else rowRefs.delete(key)
 }
 
-function setRenameInputRef(key: OcTreeKey, element: Element | ComponentPublicInstance | null): void {
+function setRenameInputRef(key: OcNodeKey, element: Element | ComponentPublicInstance | null): void {
   if (element && '$el' in element) renameInputRefs.set(key, element as InstanceType<typeof OcFieldInput>)
   else renameInputRefs.delete(key)
 }
 
-function handleRowMouseDown(event: MouseEvent, key: OcTreeKey): void {
+function handleRowMouseDown(event: MouseEvent, key: OcNodeKey): void {
   const item = props.data.items.get(key)
   if (event.button !== 0 || !item?.draggable || item.disabled) return
   const target = event.target
@@ -907,14 +854,14 @@ function handleGlobalMouseUp(): void {
   const targetKey = dropTargetKey.value
   const position = dropPosition.value
   if (key && position) {
-    emit('intent', { type: 'move.request', key, targetKey, position })
+    emit('move', { key, targetKey, position })
     suppressClick.value = true
     window.setTimeout(() => { suppressClick.value = false }, 0)
   }
   clearDragState()
 }
 
-function resolveNodeClass(key: OcTreeKey): Record<string, boolean> {
+function resolveNodeClass(key: OcNodeKey): Record<string, boolean> {
   const draggingSelection = Boolean(draggedKey.value && isSelected(draggedKey.value))
   return {
     'is-selected': isSelected(key),
@@ -934,7 +881,7 @@ watch([() => props.virtualized, () => visibleEntries.value.length], async () => 
   if (root.scrollTop > maximum) root.scrollTop = maximum
   virtualScrollTop.value = root.scrollTop
 })
-watch([renderedEntries, () => props.data, () => props.actions], async () => {
+watch([renderedEntries, () => props.data], async () => {
   await nextTick()
   syncActionOverflow()
 })
@@ -1069,7 +1016,7 @@ onBeforeUnmount(() => {
 }
 
 .oc-tree__row.is-disabled {
-  opacity: 0.5;
+  opacity: var(--oc-opacity-disabled);
 }
 
 .oc-tree__icon-slot {
@@ -1128,12 +1075,12 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
 }
 
-.oc-tree__tail.is-action-only {
+.oc-tree__tail.is-badge-only {
   flex: 0 0 auto;
   min-width: auto;
 }
 
-.oc-tree__tail-action { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.oc-tree__tail-badge { display: inline-flex; align-items: center; flex: 0 0 auto; }
 
 .oc-tree__rename-input {
   flex: 1 1 auto;

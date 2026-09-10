@@ -1,7 +1,7 @@
 import { strFromU8, strToU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { RESOURCE_PACKAGE_MANIFEST_FILE_NAME, type ResourcePackageManifest } from '../model/resourcePackage'
-import { PROJECT_FONT_REGISTRY_FILE_NAME, PROJECT_ICON_REGISTRY_FILE_NAME } from '../model/projectStructure'
+import { PROJECT_FONT_REGISTRY_FILE_NAME, PROJECT_ICON_REGISTRY_FILE_NAME, PROJECT_PROFILE_FILE_NAME } from '../model/projectStructure'
 import type { FileSystemService } from './fileSystemService'
 import { buildResourcePackageFromProject } from './buildResourcePackage'
 
@@ -190,6 +190,93 @@ describe('buildResourcePackageFromProject images', () => {
       })).rejects.toThrow(message)
       expect(fs.has('/output/theme.ocpack')).toBe(false)
     }
+  })
+})
+
+describe('buildResourcePackageFromProject cover', () => {
+  it('carries the project cover file and manifest field into the package', async () => {
+    const fs = createFileSystem()
+    fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, { name: 'Demo', cover: 'assets/cover.png' })
+    fs.putBinary('/project/assets/cover.png', 'cover-bytes')
+
+    const result = await buildResourcePackageFromProject({
+      fs,
+      projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+      fontSelection: { familyKeys: ['latin'], compositionKeys: [] },
+    })
+    const archive = unzipSync(result.archive)
+    const manifest = JSON.parse(strFromU8(archive[RESOURCE_PACKAGE_MANIFEST_FILE_NAME]!)) as ResourcePackageManifest
+
+    expect(manifest.cover).toBe('assets/cover.png')
+    expect(strFromU8(archive['assets/cover.png']!)).toBe('cover-bytes')
+  })
+
+  it('carries a managed .opencard cover slot without going through image selection', async () => {
+    const fs = createFileSystem()
+    fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, { cover: '.opencard/cover.webp' })
+    fs.putBinary('/project/.opencard/cover.webp', 'slot-bytes')
+
+    const result = await buildResourcePackageFromProject({
+      fs,
+      projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+      fontSelection: { familyKeys: ['latin'], compositionKeys: [] },
+    })
+    const archive = unzipSync(result.archive)
+    const manifest = JSON.parse(strFromU8(archive[RESOURCE_PACKAGE_MANIFEST_FILE_NAME]!)) as ResourcePackageManifest
+
+    expect(manifest.cover).toBe('.opencard/cover.webp')
+    expect(strFromU8(archive['.opencard/cover.webp']!)).toBe('slot-bytes')
+  })
+
+  it('builds without a cover when none is declared, the file is missing, or the path is not an image', async () => {
+    const cases = [
+      () => createFileSystem(),
+      () => {
+        const fs = createFileSystem()
+        fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, { cover: 'assets/missing.png' })
+        return fs
+      },
+      () => {
+        const fs = createFileSystem()
+        fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, '{broken')
+        return fs
+      },
+      () => {
+        const fs = createFileSystem()
+        fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, { cover: 'documents/readme.txt' })
+        fs.putBinary('/project/documents/readme.txt', 'text')
+        return fs
+      },
+    ]
+    for (const createFs of cases) {
+      const fs = createFs()
+      const result = await buildResourcePackageFromProject({
+        fs,
+        projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+        fontSelection: { familyKeys: ['latin'], compositionKeys: [] },
+      })
+      const archive = unzipSync(result.archive)
+      const manifest = JSON.parse(strFromU8(archive[RESOURCE_PACKAGE_MANIFEST_FILE_NAME]!)) as ResourcePackageManifest
+      expect(manifest.cover).toBeUndefined()
+    }
+  })
+
+  it('does not duplicate a cover that is also selected as a package image', async () => {
+    const fs = createFileSystem()
+    fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, { cover: 'images/card.png' })
+    fs.putBinary('/project/images/card.png', 'card')
+
+    const result = await buildResourcePackageFromProject({
+      fs,
+      projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+      imageSelection: { paths: ['images/card.png'] },
+    })
+    const archive = unzipSync(result.archive)
+    const manifest = JSON.parse(strFromU8(archive[RESOURCE_PACKAGE_MANIFEST_FILE_NAME]!)) as ResourcePackageManifest
+
+    expect(manifest.cover).toBe('images/card.png')
+    // 重复路径会让归档构建直接失败，因此成功构建本身即证明封面与所选图片只写入一次。
+    expect(strFromU8(archive['images/card.png']!)).toBe('card')
   })
 })
 

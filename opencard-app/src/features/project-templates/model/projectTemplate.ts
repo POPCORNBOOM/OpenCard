@@ -1,4 +1,5 @@
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
+import { isProjectCoverPath } from '../../workspace/model/projectCover'
 
 export const PROJECT_TEMPLATE_SCHEMA_VERSION = 1 as const
 export const PROJECT_TEMPLATE_NAME_MAX_LENGTH = 80
@@ -125,7 +126,6 @@ export class TemplateServiceError extends Error {
 const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i
 const INVALID_PROJECT_NAME_CHARACTERS = /[<>:"/\\|?*\u0000-\u001f]/
 const SAFE_TEMPLATE_ID = /^[a-z0-9][a-z0-9-]*$/
-const SUPPORTED_COVER_IMAGE = /\.(?:avif|gif|jpe?g|png|webp)$/i
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -158,10 +158,6 @@ function isSafeRelativePath(value: string): boolean {
     && !normalized.split('/').some((segment) => segment === '' || segment === '.' || segment === '..')
 }
 
-export function isProjectTemplateCoverPath(value: string): boolean {
-  return isSafeRelativePath(value) && SUPPORTED_COVER_IMAGE.test(value)
-}
-
 export function parseProjectTemplateManifest(value: unknown): ProjectTemplateManifest | null {
   if (!isRecord(value) || value.schemaVersion !== PROJECT_TEMPLATE_SCHEMA_VERSION) return null
   if (typeof value.id !== 'string' || !isSafeProjectTemplateId(value.id)) return null
@@ -179,7 +175,7 @@ export function parseProjectTemplateManifest(value: unknown): ProjectTemplateMan
     !Array.isArray(value.covers)
     || !value.covers.every((cover) => (
       typeof cover === 'string'
-      && isProjectTemplateCoverPath(cover)
+      && isProjectCoverPath(cover)
     ))
   )) return null
   const i18n = value.i18n === undefined ? undefined : parseLocalization(value.i18n)

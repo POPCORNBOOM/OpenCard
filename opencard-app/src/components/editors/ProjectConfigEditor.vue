@@ -12,6 +12,11 @@
           :collapsed="isProjectSectionCollapsed('information')"
           @toggle="toggleProjectSection('information')">
           <div class="project-profile-editor__form">
+            <div class="project-profile-editor__field" data-field-key="cover">
+              <OcText as="span" size="sm">{{ t('projectConfig.fields.cover') }}</OcText>
+              <ProjectCoverField :model-value="profile.cover ?? ''" :project-root-path="projectDirectoryKey"
+                @update:model-value="updateCover" />
+            </div>
             <label class="project-profile-editor__field" data-field-key="name">
               <OcText as="span" size="sm">{{ t('projectConfig.fields.name') }}</OcText>
               <OcFieldInput full-width :value="profile.name ?? ''" @input="updateProfileField('name', $event)" />
@@ -141,6 +146,7 @@ import { parseCardDocument } from '../../entities/card/storage'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import MonacoEditor from './MonacoEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
+import ProjectCoverField from './ProjectCoverField.vue'
 import ProjectExportTaskEditor, { type ExportDocumentCandidate } from './ProjectExportTaskEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
@@ -232,6 +238,14 @@ function updateProfileField(fieldKey: 'name' | 'description' | 'version', event:
     mode: 'debounced',
     merge: { family: 'project-profile-field', target: fieldKey },
   })
+}
+
+function updateCover(relativePath: string) {
+  if (!profile.value) return
+  const next: ProjectProfile = { ...profile.value }
+  if (relativePath) next.cover = relativePath
+  else delete next.cover
+  updateProfile(next)
 }
 
 function updateRemoteResourceMode(mode: string) {

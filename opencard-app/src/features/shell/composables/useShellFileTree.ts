@@ -1,8 +1,13 @@
-/** Workspace entry lookup and key-only OcTree projection. */
+/** Workspace entry lookup and OcNode collection projection. */
 import { computed, ref, watch, type Ref } from 'vue'
 import type { OpenedEditorItem, EditorSession } from '../../workspace/store/editorSessionStore'
 import { resolveEntryIcon, resolveFileType } from '../../workspace/model/fileTypes'
-import type { OcTreeData, OcTreeItem, OcTreeRenameSelection } from '../../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeCollection,
+  OcNodeRenameSelection,
+} from '../../../shared/ui/node/node.types'
 import type { IconToken } from '../../../shared/ui/icon/iconTokens'
 import {
   resolveInstalledResourcePackageManifestPath,
@@ -27,11 +32,12 @@ export const PROJECT_ENTRY_RENAME_ACTION_KEY = 'project-entry-rename'
 export const PROJECT_ENTRY_REVEAL_ACTION_KEY = 'project-entry-reveal'
 export const PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY = 'project-entry-copy-relative-path'
 export const PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY = 'project-entry-copy-absolute-path'
-const PROJECT_ENTRY_MORE_ACTION_PREFIX = 'project-entry-more:'
-const PROJECT_ENTRY_DELETE_ACTION_PREFIX = 'project-entry-delete:'
-const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX = 'project-entry-confirm-delete:'
-const PROJECT_PACKAGE_DELETE_ACTION_PREFIX = 'project-package-delete:'
-const PROJECT_PACKAGE_VERIFY_ACTION_PREFIX = 'project-package-verify:'
+export const PROJECT_ENTRY_MORE_ACTION_KEY = 'project-entry-more'
+export const PROJECT_ENTRY_DELETE_ACTION_KEY = 'project-entry-delete'
+export const PROJECT_ENTRY_CONFIRM_DELETE_ACTION_KEY = 'project-entry-confirm-delete'
+export const PROJECT_PACKAGE_VERIFY_ACTION_KEY = 'project-package-verify'
+export const PROJECT_PACKAGE_DELETE_ACTION_KEY = 'project-package-delete'
+
 type ProjectManagementEntry = {
   path: string
   labelKey: string
@@ -51,27 +57,6 @@ const PROJECT_MANAGEMENT_ENTRIES: readonly ProjectManagementEntry[] = [
     packageDirectory: true,
   },
 ] as const
-
-export function projectEntryMoreActionKey(entryKey: string): string {
-  return `${PROJECT_ENTRY_MORE_ACTION_PREFIX}${entryKey}`
-}
-
-export function projectEntryDeleteActionKey(entryKey: string): string {
-  return `${PROJECT_ENTRY_DELETE_ACTION_PREFIX}${entryKey}`
-}
-
-export function projectEntryConfirmDeleteActionKey(entryKey: string): string {
-  return `${PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX}${entryKey}`
-}
-
-export function isProjectEntryConfirmDeleteActionKey(actionKey: string): boolean {
-  return actionKey.startsWith(PROJECT_ENTRY_CONFIRM_DELETE_ACTION_PREFIX)
-}
-
-export function projectPackageDeleteActionKey(packageKey: string): string {
-  return `${PROJECT_PACKAGE_DELETE_ACTION_PREFIX}${packageKey}`
-}
-export function projectPackageVerifyActionKey(packageKey: string): string { return `${PROJECT_PACKAGE_VERIFY_ACTION_PREFIX}${packageKey}` }
 
 type IndexedEntry = {
   name: string
@@ -98,7 +83,7 @@ type UseShellFileTreeOptions = {
   activateSession: (sessionId: string) => void
   openPreviewFile: (path: string, options?: { title?: string }) => Promise<unknown>
   ensureProjectManagementStructure: () => Promise<void>
-  translate: (key: string) => string
+  translate: (key: string, params?: Record<string, unknown>) => string
   registeredFontSources?: Readonly<Ref<readonly string[] | null>>
 }
 
@@ -106,7 +91,7 @@ function normalizeShellPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
-function resolveFilenameRenameSelection(name: string): OcTreeRenameSelection {
+function resolveFilenameRenameSelection(name: string): OcNodeRenameSelection {
   const extensionSeparator = name.lastIndexOf('.')
   const hasExtension = extensionSeparator > 0 && extensionSeparator < name.length - 1
   return { start: 0, end: hasExtension ? extensionSeparator : name.length }
@@ -168,37 +153,79 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     return { roots, byKey }
   })
 
-  const projectTreeData = computed<OcTreeData>(() => {
-    const items = new Map<string, OcTreeItem>()
+  /** Inline actions always target the row that carries them, so keys are node-local and static. */
+  function createProjectEntryNode(entry: ProjectEntryView): OcNode {
+    const presentation = resolveEntryIcon(
+      entry.key,
+      entry.isDirectory,
+      entry.isExpanded,
+      options.projectPath.value,
+      managedRegisteredFontSources.value,
+    )
+    const rename: OcNodeAction = {
+      key: PROJECT_ENTRY_RENAME_ACTION_KEY,
+      title: options.translate('sidebar.fileActions.rename'),
+      icon: 'action.edit',
+    }
+    const reveal: OcNodeAction = {
+      key: PROJECT_ENTRY_REVEAL_ACTION_KEY,
+      title: options.translate('sidebar.fileActions.reveal'),
+      icon: 'status.folder-open',
+    }
+    const copyRelativePath: OcNodeAction = {
+      key: PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
+      title: options.translate('sidebar.fileActions.copyRelativePath'),
+      icon: 'action.copy',
+    }
+    const copyAbsolutePath: OcNodeAction = {
+      key: PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
+      title: options.translate('sidebar.fileActions.copyAbsolutePath'),
+      icon: 'action.copy',
+    }
+    const moveToTrash: OcNodeAction = {
+      key: PROJECT_ENTRY_DELETE_ACTION_KEY,
+      title: options.translate('sidebar.fileActions.delete'),
+      icon: 'action.delete',
+      children: [{
+        key: PROJECT_ENTRY_CONFIRM_DELETE_ACTION_KEY,
+        title: options.translate('sidebar.fileActions.confirmDeleteFile', { fileName: entry.label }),
+        icon: 'action.delete',
+        iconTone: 'danger',
+      }],
+    }
+
+    return {
+      label: entry.label,
+      renameSelection: !entry.isDirectory
+        ? resolveFilenameRenameSelection(entry.label)
+        : undefined,
+      icon: presentation.icon,
+      iconTone: presentation.tone,
+      renamable: true,
+      draggable: true,
+      actions: [{
+        key: PROJECT_ENTRY_MORE_ACTION_KEY,
+        title: options.translate('sidebar.fileActions.more'),
+        icon: 'nav.more',
+        children: [rename, moveToTrash, reveal, copyRelativePath, copyAbsolutePath],
+      }],
+      contextActions: [
+        rename,
+        reveal,
+        copyRelativePath,
+        copyAbsolutePath,
+        { type: 'divider', key: 'project-entry-delete-divider' },
+        moveToTrash,
+      ],
+    }
+  }
+
+  const projectTreeData = computed<OcNodeCollection>(() => {
+    const items = new Map<string, OcNode>()
     const children = new Map<string, readonly string[]>()
 
     for (const entry of projectProjection.value.byKey.values()) {
-      const presentation = resolveEntryIcon(
-        entry.key,
-        entry.isDirectory,
-        entry.isExpanded,
-        options.projectPath.value,
-        managedRegisteredFontSources.value,
-      )
-      items.set(entry.key, {
-        label: entry.label,
-        renameSelection: !entry.isDirectory
-          ? resolveFilenameRenameSelection(entry.label)
-          : undefined,
-        icon: presentation.icon,
-        iconTone: presentation.tone,
-        renamable: true,
-        draggable: true,
-        actions: [projectEntryMoreActionKey(entry.key)],
-        contextActions: [
-          PROJECT_ENTRY_RENAME_ACTION_KEY,
-          PROJECT_ENTRY_REVEAL_ACTION_KEY,
-          PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
-          PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
-          { type: 'divider', key: 'project-entry-delete-divider' },
-          projectEntryDeleteActionKey(entry.key),
-        ],
-      })
+      items.set(entry.key, createProjectEntryNode(entry))
       if (entry.children.length > 0) {
         children.set(entry.key, entry.children.map((child) => child.key))
       }
@@ -212,14 +239,14 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   })
 
   const projectManagementProjection = computed(() => {
-    const emptyTreeData: OcTreeData = { rootKeys: [], items: new Map(), children: new Map() }
+    const emptyTreeData: OcNodeCollection = { rootKeys: [], items: new Map(), children: new Map() }
     if (!options.projectPath.value) return {
       treeData: emptyTreeData,
       targetByNodeKey: new Map<string, string>(),
       nodeKeyByTargetPath: new Map<string, string>(),
       packageKeyByNodeKey: new Map<string, string>(),
     }
-    const items = new Map<string, OcTreeItem>()
+    const items = new Map<string, OcNode>()
     const children = new Map<string, readonly string[]>()
     const targetByNodeKey = new Map<string, string>()
     const nodeKeyByTargetPath = new Map<string, string>()
@@ -246,7 +273,19 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
             label: packageKey,
             icon: 'file.package',
             iconTone: 'config',
-            actions: [projectPackageVerifyActionKey(packageKey), projectPackageDeleteActionKey(packageKey)],
+            actions: [
+              {
+                key: PROJECT_PACKAGE_VERIFY_ACTION_KEY,
+                title: options.translate('packageManager.verify'),
+                icon: 'action.check',
+              },
+              {
+                key: PROJECT_PACKAGE_DELETE_ACTION_KEY,
+                title: options.translate('resourcePackage.delete'),
+                icon: 'action.delete',
+                iconTone: 'danger',
+              },
+            ],
           })
           targetByNodeKey.set(nodeKey, targetPath)
           nodeKeyByTargetPath.set(targetPath, nodeKey)
@@ -267,7 +306,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     }
   })
 
-  const projectManagementTreeData = computed<OcTreeData>(() => projectManagementProjection.value.treeData)
+  const projectManagementTreeData = computed<OcNodeCollection>(() => projectManagementProjection.value.treeData)
 
   const projectManagementExpandedKeys = computed(() => (
     [...projectManagementTreeData.value.children.keys()].filter(
@@ -290,17 +329,24 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       .map((entry) => entry.key),
   )
 
-  const openedEditorTreeData = computed<OcTreeData>(() => ({
-    rootKeys: options.openedEditorItems.value.map((item) => item.key),
-    items: new Map(options.openedEditorItems.value.map((item) => [item.key, {
-      label: item.label,
-      icon: item.icon,
-      iconTone: item.iconTone,
-      actions: [OPENED_EDITOR_CLOSE_ACTION_KEY],
-      contextActions: [OPENED_EDITOR_CLOSE_ACTION_KEY],
-    }])),
-    children: new Map(),
-  }))
+  const openedEditorTreeData = computed<OcNodeCollection>(() => {
+    const closeAction: OcNodeAction = {
+      key: OPENED_EDITOR_CLOSE_ACTION_KEY,
+      title: options.translate('sidebar.closeEditor'),
+      icon: 'action.close',
+    }
+    return {
+      rootKeys: options.openedEditorItems.value.map((item) => item.key),
+      items: new Map(options.openedEditorItems.value.map((item) => [item.key, {
+        label: item.label,
+        icon: item.icon,
+        iconTone: item.iconTone,
+        actions: [closeAction],
+        contextActions: [closeAction],
+      }])),
+      children: new Map(),
+    }
+  })
 
   function findProjectEntryByKey(key: string): ProjectEntryView | null {
     return projectProjection.value.byKey.get(normalizeShellPath(key)) ?? null

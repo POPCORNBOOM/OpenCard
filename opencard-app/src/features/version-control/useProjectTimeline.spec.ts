@@ -26,7 +26,9 @@ const statusEntry = (path: string, overrides: Partial<{
   worktreeNew: false, worktreeModified: false, worktreeDeleted: false,
   conflicted: false, ignored: false, ...overrides,
 })
-const useTimeline = (project: Ref<string | null | undefined>, file = ref<string | null>('cards/main.ocdocument')) => useProjectTimeline(project, file, ref('en-US'))
+const useTimeline = (project: Ref<string | null | undefined>, file = ref<string | null>('cards/main.ocdocument')) => (
+  useProjectTimeline(project, file, ref('en-US'), ref('Compare with disk'))
+)
 
 describe('useProjectTimeline', () => {
   beforeEach(() => {
@@ -75,9 +77,9 @@ describe('useProjectTimeline', () => {
     expect(childKeys.map(key => state.projectTreeData.value.items.get(key)?.label))
       .toEqual(['cards/main.ocdocument', 'assets/cover.png', 'notes/old.md'])
     expect(childKeys.map(key => state.projectTreeData.value.items.get(key)?.tail)).toEqual([
-      { key: 'status', title: 'Added', icon: 'action.add', iconTone: 'success' },
-      { key: 'status', title: 'Modified', icon: 'status.circle-medium', iconTone: 'warning' },
-      { key: 'status', title: 'Deleted', icon: 'action.minus', iconTone: 'danger' },
+      { type: 'badge', label: 'Added', icon: 'action.add', tone: 'success' },
+      { type: 'badge', label: 'Modified', icon: 'status.circle-medium', tone: 'warning' },
+      { type: 'badge', label: 'Deleted', icon: 'action.minus', tone: 'danger' },
     ])
     expect(state.treeData.value.children.size).toBe(0)
   })
@@ -99,8 +101,8 @@ describe('useProjectTimeline', () => {
     expect(state.statusEntries.value.find(entry => entry.path === 'cards/index.ocdocument')?.indexNew).toBe(true)
     expect(state.statusUpdatedAt.value).not.toBeNull()
     expect(state.statusStale.value).toBe(false)
-    expect(state.changesTreeData.value.items.get('change:cards/worktree.ocdocument')?.tail).toEqual({ key: 'git-status', title: 'Modified', icon: 'status.circle-medium', iconTone: 'warning' })
-    expect(state.changesTreeData.value.items.get('change:cards/index.ocdocument')?.tail).toEqual({ key: 'git-status', title: 'Added', icon: 'action.add', iconTone: 'success' })
+    expect(state.changesTreeData.value.items.get('change:cards/worktree.ocdocument')?.tail).toEqual({ type: 'badge', label: 'Modified', icon: 'status.circle-medium', tone: 'warning' })
+    expect(state.changesTreeData.value.items.get('change:cards/index.ocdocument')?.tail).toEqual({ type: 'badge', label: 'Added', icon: 'action.add', tone: 'success' })
     const historyCalls = mocks.readHistory.mock.calls.length
     mocks.readStatus.mockResolvedValueOnce(ok({
       entries: [statusEntry('cards/new.ocdocument', { worktreeNew: true })],
@@ -143,7 +145,11 @@ describe('useProjectTimeline', () => {
     await vi.waitFor(() => expect(state.treeData.value.rootKeys).toEqual(['timeline:file0001']))
     expect(state.projectTreeData.value.rootKeys).toEqual(['project-timeline:project1'])
     expect(mocks.readFileHistory).toHaveBeenCalledWith('D:/Cards/demo', { path: 'cards/main.ocdocument', limit: 50 })
-    expect(state.treeData.value.items.get('timeline:file0001')?.actions).toEqual(['timeline.compare-with-disk'])
+    expect(state.treeData.value.items.get('timeline:file0001')?.actions).toEqual([{
+      key: 'timeline.compare-with-disk',
+      title: 'Compare with disk',
+      icon: 'action.file-arrow-up-down',
+    }])
     expect(state.projectTreeData.value.items.get('project-timeline:project1')?.actions).toEqual([])
   })
 

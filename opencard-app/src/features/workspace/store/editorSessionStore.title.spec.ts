@@ -109,6 +109,23 @@ describe('editorSessionStore session titles', () => {
     expect(store.openedEditorItems.value[0]?.title).toBeUndefined()
   })
 
+  it('keeps an explicit title when an existing file is saved in place', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('D:/project/.opencard/locale.json', { title: '字典' })
+    store.updateDraftContent(session.id, '{"entries":[]}')
+
+    await store.saveSession(session.id)
+
+    const saved = store.sessions.value.find(candidate => candidate.id === session.id)
+    expect(saved?.name).toBe('locale.json')
+    expect(saved?.title).toBe('字典')
+    expect(saved?.isDirty).toBe(false)
+    expect(store.openedEditorItems.value[0]).toMatchObject({
+      label: 'locale.json',
+      title: '字典',
+    })
+  })
+
   it('drops an explicit title when the session is saved to a new path', async () => {
     const store = useEditorSessionStore()
     const draft = store.createDraftSession({ title: '未命名占位' })
@@ -119,6 +136,17 @@ describe('editorSessionStore session titles', () => {
     const saved = store.sessions.value.find(candidate => candidate.id === draft.id)
     expect(saved?.name).toBe('卡片.ocdocument')
     expect(saved?.title).toBeUndefined()
+  })
+
+  it('drops an explicit title when a rename changes the file name', async () => {
+    const store = useEditorSessionStore()
+    const session = await store.openFile('D:/project/cards/main.ocdocument', { title: '主卡' })
+
+    await store.saveSession(session.id, 'D:/project/cards/renamed.ocdocument')
+
+    const renamed = store.sessions.value.find(candidate => candidate.id === session.id)
+    expect(renamed?.name).toBe('renamed.ocdocument')
+    expect(renamed?.title).toBeUndefined()
   })
 
   it('falls back to the file type icon when the session carries no icon', async () => {

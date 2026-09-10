@@ -19,6 +19,8 @@ export type ResourcePackageBuildOptions = {
   version: string
   files: readonly ResourcePackageContentFile[]
   public?: Partial<ResourcePackagePublicResources>
+  /** 包封面：包根相对路径，指向 files 中已包含的图片。 */
+  cover?: string
   compressionLevel?: number
 }
 
@@ -60,6 +62,7 @@ export async function buildResourcePackageArchive(
     name: options.name,
     version: options.version,
     contentHash,
+    ...(options.cover ? { cover: options.cover } : {}),
     public: normalizePublicResources(options.public),
   }, options.key)
   if (normalized.issues.length > 0) {

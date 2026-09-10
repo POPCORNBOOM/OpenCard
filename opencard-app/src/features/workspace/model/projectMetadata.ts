@@ -1,4 +1,5 @@
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
+import { normalizeProjectRelativeCoverPath } from './projectCover'
 export { PROJECT_PROFILE_FILE_NAME } from './projectStructure'
 
 export type ProjectRemoteResourcePolicy =
@@ -20,6 +21,8 @@ export type ProjectProfile = {
   name?: string
   description?: string
   version?: string
+  /** 项目根相对路径；缺失、越界或指向不存在的文件都按“无封面”处理。 */
+  cover?: string
   remoteResources?: ProjectRemoteResourcePolicy
   exportTask?: ProjectExportTask
 }
@@ -100,6 +103,8 @@ export function parseProjectMetadata(value: unknown): ProjectProfile | null {
   if (typeof value.name === 'string' && value.name !== '') profile.name = value.name
   if (typeof value.description === 'string' && value.description !== '') profile.description = value.description
   if (typeof value.version === 'string' && value.version !== '') profile.version = value.version
+  const cover = normalizeProjectRelativeCoverPath(value.cover)
+  if (cover) profile.cover = cover
   if (value.remoteResources !== undefined) {
     const remoteResources = parseRemoteResourcePolicy(value.remoteResources)
     if (!remoteResources) return null

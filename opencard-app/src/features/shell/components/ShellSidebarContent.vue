@@ -14,7 +14,6 @@ const props = defineProps<{
     :ref="props.list.content.captureInstance"
     class="open-card-shell__sidebar-tree"
     :data="props.list.content.data"
-    :actions="props.list.content.actions"
     :selected-keys="props.list.content.selectedKeys"
     :expanded-keys="props.list.content.expandedKeys"
     :role="props.list.content.role"
@@ -26,7 +25,13 @@ const props = defineProps<{
     :action-visibility="props.list.content.actionVisibility"
     :tab-navigation="props.list.content.tabNavigation"
     :placeholder="props.list.placeholder"
-    @intent="props.list.content.onIntent"
+    @selection-change="props.list.content.onSelectionChange"
+    @expansion-change="props.list.content.onExpansionChange"
+    @expansion-sync="props.list.content.onExpansionSync"
+    @node-activate="props.list.content.onNodeActivate"
+    @action="props.list.content.onAction"
+    @rename-commit="props.list.content.onRenameCommit"
+    @move="props.list.content.onMove"
     @auxclick="props.list.content.onAuxclick"
   />
   <div v-else-if="!props.list.content || props.list.content.type === 'empty'" class="shell-sidebar-empty">

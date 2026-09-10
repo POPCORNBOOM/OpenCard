@@ -50,7 +50,7 @@ import {
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { findProjectWorkspaceState, updateProjectWorkspaceState } from '../../settings/model/workspaceState'
 import { taskScheduler } from '../../../utils/taskScheduler'
-import type { OcTreeDropPosition } from '../../../shared/ui/tree/tree.types'
+import type { OcNodeDropPosition } from '../../../shared/ui/node/node.types'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   clearProjectFonts,
@@ -149,7 +149,7 @@ type RenameEntryResult =
 export type WorkspaceEntryMoveRequest = {
   key: string
   targetKey: string | null
-  position: OcTreeDropPosition
+  position: OcNodeDropPosition
 }
 
 const projectPath = ref('')
@@ -814,12 +814,6 @@ async function resetProjectWorkspaceState(): Promise<void> {
 
 async function readFile(path: string) {
   return await fileSystemService.readFile(resolveProjectPath(path))
-}
-
-async function isProjectAvailable(path: string): Promise<boolean> {
-  const normalizedPath = normalizePath(path)
-  if (!normalizedPath) return false
-  return await fileSystemService.fileExists(normalizedPath)
 }
 
 async function saveFile(relativePath: string, content: string) {
@@ -1675,7 +1669,6 @@ export function useProjectStore() {
     resolveResourcePathFromFile,
     resolveResourceAssetSrcFromFile,
     readFile,
-    isProjectAvailable,
     saveFile,
     createFolder,
     createFile,

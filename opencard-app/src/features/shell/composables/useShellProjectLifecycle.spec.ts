@@ -6,6 +6,7 @@ function createHarness(options?: {
   currentProject?: string
   selectedProject?: string | null
   page?: ShellPage
+  closeOutcome?: 'completed' | 'prompted'
 }) {
   const events: string[] = []
   const projectPath = ref(options?.currentProject ?? 'D:/old-project')
@@ -20,8 +21,9 @@ function createHarness(options?: {
   const readDirectoryEntries = vi.fn(async () => {
     events.push('load-tree')
   })
-  const detachWorkspaceSessions = vi.fn((path: string) => {
-    events.push(`detach:${path}`)
+  const closeCurrentProject = vi.fn(async () => {
+    events.push('close-current-project')
+    return options?.closeOutcome ?? 'completed'
   })
   const closeWorkspaceSessions = vi.fn(() => {
     events.push('close-sessions')
@@ -43,10 +45,10 @@ function createHarness(options?: {
       readDirectoryEntries,
     },
     sessions: {
-      detachWorkspaceSessions,
       closeWorkspaceSessions,
       openFile,
     },
+    closeCurrentProject,
     settings: {
       rememberRecentProject,
       forgetRecentProject,
@@ -64,7 +66,7 @@ function createHarness(options?: {
     chooseProjectDirectory,
     setProjectPath,
     readDirectoryEntries,
-    detachWorkspaceSessions,
+    closeCurrentProject,
     closeWorkspaceSessions,
     openFile,
     rememberRecentProject,
@@ -91,7 +93,7 @@ describe('useShellProjectLifecycle', () => {
     await expect(activate(harness)).resolves.toBe(true)
 
     expect(harness.events).toEqual([
-      'detach:D:/old-project',
+      'close-current-project',
       'set:D:/new-project',
       'remember:D:/new-project',
     ])
@@ -108,7 +110,7 @@ describe('useShellProjectLifecycle', () => {
     })).resolves.toBe(true)
 
     expect(harness.events).toEqual([
-      'detach:D:/old-project',
+      'close-current-project',
       'set:D:/new-project',
       'remember:D:/new-project',
       'open-entry:cards/main.ocdocument',
@@ -116,12 +118,12 @@ describe('useShellProjectLifecycle', () => {
     expect(harness.readDirectoryEntries).not.toHaveBeenCalled()
   })
 
-  it('does not detach sessions when activating the current project again', async () => {
+  it('does not close the current project when activating the current project again', async () => {
     const harness = createHarness({ currentProject: 'D:\\same-project' })
 
     await harness.lifecycle.openRecentProject('D:/same-project')
 
-    expect(harness.detachWorkspaceSessions).not.toHaveBeenCalled()
+    expect(harness.closeCurrentProject).not.toHaveBeenCalled()
   })
 
   it('does nothing when project selection is cancelled', async () => {
@@ -129,7 +131,7 @@ describe('useShellProjectLifecycle', () => {
 
     await expect(harness.lifecycle.openProject()).resolves.toBe(false)
 
-    expect(harness.detachWorkspaceSessions).not.toHaveBeenCalled()
+    expect(harness.closeCurrentProject).not.toHaveBeenCalled()
     expect(harness.setProjectPath).not.toHaveBeenCalled()
     expect(harness.shellPage.value).toEqual({ type: 'welcome' })
   })
@@ -140,11 +142,37 @@ describe('useShellProjectLifecycle', () => {
     await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(true)
 
     expect(harness.events).toEqual([
-      'detach:D:/old-project',
+      'close-current-project',
       'set:D:/new-project',
       'remember:D:/new-project',
     ])
     expect(harness.shellPage.value).toEqual({ type: 'workbench' })
+  })
+
+  it('waits for the unsaved confirmation before switching projects', async () => {
+    const harness = createHarness({ closeOutcome: 'prompted' })
+
+    await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
+    expect(harness.setProjectPath).not.toHaveBeenCalled()
+    expect(harness.loadTemplates).not.toHaveBeenCalled()
+
+    harness.setProjectPath.mockImplementationOnce(async (path: string) => {
+      harness.events.push(`set:${path}`)
+      harness.projectPath.value = path
+    })
+    await expect(harness.lifecycle.resumeDeferredActivation()).resolves.toBe(true)
+    expect(harness.events).toEqual(['close-current-project', 'set:D:/new-project', 'remember:D:/new-project'])
+    expect(harness.shellPage.value).toEqual({ type: 'workbench' })
+  })
+
+  it('drops a deferred activation when the user cancels the unsaved confirmation', async () => {
+    const harness = createHarness({ closeOutcome: 'prompted' })
+
+    await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
+    harness.lifecycle.dropDeferredActivation()
+
+    await expect(harness.lifecycle.resumeDeferredActivation()).resolves.toBe(false)
+    expect(harness.setProjectPath).not.toHaveBeenCalled()
   })
 
   it('rejects a second activation while the first one is still running', async () => {

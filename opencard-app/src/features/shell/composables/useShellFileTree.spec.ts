@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
-  projectEntryMoreActionKey,
+  PROJECT_ENTRY_MORE_ACTION_KEY,
   useShellFileTree,
 } from './useShellFileTree'
 
@@ -28,8 +28,11 @@ describe('useShellFileTree opened editors', () => {
       ensureProjectManagementStructure: vi.fn(async () => undefined),
     })
 
-    expect(openedEditorTreeData.value.items.get('session-1')?.actions)
-      .toEqual([OPENED_EDITOR_CLOSE_ACTION_KEY])
+    expect(openedEditorTreeData.value.items.get('session-1')?.actions).toEqual([{
+      key: OPENED_EDITOR_CLOSE_ACTION_KEY,
+      title: 'sidebar.closeEditor',
+      icon: 'action.close',
+    }])
   })
 
   it('projects project entries as draggable, renamable action hosts', () => {
@@ -49,7 +52,7 @@ describe('useShellFileTree opened editors', () => {
     expect(projectTreeData.value.items.get('D:/project/cards/main.ocdocument')).toMatchObject({
       renamable: true,
       draggable: true,
-      actions: [projectEntryMoreActionKey('D:/project/cards/main.ocdocument')],
+      actions: [{ key: PROJECT_ENTRY_MORE_ACTION_KEY }],
       renameSelection: { start: 0, end: 4 },
     })
   })

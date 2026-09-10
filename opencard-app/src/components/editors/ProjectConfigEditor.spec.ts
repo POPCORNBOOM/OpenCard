@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProjectConfigEditor from './ProjectConfigEditor.vue'
 import ProjectConfigSection from './ProjectConfigSection.vue'
+import ProjectCoverField from './ProjectCoverField.vue'
 import ProjectExportTaskEditor from './ProjectExportTaskEditor.vue'
 import OcOptionGroup from '../standard/OcOptionGroup.vue'
 import OcButton from '../base/OcButton.vue'
@@ -165,6 +166,25 @@ describe('ProjectConfigEditor', () => {
     expect(useAppSettingsStore().settings.value.projectCreation.workspaceStates['D:/Demo']).toEqual({
       expandedDirectories: [],
     })
+  })
+
+  it('stores the project cover as a project-relative path', async () => {
+    const wrapper = mount(ProjectConfigEditor, {
+      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{"name":"Demo"}' },
+    })
+
+    expect(wrapper.get('[data-field-key="cover"]').text()).toContain('projectConfig.fields.cover')
+    wrapper.getComponent(ProjectCoverField).vm.$emit('update:modelValue', 'assets/cover.png')
+    await wrapper.vm.$nextTick()
+
+    const updates = wrapper.emitted('update:modelValue') ?? []
+    expect(JSON.parse(updates[updates.length - 1]?.[0] as string))
+      .toEqual({ name: 'Demo', cover: 'assets/cover.png' })
+
+    wrapper.getComponent(ProjectCoverField).vm.$emit('update:modelValue', '')
+    await wrapper.vm.$nextTick()
+    const cleared = wrapper.emitted('update:modelValue') ?? []
+    expect(JSON.parse(cleared[cleared.length - 1]?.[0] as string)).toEqual({ name: 'Demo' })
   })
 
   it('shows the embedded JSON repair editor for invalid content', () => {

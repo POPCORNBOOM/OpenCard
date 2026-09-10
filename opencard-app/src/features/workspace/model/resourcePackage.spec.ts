@@ -44,6 +44,23 @@ describe('package manifest public fonts', () => {
   })
 })
 
+describe('package manifest cover', () => {
+  it('normalizes a declared package cover and ignores unsafe or missing ones', () => {
+    expect(normalizeResourcePackageManifest({ ...manifest([]), cover: ' .opencard\\cover.png ' })
+      .manifest.cover).toBe('.opencard/cover.png')
+    expect(normalizeResourcePackageManifest({ ...manifest([]), cover: '../cover.png' })
+      .manifest.cover).toBeUndefined()
+    expect(normalizeResourcePackageManifest({ ...manifest([]), cover: 7 })
+      .manifest.cover).toBeUndefined()
+    expect(normalizeResourcePackageManifest(manifest([])).manifest.cover).toBeUndefined()
+  })
+
+  it('never reports a cover problem as a manifest issue', () => {
+    expect(normalizeResourcePackageManifest({ ...manifest([]), cover: 'nested/../cover.png' }).issues)
+      .toEqual([])
+  })
+})
+
 describe('package manifest public icon series', () => {
   it('normalizes summaries and rejects duplicates, invalid counts, and the removed string shape', () => {
     const normalized = normalizeResourcePackageManifest(manifest([], [

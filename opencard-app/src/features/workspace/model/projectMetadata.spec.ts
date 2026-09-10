@@ -54,6 +54,19 @@ describe('project profile metadata', () => {
     expect(JSON.parse(serializeProjectMetadata({ name: '', description: '', version: '' }))).toEqual({})
   })
 
+  it('normalizes a project cover path and drops unsafe or missing ones', () => {
+    expect(parseProjectMetadata({ cover: '  assets\\cover.png  ' })).toEqual({ cover: 'assets/cover.png' })
+    expect(parseProjectMetadata({ cover: '.opencard/cover.webp' })).toEqual({ cover: '.opencard/cover.webp' })
+    expect(parseProjectMetadata({ name: 'Demo', cover: '../cover.png' })).toEqual({ name: 'Demo' })
+    expect(parseProjectMetadata({ name: 'Demo', cover: 7 })).toEqual({ name: 'Demo' })
+    expect(parseProjectMetadata({ name: 'Demo', cover: '' })).toEqual({ name: 'Demo' })
+  })
+
+  it('round-trips a declared cover without inventing a file check', () => {
+    expect(JSON.parse(serializeProjectMetadata({ name: 'Demo', cover: 'assets/missing.png' })))
+      .toEqual({ name: 'Demo', cover: 'assets/missing.png' })
+  })
+
   it('round-trips the project export task configuration', () => {
     const exportTask = {
       documentPaths: ['cards/main.ocdocument'],

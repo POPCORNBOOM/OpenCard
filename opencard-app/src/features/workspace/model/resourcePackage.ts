@@ -1,4 +1,5 @@
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
+import { normalizeProjectRelativeCoverPath } from './projectCover'
 import { PROJECT_INTERNAL_DIRECTORY_NAME, PROJECT_PACKAGE_DIRECTORY } from './projectStructure'
 
 export const RESOURCE_PACKAGE_TYPE = 'opencard-resource-package' as const
@@ -47,6 +48,8 @@ export type ResourcePackageManifest = {
   key: string
   name: string
   version: string
+  /** 包根相对路径；缺失或指向不存在的文件都按“无封面”处理。 */
+  cover?: string
   contentHash: string
   public: ResourcePackagePublicResources
 }
@@ -173,6 +176,7 @@ export function normalizeResourcePackageManifest(
   const name = typeof source.name === 'string' && source.name.trim() ? source.name.trim() : resolvedKey
   if (name === resolvedKey && source.name !== undefined) addIssue(issues, 'name', 'Missing package name used the package Key')
   const version = normalizeVersion(source.version, '0.0.0', issues, 'version')
+  const cover = normalizeProjectRelativeCoverPath(source.cover)
   const publicSource = isRecord(source.public) ? source.public : {}
   if (!isRecord(source.public) && source.public !== undefined) addIssue(issues, 'public', 'Expected an object; used empty public indexes')
   return {
@@ -181,6 +185,7 @@ export function normalizeResourcePackageManifest(
       key: resolvedKey,
       name,
       version,
+      ...(cover ? { cover } : {}),
       contentHash: normalizeHash(source.contentHash, issues, 'contentHash'),
       public: {
         fonts: normalizePublicFonts(publicSource.fonts, issues),

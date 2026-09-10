@@ -62,11 +62,12 @@
             v-if="filteredIssueTreeData.rootKeys.length > 0"
             :data="filteredIssueTreeData"
             :expanded-keys="expandedIssueKeys"
-            :actions="issueTreeActions"
             activation-mode="double-click"
             selection-mode="none"
             fill
-            @intent="handleIssueTreeIntent"
+            @expansion-change="handleIssueExpansionChange"
+            @action="handleIssueAction"
+            @node-activate="handleIssueActivate"
           />
           <div v-else class="workspace-bottom-panel__empty">{{ issueEmptyLabel }}</div>
         </div>
@@ -140,7 +141,13 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
+import type {
+  OcNodeActionEvent,
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeExpansionEvent,
+} from '../../../shared/ui/node/node.types'
+import { COPY_ISSUE_ACTION_KEY } from '../composables/useWorkspaceIssues'
 import type {
   EditorIssueSeverity,
   SessionIssueNavigationRequest,
@@ -160,7 +167,7 @@ const props = defineProps<{
   activeTab: WorkspaceBottomTab
   issueCount: number
   issueSeverity: EditorIssueSeverity | null
-  issueTreeData: OcTreeData
+  issueTreeData: OcNodeCollection
   issueNavigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
   issueDetails?: ReadonlyMap<string, import('../../editor-runtime/model/editorIssue').EditorIssue>
   expandedIssueKeys: readonly string[]
@@ -169,7 +176,6 @@ const props = defineProps<{
   outputLabel: string
   issueEmptyLabel: string
   issueFilterLabel: string
-  issueCopyLabel: string
   outputEmptyLabel: string
   outputFilterEmptyLabel: string
   outputClearLabel: string
@@ -197,10 +203,7 @@ const toggleRef = ref<HTMLButtonElement | null>(null)
 const isToggleHovered = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
 const issueFilter = ref('')
-const issueTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['copy-issue', { title: props.issueCopyLabel, icon: 'action.copy', iconTone: 'muted' }],
-]))
-const filteredIssueTreeData = computed<OcTreeData>(() => {
+const filteredIssueTreeData = computed<OcNodeCollection>(() => {
   const query = issueFilter.value.trim().toLocaleLowerCase()
   if (!query) return props.issueTreeData
   const items = new Map(props.issueTreeData.items)
@@ -336,18 +339,16 @@ function handleTabKeydown(event: KeyboardEvent, currentTab: WorkspaceBottomTab):
   emit('tab-change', nextTab)
 }
 
-function handleIssueTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'expansion.change') {
-    emit('issue-expansion-change', intent.key, intent.expanded)
-    return
-  }
-  if (intent.type === 'action.invoke' && intent.actionKey === 'copy-issue') {
-    void copyIssue(intent.key)
-    return
-  }
-  if (intent.type !== 'node.activate') return
+function handleIssueExpansionChange(event: OcNodeExpansionEvent): void {
+  emit('issue-expansion-change', event.key, event.expanded)
+}
 
-  const target = props.issueNavigationTargets.get(intent.key)
+function handleIssueAction(event: OcNodeActionEvent): void {
+  if (event.actionKey === COPY_ISSUE_ACTION_KEY) void copyIssue(event.key)
+}
+
+function handleIssueActivate(event: OcNodeActivateEvent): void {
+  const target = props.issueNavigationTargets.get(event.key)
   if (target) emit('issue-navigate', target)
 }
 

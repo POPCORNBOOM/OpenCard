@@ -105,6 +105,8 @@ export interface OcActionDefinition {
   badgeLabel?: string
   shortcut?: readonly OcShortcutPart[]
   disabled?: boolean
+  /** Explanation shown with the title while the action is disabled. */
+  disabledReason?: string
   children?: readonly OcActionMenuEntry[]
 }
 

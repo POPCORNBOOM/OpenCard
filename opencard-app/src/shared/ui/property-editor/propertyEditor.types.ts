@@ -1,7 +1,7 @@
 import type { IconToken } from '../icon/iconRegistry'
 import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
-import type { OcItemTailPart } from '../itemViewModel.types'
+import type { OcNodeTailPart } from '../node/node.types'
 import type { OcActionDefinition } from '../../../components/standard/OcActionMenu.vue'
 
 export type PropertyEditorSortMode = 'category' | 'alphabetical'
@@ -125,7 +125,7 @@ type PropertyEditorFieldBase = {
     provider?: PropertyCompletionProvider
     catalog?: ProjectIconCatalog
   }
-  tail?: OcItemTailPart | readonly OcItemTailPart[]
+  tail?: OcNodeTailPart | readonly OcNodeTailPart[]
 }
 
 type ScalarPropertyEditorFieldDefinition = {
@@ -163,10 +163,6 @@ export type PropertyEditorInput = {
   title?: string
   record: PropertyEditorRecord
   fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
-}
-
-export type PropertyEditorTailActionIntent = PropertyEditorFieldIntent & {
-  actionKey: string
 }
 
 export type PropertyEditorCategoryDefinition = {

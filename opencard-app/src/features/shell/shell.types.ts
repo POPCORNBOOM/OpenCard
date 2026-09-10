@@ -1,4 +1,14 @@
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeKey } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNodeActionEvent,
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeExpansionEvent,
+  OcNodeExpansionSyncEvent,
+  OcNodeKey,
+  OcNodeMoveEvent,
+  OcNodeRenameCommitEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import type { OcActionMenuEntry } from '../../components/standard/OcActionMenu.vue'
 
@@ -27,10 +37,9 @@ export type ShellWorkspaceAction = ShellAction | string
 
 export interface ShellTreeContent {
   type: 'tree';
-  data: OcTreeData;
-  actions?: ReadonlyMap<string, OcTreeActionDefinition>;
-  selectedKeys?: readonly OcTreeKey[];
-  expandedKeys?: readonly OcTreeKey[];
+  data: OcNodeCollection;
+  selectedKeys?: readonly OcNodeKey[];
+  expandedKeys?: readonly OcNodeKey[];
   role?: 'tree' | 'listbox' | 'menu';
   selectionMode?: 'none' | 'single' | 'multiple';
   activationMode?: 'none' | 'single-click' | 'double-click';
@@ -39,7 +48,13 @@ export interface ShellTreeContent {
   virtualized?: boolean;
   actionVisibility?: 'on-interaction' | 'always';
   tabNavigation?: 'roving' | 'none';
-  onIntent?: (intent: OcTreeIntent) => void;
+  onSelectionChange?: (event: OcNodeSelectionEvent) => void;
+  onExpansionChange?: (event: OcNodeExpansionEvent) => void;
+  onExpansionSync?: (event: OcNodeExpansionSyncEvent) => void;
+  onNodeActivate?: (event: OcNodeActivateEvent) => void;
+  onAction?: (event: OcNodeActionEvent) => void;
+  onRenameCommit?: (event: OcNodeRenameCommitEvent) => void;
+  onMove?: (event: OcNodeMoveEvent) => void;
   onAuxclick?: (event: MouseEvent) => void;
   captureInstance?: (instance: unknown) => void;
 }

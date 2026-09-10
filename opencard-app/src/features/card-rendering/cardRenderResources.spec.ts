@@ -85,7 +85,7 @@ describe('cardRenderResources', () => {
       iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
       packages: new Map([['theme', {
         manifest: normalizeResourcePackageManifest({}, 'theme').manifest,
-        rootPath: packageEnvironment.rootPath!, issues: [],
+        rootPath: packageEnvironment.rootPath!, cover: null, issues: [],
       }]]),
     }
     const resolver = createCardResourceResolver(createCardRenderResourceContext({
@@ -203,7 +203,7 @@ describe('cardRenderResources', () => {
           type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.0.0', contentHash: '',
           public: { fonts: [], iconSeries: [] },
         },
-        rootPath: '/project/.opencard/packages/theme', issues: [],
+        rootPath: '/project/.opencard/packages/theme', cover: null, issues: [],
       }]]),
       issues: [],
     }

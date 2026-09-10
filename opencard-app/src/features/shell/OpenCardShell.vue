@@ -110,8 +110,12 @@
             <WelcomeWorkspace
               v-else-if="isWelcomeMode"
               :activation-error="projectActivationError"
+              :covers="welcomeCoverWallCovers"
+              :highlight-keys="selectedRecentProjectKeys"
+              :background-visible="settingsStore.settings.value.workspace.showWelcomeBackground"
               @new-project="openCreateProject"
               @open-project="openProject"
+              @update:background-visible="settingsStore.updateSetting('workspace.showWelcomeBackground', $event)"
             />
             <WorkbenchWorkspace v-else-if="isWorkbenchMode" :has-active-editor="Boolean(activeSession)">
               <Transition name="shell-editor-fade" mode="out-in">
@@ -149,7 +153,6 @@
             :output-label="t('app.problems.outputTab')"
             :issue-empty-label="t('app.problems.empty')"
             :issue-filter-label="t('app.problems.filter')"
-            :issue-copy-label="t('app.problems.copyIssue')"
             :output-empty-label="t('app.problems.outputEmpty')"
             :output-filter-empty-label="t('app.problems.outputFilterEmpty')"
             :output-clear-label="t('app.problems.clearOutput')"
@@ -238,7 +241,7 @@
       @mark-discard="markSelectedUnsavedDiscard"
       @mark-save="markSelectedUnsavedSave"
       @change-decision="resetUnsavedDecision"
-      @cancel="cancelUnsavedClose"
+      @cancel="cancelUnsavedCloseRequest"
       @confirm="confirmUnsavedClose"
       @discard-single="discardSingleUnsavedEditor"
       @save-single="saveSingleUnsavedEditor"
@@ -311,7 +314,18 @@ import OcIcon from '../../components/base/OcIcon.vue'
 import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeExpansionEvent,
+  OcNodeExpansionSyncEvent,
+  OcNodeMoveEvent,
+  OcNodeRenameCommitEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
@@ -323,6 +337,7 @@ import CreateProjectWorkspace from '../project-templates/components/CreateProjec
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
 import WorkbenchWorkspace from './components/WorkbenchWorkspace.vue'
 import WelcomeWorkspace from './components/WelcomeWorkspace.vue'
+import type { WelcomeCoverWallCover } from './components/WelcomeCoverWall.vue'
 import AboutWorkspace from './components/AboutWorkspace.vue'
 import WorkspaceBottomPanel, {
   type WorkspaceBottomTab,
@@ -385,21 +400,19 @@ import { useShellCloseCoordinator } from './composables/useShellCloseCoordinator
 import type { ApplicationCloseAction } from './composables/useUnsavedSessionGuard'
 import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
+import { recentProjectKey, useRecentProjectSnapshots } from './composables/useRecentProjectSnapshots'
 import { useShellWindow } from './composables/useShellWindow'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
   OPENED_EDITOR_CLOSE_ACTION_KEY,
+  PROJECT_ENTRY_CONFIRM_DELETE_ACTION_KEY,
   PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
   PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
   PROJECT_ENTRY_RENAME_ACTION_KEY,
   PROJECT_ENTRY_REVEAL_ACTION_KEY,
-  isProjectEntryConfirmDeleteActionKey,
-  projectEntryConfirmDeleteActionKey,
-  projectEntryDeleteActionKey,
-  projectEntryMoreActionKey,
-  projectPackageDeleteActionKey,
-  projectPackageVerifyActionKey,
+  PROJECT_PACKAGE_DELETE_ACTION_KEY,
+  PROJECT_PACKAGE_VERIFY_ACTION_KEY,
   useShellFileTree,
 } from './composables/useShellFileTree'
 import ShellSidebar from './components/ShellSidebar.vue'
@@ -475,7 +488,7 @@ const CARD_RENDER_IMAGE_ACTION_KEY = 'card-designer.render-image'
 const CARD_RENDER_IMAGE_OPTION_PREFIX = `${CARD_RENDER_IMAGE_ACTION_KEY}.`
 const DICTIONARY_IMPORT_ACTION_KEY = 'dictionary.workbook.import'
 const DICTIONARY_EXPORT_ACTION_KEY = 'dictionary.workbook.export'
-const EMPTY_TREE_DATA: OcTreeData = {
+const EMPTY_TREE_DATA: OcNodeCollection = {
   rootKeys: [],
   items: new Map(),
   children: new Map(),
@@ -493,7 +506,6 @@ const {
   fileChangeRevision,
   chooseProjectDirectory,
   ensureProjectManagementStructure,
-  isProjectAvailable,
   setProjectPath,
   isDirectoryExpanded,
   readDirectoryEntries,
@@ -609,7 +621,7 @@ const {
   start: startShellWindow,
   dispose: disposeShellWindow,
 } = useShellWindow({
-  requestApplicationClose: () => requestApplicationClose(),
+  requestApplicationClose: async () => { await requestApplicationClose() },
   handleExternalOpenPaths,
   notifyWindowControlError: () => notifyError(t('app.notifications.windowControlFailed')),
 })
@@ -786,7 +798,6 @@ const {
   setSessionMode,
   closeSession,
   closeWorkspaceSessions,
-  detachWorkspaceSessions,
   closeSessionsByPath,
   saveSession,
   saveActiveSession,
@@ -825,7 +836,12 @@ const timelineFilePath = computed(() => {
   if (!projectPath.value || session?.resourceKind !== 'workspace' || !session.path) return null
   return getRelativeProjectPath(session.path)
 })
-const projectTimeline = useProjectTimeline(projectPath, timelineFilePath, locale)
+const projectTimeline = useProjectTimeline(
+  projectPath,
+  timelineFilePath,
+  locale,
+  computed(() => t('sidebar.timelineCompareWithDisk')),
+)
 const {
   treeData: timelineTreeData,
   projectTreeData: timelineProjectTreeData,
@@ -882,28 +898,18 @@ const editorComparison = computed(() => {
     after: { ...session.after, revisionId: session.after.commitId, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
   }
 })
-const timelineTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [TIMELINE_COMPARE_WITH_DISK_ACTION_KEY, {
-    title: t('sidebar.timelineCompareWithDisk'),
-    icon: 'action.file-arrow-up-down',
-  }],
-]))
-function handleVersionGraphTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'expansion.change') {
-    versionGraphExpandedKeys.value = intent.expanded
-      ? [...new Set([...versionGraphExpandedKeys.value, intent.key])]
-      : versionGraphExpandedKeys.value.filter(key => key !== intent.key)
-    return
-  }
-  if (intent.type === 'expansion.sync') versionGraphExpandedKeys.value = intent.expandedKeys
+function handleVersionGraphExpansionChange(event: OcNodeExpansionEvent): void {
+  versionGraphExpandedKeys.value = event.expanded
+    ? [...new Set([...versionGraphExpandedKeys.value, event.key])]
+    : versionGraphExpandedKeys.value.filter(key => key !== event.key)
 }
-async function handleTimelineTreeIntent(intent: OcTreeIntent) {
-  if (
-    intent.type !== 'action.invoke'
-    || intent.actionKey !== TIMELINE_COMPARE_WITH_DISK_ACTION_KEY
-    || !timelineFilePath.value
-  ) return
-  const commitId = intent.key.startsWith('timeline:') ? intent.key.slice('timeline:'.length) : null
+
+function handleVersionGraphExpansionSync(event: OcNodeExpansionSyncEvent): void {
+  versionGraphExpandedKeys.value = event.expandedKeys
+}
+async function handleTimelineAction(event: OcNodeActionEvent) {
+  if (event.actionKey !== TIMELINE_COMPARE_WITH_DISK_ACTION_KEY || !timelineFilePath.value) return
+  const commitId = event.key.startsWith('timeline:') ? event.key.slice('timeline:'.length) : null
   const sessionId = activeSession.value?.id
   if (!commitId || !sessionId) return
 
@@ -987,6 +993,8 @@ const {
   openRecentProject,
   relocateRecentProject: relocateRecentProjectPath,
   activateCreatedProject: handleProjectCreated,
+  resumeDeferredActivation,
+  dropDeferredActivation,
   enterCreateProject,
   completeProjectClose,
   ensureProjectTreeLoaded,
@@ -998,10 +1006,11 @@ const {
     readDirectoryEntries,
   },
   sessions: {
-    detachWorkspaceSessions,
     closeWorkspaceSessions,
     openFile: openEditorSession,
   },
+  // 打开另一个项目前先按“关闭项目”流程收尾，未保存的改动会先询问。
+  closeCurrentProject: () => requestProjectClose('current'),
   settings: {
     rememberRecentProject: settingsStore.rememberRecentProject,
     forgetRecentProject: settingsStore.forgetRecentProject,
@@ -1047,11 +1056,21 @@ const {
   saveSession,
   completions: {
     sessions: performSessionClose,
-    project: completeProjectClose,
+    project: async (destination) => {
+      await completeProjectClose(destination)
+      // 关闭当前项目如果是为打开新项目服务的，确认之后继续打开。
+      await resumeDeferredActivation()
+    },
     trash: performPathTrash,
     application: performApplicationClose,
   },
 })
+
+/** 用户取消关闭时，一并放弃“关完再打开新项目”的暂存请求。 */
+function cancelUnsavedCloseRequest(): void {
+  dropDeferredActivation()
+  cancelUnsavedClose()
+}
 
 /** The list label already carries the unsaved marker, so an explicit title replaces only the name part. */
 function formatSessionTitle(session: { name: string; title?: string; resourceKind: 'workspace' | 'external' | 'draft' }): string {
@@ -1089,7 +1108,7 @@ const {
   reportSessionIssueSnapshot,
   clearAllSessionIssues,
   setIssueNodeExpanded,
-} = useWorkspaceIssues({ sessions })
+} = useWorkspaceIssues({ sessions, copyIssueLabel: t('app.problems.copyIssue') })
 const visibleIssueTreeData = computed(() => isWorkbenchMode.value ? issueTreeData.value : EMPTY_TREE_DATA)
 const visibleIssueDetails = computed(() => isWorkbenchMode.value ? issueDetails.value : new Map())
 const visibleIssueCount = computed(() => isWorkbenchMode.value ? issueCount.value : 0)
@@ -1155,55 +1174,77 @@ const {
     : null),
 })
 
-function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcTreeItem> {
-  const items = new Map<string, OcTreeItem>()
+function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcNode> {
+  const items = new Map<string, OcNode>()
   for (const template of templates) {
     items.set(template.key, { label: resolveProjectTemplateName(template, locale.value), icon: 'file.opencard' })
   }
   return items
 }
 
-function createEmptyCatalogItem(key: string, label: string): [string, OcTreeItem] {
+function createEmptyCatalogItem(key: string, label: string): [string, OcNode] {
   return [key, { label, icon: 'file.generic', disabled: true }]
-}
-
-function recentProjectKey(path: string): string {
-  return `recent-project:${path}`
 }
 
 function createRecentProjectTreeData(
   paths: readonly string[],
   availability: ReadonlyMap<string, boolean>,
-): OcTreeData {
-  const items = new Map<string, OcTreeItem>()
+): OcNodeCollection {
+  const items = new Map<string, OcNode>()
   const rootKeys = paths.map((path) => {
     const key = recentProjectKey(path)
     const isMissing = availability.get(key) === false
+    const actions: OcNodeAction[] = [
+      isMissing
+        ? {
+            key: RECENT_PROJECT_RELOCATE_ACTION_KEY,
+            title: t('sidebar.relocateRecentProject'),
+            icon: 'status.folder-open',
+          }
+        : {
+            key: RECENT_PROJECT_OPEN_ACTION_KEY,
+            title: t('sidebar.openRecentProject'),
+            icon: 'action.play',
+            iconTone: 'success',
+          },
+    ]
+    if (!isMissing) {
+      actions.push({
+        key: RECENT_PROJECT_REVEAL_ACTION_KEY,
+        title: t('sidebar.fileActions.reveal'),
+        icon: 'status.folder-open',
+      })
+    }
+    actions.push({
+      key: RECENT_PROJECT_REMOVE_ACTION_KEY,
+      title: t('sidebar.removeRecentProject'),
+      icon: 'action.close',
+    })
     items.set(key, {
       label: path.split(/[/\\]/).filter(Boolean).pop() || path,
       tail: path,
       icon: isMissing ? 'status.folder-alert' : 'status.folder-open',
       iconTone: isMissing ? 'warning' : undefined,
-      actions: [
-        isMissing ? RECENT_PROJECT_RELOCATE_ACTION_KEY : RECENT_PROJECT_OPEN_ACTION_KEY,
-        ...(!isMissing ? [RECENT_PROJECT_REVEAL_ACTION_KEY] : []),
-        RECENT_PROJECT_REMOVE_ACTION_KEY,
-      ],
+      actions,
     })
     return key
   })
   return { rootKeys, items, children: new Map() }
 }
 
-const templateTreeData = computed<OcTreeData>(() => {
+const templateTreeData = computed<OcNodeCollection>(() => {
   const builtinKeys = templateStore.builtinTemplates.value.map(template => template.key)
   const userKeys = templateStore.userTemplates.value.map(template => template.key)
   const userChildren = userKeys.length > 0 ? userKeys : ['template-empty:user']
-  const items = new Map<string, OcTreeItem>([
+  const items = new Map<string, OcNode>([
     [USER_TEMPLATES_GROUP_KEY, {
       label: t('projectTemplates.sections.user'),
       icon: 'file.package',
-      actions: [IMPORT_TEMPLATE_ACTION_KEY],
+      actions: [{
+        key: IMPORT_TEMPLATE_ACTION_KEY,
+        title: t('projectTemplates.actions.import'),
+        icon: 'action.import',
+      }],
     }],
     ...createTemplateItems(templateStore.templates.value),
     ...(!userKeys.length ? [createEmptyCatalogItem('template-empty:user', t('projectTemplates.status.noUserTemplates'))] : []),
@@ -1216,8 +1257,20 @@ const templateTreeData = computed<OcTreeData>(() => {
     ]),
   }
 })
-const iconPackTreeData = computed<OcTreeData>(() => createIconPackTreeData(iconPackStore.packs.value))
-const recentProjectAvailability = ref<ReadonlyMap<string, boolean>>(new Map())
+const iconPackTreeData = computed<OcNodeCollection>(() => createIconPackTreeData(iconPackStore.packs.value))
+const recentProjectSnapshots = useRecentProjectSnapshots({
+  recentProjects: computed(() => settingsStore.settings.value.projectCreation.recentProjects),
+})
+const recentProjectAvailability = computed<ReadonlyMap<string, boolean>>(() => new Map(
+  [...recentProjectSnapshots.snapshots.value].map(([key, snapshot]) => [key, snapshot.available]),
+))
+const welcomeCoverWallCovers = computed<readonly WelcomeCoverWallCover[]>(() => (
+  settingsStore.settings.value.projectCreation.recentProjects.flatMap(path => {
+    const snapshot = recentProjectSnapshots.snapshots.value.get(recentProjectKey(path))
+    if (!snapshot?.available || !snapshot.cover) return []
+    return [{ projectKey: recentProjectKey(path), src: snapshot.cover.src }]
+  })
+))
 const recentProjectTreeData = computed(() => (
   createRecentProjectTreeData(
     settingsStore.settings.value.projectCreation.recentProjects,
@@ -1229,19 +1282,11 @@ watch(projectPath, () => {
   selectedRecentProjectKeys.value = []
 }, { flush: 'sync' })
 
-let recentProjectProbeRevision = 0
-watch(
-  () => settingsStore.settings.value.projectCreation.recentProjects,
-  async (paths) => {
-    const revision = ++recentProjectProbeRevision
-    const entries = await Promise.all(paths.map(async (path) => (
-      [recentProjectKey(path), await isProjectAvailable(path)] as const
-    )))
-    if (revision !== recentProjectProbeRevision) return
-    recentProjectAvailability.value = new Map(entries)
-  },
-  { immediate: true },
-)
+/** 回到欢迎页时重新探测封面，让刚设置的封面立即可见。 */
+watch(isWelcomeMode, (welcome) => {
+  if (welcome) void recentProjectSnapshots.refresh()
+})
+
 watch(
   () => templateStore.templates.value,
   (templates) => {
@@ -1271,130 +1316,6 @@ const shellMainStyle = computed(() => ({
   '--shell-sidebar-width': effectiveSidebarCollapsed.value ? '0px' : `${sidebarWidth.value}px`,
 }))
 
-const openedEditorActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [OPENED_EDITOR_CLOSE_ACTION_KEY, {
-    title: t('sidebar.closeEditor', 'Close editor'),
-    icon: 'action.close',
-  }],
-]))
-
-const templateCatalogActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [IMPORT_TEMPLATE_ACTION_KEY, {
-    title: t('projectTemplates.actions.import'),
-    icon: 'action.import',
-  }],
-]))
-
-const iconPackActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [REGISTER_ICON_PACK_ACTION_KEY, {
-    title: t('projectTemplates.actions.registerIconPack'),
-    icon: 'action.add',
-  }],
-  [REGISTERED_ICON_PACK_ACTION_KEY, {
-    title: t('projectTemplates.status.iconPackRegistered'),
-    icon: 'action.check',
-    iconTone: 'success',
-  }],
-]))
-
-const projectEntryActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
-  const actions = new Map<string, OcTreeActionDefinition>([[PROJECT_ENTRY_RENAME_ACTION_KEY, {
-    title: t('sidebar.fileActions.rename'),
-    icon: 'action.edit',
-  }],
-  [PROJECT_ENTRY_REVEAL_ACTION_KEY, {
-    title: t('sidebar.fileActions.reveal'),
-    icon: 'status.folder-open',
-  }],
-  [PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY, {
-    title: t('sidebar.fileActions.copyRelativePath'),
-    icon: 'action.copy',
-  }],
-  [PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY, {
-    title: t('sidebar.fileActions.copyAbsolutePath'),
-    icon: 'action.copy',
-  }],
-  ])
-
-  for (const [entryKey, item] of projectTreeData.value.items) {
-    const moreActionKey = projectEntryMoreActionKey(entryKey)
-    const deleteActionKey = projectEntryDeleteActionKey(entryKey)
-    const confirmDeleteActionKey = projectEntryConfirmDeleteActionKey(entryKey)
-    const children = [
-      ...(item.renamable === false ? [] : [PROJECT_ENTRY_RENAME_ACTION_KEY]),
-      deleteActionKey,
-      PROJECT_ENTRY_REVEAL_ACTION_KEY,
-      PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY,
-      PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY,
-    ]
-    actions.set(moreActionKey, {
-      title: t('sidebar.fileActions.more'),
-      icon: 'nav.more',
-      children,
-    })
-    actions.set(deleteActionKey, {
-      title: t('sidebar.fileActions.delete'),
-      icon: 'action.delete',
-      children: [confirmDeleteActionKey],
-    })
-    actions.set(confirmDeleteActionKey, {
-      title: t('sidebar.fileActions.confirmDeleteFile', {
-        fileName: entryKey.split(/[\\/]/).pop() ?? item.label,
-      }),
-      icon: 'action.delete',
-      iconTone: 'danger',
-    })
-  }
-  return actions
-})
-
-const recentProjectActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [RECENT_PROJECT_OPEN_ACTION_KEY, {
-    title: t('sidebar.openRecentProject'),
-    icon: 'action.play',
-    iconTone: 'success',
-  }],
-  [RECENT_PROJECT_RELOCATE_ACTION_KEY, {
-    title: t('sidebar.relocateRecentProject'),
-    icon: 'status.folder-open',
-  }],
-  [RECENT_PROJECT_REVEAL_ACTION_KEY, {
-    title: t('sidebar.fileActions.reveal'),
-    icon: 'status.folder-open',
-  }],
-  [RECENT_PROJECT_REMOVE_ACTION_KEY, {
-    title: t('sidebar.removeRecentProject'),
-    icon: 'action.close',
-  }],
-]))
-
-const exportTemplateTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [TEMPLATE_EXCLUDE_ACTION_KEY, {
-    title: t('templateExport.tree.exclude'),
-    icon: 'status.eye-off',
-  }],
-  [TEMPLATE_INCLUDE_ACTION_KEY, {
-    title: t('templateExport.tree.include'),
-    icon: 'status.eye',
-  }],
-  [TEMPLATE_COVER_ADD_ACTION_KEY, {
-    title: t('templateExport.tree.addCover'),
-    icon: 'action.image-plus',
-  }],
-  [TEMPLATE_COVER_REMOVE_ACTION_KEY, {
-    title: t('templateExport.tree.removeCover'),
-    icon: 'action.image-minus',
-  }],
-  [TEMPLATE_ENTRY_ADD_ACTION_KEY, {
-    title: t('templateExport.tree.addEntry'),
-    icon: 'action.file-plus',
-  }],
-  [TEMPLATE_ENTRY_REMOVE_ACTION_KEY, {
-    title: t('templateExport.tree.removeEntry'),
-    icon: 'action.file-minus',
-  }],
-]))
-
 function normalizeTreePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
@@ -1415,8 +1336,8 @@ function isExportPathExcluded(relativePath: string): boolean {
     || exportTemplateSelection.value.excludedPaths.some((excluded) => pathContains(excluded, relativePath))
 }
 
-const exportTemplateTreeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeItem>()
+const exportTemplateTreeData = computed<OcNodeCollection>(() => {
+  const items = new Map<string, OcNode>()
   for (const [key, item] of projectTreeData.value.items) {
     const relativePath = exportRelativePath(key)
     const isProjectFile = [
@@ -1430,20 +1351,46 @@ const exportTemplateTreeData = computed<OcTreeData>(() => {
     const isExcluded = isExportPathExcluded(relativePath)
     const isImage = resolveFileType(key).id === 'image'
     const isOpenCard = relativePath.toLowerCase().endsWith(CARD_DOCUMENT_SUFFIX)
-    const actions: string[] = []
+    const actions: OcNodeAction[] = []
 
     if (!isProjectFile && !isRuntimeCache) {
-      actions.push(isExcluded ? TEMPLATE_INCLUDE_ACTION_KEY : TEMPLATE_EXCLUDE_ACTION_KEY)
+      actions.push(isExcluded
+        ? {
+            key: TEMPLATE_INCLUDE_ACTION_KEY,
+            title: t('templateExport.tree.include'),
+            icon: 'status.eye',
+          }
+        : {
+            key: TEMPLATE_EXCLUDE_ACTION_KEY,
+            title: t('templateExport.tree.exclude'),
+            icon: 'status.eye-off',
+          })
     }
     if (!isExcluded && isImage) {
       actions.push(exportTemplateSelection.value.covers.includes(relativePath)
-        ? TEMPLATE_COVER_REMOVE_ACTION_KEY
-        : TEMPLATE_COVER_ADD_ACTION_KEY)
+        ? {
+            key: TEMPLATE_COVER_REMOVE_ACTION_KEY,
+            title: t('templateExport.tree.removeCover'),
+            icon: 'action.image-minus',
+          }
+        : {
+            key: TEMPLATE_COVER_ADD_ACTION_KEY,
+            title: t('templateExport.tree.addCover'),
+            icon: 'action.image-plus',
+          })
     }
     if (!isExcluded && isOpenCard) {
       actions.push(exportTemplateSelection.value.entries.includes(relativePath)
-        ? TEMPLATE_ENTRY_REMOVE_ACTION_KEY
-        : TEMPLATE_ENTRY_ADD_ACTION_KEY)
+        ? {
+            key: TEMPLATE_ENTRY_REMOVE_ACTION_KEY,
+            title: t('templateExport.tree.removeEntry'),
+            icon: 'action.file-minus',
+          }
+        : {
+            key: TEMPLATE_ENTRY_ADD_ACTION_KEY,
+            title: t('templateExport.tree.addEntry'),
+            icon: 'action.file-plus',
+          })
     }
 
     items.set(key, {
@@ -1466,10 +1413,10 @@ const exportTemplateExpandedKeys = computed(() => [...projectTreeData.value.chil
 function createExportSelectionTreeData(
   paths: readonly string[],
   prefix: string,
-  icon: OcTreeItem['icon'],
-  removeAction: string,
+  icon: OcNode['icon'],
+  removeAction: OcNodeAction,
   labels: Readonly<Record<string, string>> = {},
-): OcTreeData {
+): OcNodeCollection {
   const rootKeys = paths.map((path) => `${prefix}${path}`)
   return {
     rootKeys,
@@ -1486,7 +1433,11 @@ const exportTemplateEntryTreeData = computed(() => createExportSelectionTreeData
   exportTemplateSelection.value.entries,
   TEMPLATE_ENTRY_TREE_PREFIX,
   'file.opencard',
-  TEMPLATE_ENTRY_REMOVE_ACTION_KEY,
+  {
+    key: TEMPLATE_ENTRY_REMOVE_ACTION_KEY,
+    title: t('templateExport.tree.removeEntry'),
+    icon: 'action.file-minus',
+  },
   exportTemplateSelection.value.entryNames,
 ))
 
@@ -1494,7 +1445,11 @@ const exportTemplateCoverTreeData = computed(() => createExportSelectionTreeData
   exportTemplateSelection.value.covers,
   TEMPLATE_COVER_TREE_PREFIX,
   'file.image',
-  TEMPLATE_COVER_REMOVE_ACTION_KEY,
+  {
+    key: TEMPLATE_COVER_REMOVE_ACTION_KEY,
+    title: t('templateExport.tree.removeCover'),
+    icon: 'action.image-minus',
+  },
 ))
 
 const updateOperationTask = computed<{
@@ -1516,22 +1471,6 @@ const updateOperationTask = computed<{
   return isDeveloperPreviewDownloaded.value ? { phase: 'waiting-install', progress: 0 } : null
 })
 
-const projectManagementActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
-  const actions = new Map<string, OcTreeActionDefinition>()
-  for (const packageKey of projectPackageManifests.value.keys()) {
-    actions.set(projectPackageVerifyActionKey(packageKey), {
-      title: t('packageManager.verify'),
-      icon: 'action.check',
-    })
-    const deleteActionKey = projectPackageDeleteActionKey(packageKey)
-    actions.set(deleteActionKey, {
-      title: t('resourcePackage.delete'),
-      icon: 'action.delete',
-      iconTone: 'danger',
-    })
-  }
-  return actions
-})
 const updateOperationProgress = computed(() => updateOperationTask.value?.progress ?? null)
 
 watch([updateOperationTask, locale], ([task]) => {
@@ -1660,7 +1599,7 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         role: 'listbox',
         selectionMode: 'single',
         activationMode: 'none',
-        onIntent: handleSettingsCategoryTreeIntent,
+        onSelectionChange: handleSettingsCategorySelectionChange,
       },
     }]
   }
@@ -1675,13 +1614,13 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         content: {
           type: 'tree',
           data: templateTreeData.value,
-          actions: templateCatalogActions.value,
           selectedKeys: selectedTemplateKey.value ? [selectedTemplateKey.value] : [],
           expandedKeys: [USER_TEMPLATES_GROUP_KEY],
           role: 'tree',
           selectionMode: 'single',
           activationMode: 'none',
-          onIntent: handleTemplateTreeIntent,
+          onSelectionChange: handleTemplateSelectionChange,
+          onAction: handleTemplateAction,
         },
       },
       {
@@ -1699,11 +1638,10 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         content: {
           type: 'tree',
           data: iconPackTreeData.value,
-          actions: iconPackActions.value,
           role: 'listbox',
           selectionMode: 'none',
           activationMode: 'none',
-          onIntent: handleIconPackTreeIntent,
+          onAction: handleIconPackAction,
         },
       },
     ]
@@ -1713,13 +1651,12 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
     const projectContent = {
       type: 'tree' as const,
       data: exportTemplateTreeData.value,
-      actions: exportTemplateTreeActions.value,
       selectedKeys: selectedProjectEntryKeys.value,
       expandedKeys: exportTemplateExpandedKeys.value,
       role: 'tree' as const,
       selectionMode: 'single' as const,
       activationMode: 'none' as const,
-      onIntent: handleExportTemplateTreeIntent,
+      onAction: handleExportTemplateAction,
       captureInstance: captureProjectTreeInstance,
     }
     return [
@@ -1738,12 +1675,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         content: {
           type: 'tree',
           data: exportTemplateEntryTreeData.value,
-          actions: exportTemplateTreeActions.value,
           selectedKeys: [],
           role: 'listbox',
           selectionMode: 'none',
           activationMode: 'none',
-          onIntent: handleExportSelectionTreeIntent,
+          onAction: handleExportSelectionAction,
         },
       },
       {
@@ -1754,12 +1690,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         content: {
           type: 'tree',
           data: exportTemplateCoverTreeData.value,
-          actions: exportTemplateTreeActions.value,
           selectedKeys: [],
           role: 'listbox',
           selectionMode: 'none',
           activationMode: 'none',
-          onIntent: handleExportSelectionTreeIntent,
+          onAction: handleExportSelectionAction,
         },
       },
     ]
@@ -1774,12 +1709,13 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       content: {
         type: 'tree',
         data: recentProjectTreeData.value,
-        actions: recentProjectActions.value,
         selectedKeys: selectedRecentProjectKeys.value,
         role: 'listbox',
         selectionMode: 'single',
         activationMode: 'double-click',
-        onIntent: handleRecentProjectTreeIntent,
+        onSelectionChange: handleRecentProjectSelectionChange,
+        onNodeActivate: handleRecentProjectNodeActivate,
+        onAction: handleRecentProjectAction,
       },
     }]
   }
@@ -1793,12 +1729,12 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       content: {
         type: 'tree',
         data: openedEditorTreeData.value,
-        actions: openedEditorActions.value,
         selectedKeys: openedEditorSelectedKeys.value,
         role: 'listbox',
         selectionMode: 'single',
         activationMode: 'none',
-        onIntent: handleOpenedEditorTreeIntent,
+        onSelectionChange: handleOpenedEditorSelectionChange,
+        onAction: handleOpenedEditorAction,
         onAuxclick: handleOpenedEditorAuxClick,
       },
     },
@@ -1810,13 +1746,14 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       content: {
         type: 'tree',
         data: projectManagementTreeData.value,
-        actions: projectManagementActions.value,
         selectedKeys: selectedManagementKeys.value,
         expandedKeys: projectManagementExpandedKeys.value,
         role: 'tree',
         selectionMode: 'single',
         activationMode: 'none',
-        onIntent: handleProjectManagementTreeIntent,
+        onSelectionChange: handleProjectManagementSelectionChange,
+        onExpansionChange: handleProjectManagementExpansionChange,
+        onAction: handleProjectManagementAction,
       },
     },
     {
@@ -1853,13 +1790,17 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       content: {
         type: 'tree',
         data: projectTreeData.value,
-        actions: projectEntryActions.value,
         selectedKeys: selectedProjectEntryKeys.value,
         expandedKeys: projectExpandedKeys.value,
         role: 'tree',
         selectionMode: 'single',
         activationMode: 'double-click',
-        onIntent: handleProjectTreeIntent,
+        onSelectionChange: handleProjectSelectionChange,
+        onExpansionChange: handleProjectExpansionChange,
+        onRenameCommit: handleProjectRenameCommit,
+        onMove: handleProjectMove,
+        onAction: handleProjectAction,
+        onNodeActivate: handleProjectNodeActivate,
         captureInstance: captureProjectTreeInstance,
       },
     },
@@ -1878,12 +1819,11 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
       content: {
         type: 'tree',
         data: timelineTreeData.value,
-        actions: timelineTreeActions.value,
         selectedKeys: [],
         role: 'tree',
         selectionMode: 'none',
         activationMode: 'none',
-        onIntent: handleTimelineTreeIntent,
+        onAction: handleTimelineAction,
       },
     })
   }
@@ -1957,7 +1897,8 @@ const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
                 role: 'tree',
                 selectionMode: 'none',
                 activationMode: 'none',
-                onIntent: handleVersionGraphTreeIntent,
+                onExpansionChange: handleVersionGraphExpansionChange,
+                onExpansionSync: handleVersionGraphExpansionSync,
               },
             },
           ]
@@ -2326,57 +2267,64 @@ async function handleProjectTreeItemToggle(itemKey: string, expanded: boolean) {
   }
 }
 
-async function handleTemplateTreeIntent(intent: OcTreeIntent): Promise<void> {
-  if (intent.type === 'action.invoke') {
-    if (intent.key !== USER_TEMPLATES_GROUP_KEY || intent.actionKey !== IMPORT_TEMPLATE_ACTION_KEY
-      || isProjectTemplateBusy.value || templateStore.isLoading.value) return
-    await createProjectWorkspaceRef.value?.beginImport()
-    return
-  }
-  if (intent.type !== 'selection.change') return
-  const key = intent.selectedKeys[0] as ProjectTemplateKey | undefined
+async function handleTemplateSelectionChange(event: OcNodeSelectionEvent): Promise<void> {
+  const key = event.selectedKeys[0] as ProjectTemplateKey | undefined
   if (key && templateStore.findTemplate(key)) selectedTemplateKey.value = key
 }
 
-function handleIconPackTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type !== 'action.invoke' || intent.actionKey !== REGISTER_ICON_PACK_ACTION_KEY) return
-  const key = intent.key as ProjectIconPackCatalogKey
+async function handleTemplateAction(event: OcNodeActionEvent): Promise<void> {
+  if (event.key !== USER_TEMPLATES_GROUP_KEY || event.actionKey !== IMPORT_TEMPLATE_ACTION_KEY
+    || isProjectTemplateBusy.value || templateStore.isLoading.value) return
+  await createProjectWorkspaceRef.value?.beginImport()
+}
+
+function handleIconPackAction(event: OcNodeActionEvent): void {
+  if (event.actionKey !== REGISTER_ICON_PACK_ACTION_KEY) return
+  const key = event.key as ProjectIconPackCatalogKey
   if (!iconPackStore.findPack(key) || selectedIconPackKeys.value.includes(key)) return
   selectedIconPackKeys.value = [...selectedIconPackKeys.value, key]
 }
 
-function handleRecentProjectTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'selection.change') {
-    selectedRecentProjectKeys.value = intent.selectedKeys
-    return
-  }
-  if (intent.type !== 'node.activate' && intent.type !== 'action.invoke') return
-  const path = settingsStore.settings.value.projectCreation.recentProjects.find((item) => (
-    recentProjectKey(item) === intent.key
+function handleRecentProjectSelectionChange(event: OcNodeSelectionEvent): void {
+  selectedRecentProjectKeys.value = event.selectedKeys
+}
+
+function recentProjectPathByNodeKey(key: string): string | undefined {
+  return settingsStore.settings.value.projectCreation.recentProjects.find((item) => (
+    recentProjectKey(item) === key
   ))
+}
+
+function handleRecentProjectNodeActivate(event: OcNodeActivateEvent): void {
+  const path = recentProjectPathByNodeKey(event.key)
+  if (!path || recentProjectAvailability.value.get(event.key) === false) return
+  void openRecentProject(path)
+}
+
+function handleRecentProjectAction(event: OcNodeActionEvent): void {
+  const path = recentProjectPathByNodeKey(event.key)
   if (!path) return
 
-  if (intent.type === 'action.invoke' && intent.actionKey === RECENT_PROJECT_REMOVE_ACTION_KEY) {
+  if (event.actionKey === RECENT_PROJECT_REMOVE_ACTION_KEY) {
     settingsStore.forgetRecentProject(path)
-    selectedRecentProjectKeys.value = selectedRecentProjectKeys.value.filter((key) => key !== intent.key)
+    selectedRecentProjectKeys.value = selectedRecentProjectKeys.value.filter((key) => key !== event.key)
     return
   }
 
-  if (intent.type === 'action.invoke' && intent.actionKey === RECENT_PROJECT_RELOCATE_ACTION_KEY) {
+  if (event.actionKey === RECENT_PROJECT_RELOCATE_ACTION_KEY) {
     void relocateRecentProject(path)
     return
   }
 
-  if (intent.type === 'action.invoke' && intent.actionKey === RECENT_PROJECT_REVEAL_ACTION_KEY) {
+  if (event.actionKey === RECENT_PROJECT_REVEAL_ACTION_KEY) {
     void revealRecentProject(path)
     return
   }
 
-  if (recentProjectAvailability.value.get(intent.key) === false) return
-
-  const shouldOpen = intent.type === 'node.activate'
-    || (intent.type === 'action.invoke' && intent.actionKey === RECENT_PROJECT_OPEN_ACTION_KEY)
-  if (shouldOpen) void openRecentProject(path)
+  if (event.actionKey === RECENT_PROJECT_OPEN_ACTION_KEY
+    && recentProjectAvailability.value.get(event.key) !== false) {
+    void openRecentProject(path)
+  }
 }
 
 async function revealRecentProject(path: string): Promise<void> {
@@ -2476,10 +2424,8 @@ async function createProjectEntry(kind: 'folder' | 'opencard'): Promise<void> {
   await projectTreeRef.value?.beginRename(path)
 }
 
-function handleSettingsCategoryTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type !== 'selection.change') return
-
-  const categoryKey = intent.selectedKeys[0]
+function handleSettingsCategorySelectionChange(event: OcNodeSelectionEvent): void {
+  const categoryKey = event.selectedKeys[0]
   if (categoryKey === 'general' || categoryKey === 'appearance' || categoryKey === 'workspace') {
     const returnPage = getCurrentPrimaryShellPage()
     shellPage.value = { type: 'settings', categoryKey, returnPage }
@@ -2611,15 +2557,12 @@ async function performPathTrash(path: string): Promise<void> {
   selectedProjectEntryKeys.value = selectedProjectEntryKeys.value.filter(key => key !== path)
 }
 
-async function handleOpenedEditorTreeIntent(intent: OcTreeIntent) {
-  if (intent.type === 'selection.change') {
-    handleOpenedEditorsSelect(intent.selectedKeys)
-    return
-  }
+function handleOpenedEditorSelectionChange(event: OcNodeSelectionEvent): void {
+  handleOpenedEditorsSelect(event.selectedKeys)
+}
 
-  if (intent.type === 'action.invoke' && intent.actionKey === OPENED_EDITOR_CLOSE_ACTION_KEY) {
-    await requestSessionClose([intent.key])
-  }
+async function handleOpenedEditorAction(event: OcNodeActionEvent): Promise<void> {
+  if (event.actionKey === OPENED_EDITOR_CLOSE_ACTION_KEY) await requestSessionClose([event.key])
 }
 
 async function handleOpenedEditorAuxClick(event: MouseEvent): Promise<void> {
@@ -2632,129 +2575,110 @@ async function handleOpenedEditorAuxClick(event: MouseEvent): Promise<void> {
   await requestSessionClose([key])
 }
 
-async function handleProjectManagementTreeIntent(intent: OcTreeIntent) {
-  if (intent.type === 'action.invoke') {
-    const packageKey = findProjectPackageKeyByNodeKey(intent.key)
-    if (!packageKey) return
-    if (intent.actionKey === projectPackageVerifyActionKey(packageKey)) {
-      const result = await projectStore.checkResourcePackage(packageKey)
-      if (!result) return
-      const status = t(`packageManager.status.${result.status}`)
-      if (result.status === 'ok') {
-        notifySuccess(`${packageKey}: ${status}`)
-      } else {
-        notifyWarning(`${packageKey}: ${status}`)
-      }
-      return
-    }
-    if (intent.actionKey !== projectPackageDeleteActionKey(packageKey)) return
-    const required = projectPackageManifests.value.get(packageKey)
-    if (!required) return
-    const installed = projectStore.projectResourcePackages.value.get(packageKey)
-    const packageRootPath = resolveInstalledResourcePackageRootPath(projectPath.value, packageKey)
-    try {
-      if (!await removeResourcePackage(packageKey)) return
-      closeSessionsByPath(packageRootPath)
-      selectedManagementKeys.value = []
-      notifySuccess(t('resourcePackage.deleted', { name: installed?.manifest.name ?? packageKey }))
-    } catch (error) {
-      notifyAppError('OC-E3016', { path: packageRootPath, error }, locale.value)
+async function handleProjectManagementSelectionChange(event: OcNodeSelectionEvent): Promise<void> {
+  await handleProjectManagementSelect(event.selectedKeys)
+}
+
+function handleProjectManagementExpansionChange(event: OcNodeExpansionEvent): void {
+  setProjectManagementEntryExpanded(event.key, event.expanded)
+}
+
+async function handleProjectManagementAction(event: OcNodeActionEvent) {
+  const packageKey = findProjectPackageKeyByNodeKey(event.key)
+  if (!packageKey) return
+  if (event.actionKey === PROJECT_PACKAGE_VERIFY_ACTION_KEY) {
+    const result = await projectStore.checkResourcePackage(packageKey)
+    if (!result) return
+    const status = t(`packageManager.status.${result.status}`)
+    if (result.status === 'ok') {
+      notifySuccess(`${packageKey}: ${status}`)
+    } else {
+      notifyWarning(`${packageKey}: ${status}`)
     }
     return
   }
-  if (intent.type === 'selection.change') {
-    await handleProjectManagementSelect(intent.selectedKeys)
-    return
-  }
-  if (intent.type === 'expansion.change') {
-    setProjectManagementEntryExpanded(intent.key, intent.expanded)
-    return
+  if (event.actionKey !== PROJECT_PACKAGE_DELETE_ACTION_KEY) return
+  const required = projectPackageManifests.value.get(packageKey)
+  if (!required) return
+  const installed = projectStore.projectResourcePackages.value.get(packageKey)
+  const packageRootPath = resolveInstalledResourcePackageRootPath(projectPath.value, packageKey)
+  try {
+    if (!await removeResourcePackage(packageKey)) return
+    closeSessionsByPath(packageRootPath)
+    selectedManagementKeys.value = []
+    notifySuccess(t('resourcePackage.deleted', { name: installed?.manifest.name ?? packageKey }))
+  } catch (error) {
+    notifyAppError('OC-E3016', { path: packageRootPath, error }, locale.value)
   }
 }
 
-async function handleProjectTreeIntent(intent: OcTreeIntent) {
-  if (intent.type === 'selection.change') {
-    await handleFileTreeSelect(intent.selectedKeys)
+async function handleProjectSelectionChange(event: OcNodeSelectionEvent): Promise<void> {
+  await handleFileTreeSelect(event.selectedKeys)
+}
+
+async function handleProjectExpansionChange(event: OcNodeExpansionEvent): Promise<void> {
+  await handleProjectTreeItemToggle(event.key, event.expanded)
+}
+
+async function handleProjectRenameCommit(event: OcNodeRenameCommitEvent): Promise<void> {
+  const result = await renameEntry(event.key, event.name)
+  if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
+  else notifyWarning(t('app.notifications.renameRejected'))
+}
+
+async function handleProjectMove(event: OcNodeMoveEvent): Promise<void> {
+  const result = await moveEntryByDrop(event)
+  if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
+  else notifyWarning(t('app.notifications.moveRejected'))
+}
+
+async function handleProjectAction(event: OcNodeActionEvent): Promise<void> {
+  const entry = findProjectEntryByKey(event.key)
+  if (!entry) return
+
+  if (event.actionKey === PROJECT_ENTRY_RENAME_ACTION_KEY) {
+    await projectTreeRef.value?.beginRename(entry.key)
     return
   }
 
-  if (intent.type === 'expansion.change') {
-    await handleProjectTreeItemToggle(intent.key, intent.expanded)
+  if (event.actionKey === PROJECT_ENTRY_CONFIRM_DELETE_ACTION_KEY) {
+    await requestPathTrash(entry.key)
     return
   }
-
-  if (intent.type === 'rename.request') {
-    await projectTreeRef.value?.beginRename(intent.key)
-    return
-  }
-
-  if (intent.type === 'rename.commit') {
-    const result = await renameEntry(intent.key, intent.name)
-    if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
-    else notifyWarning(t('app.notifications.renameRejected'))
-    return
-  }
-
-  if (intent.type === 'move.request') {
-    const result = await moveEntryByDrop(intent)
-    if (result.ok) remapSessionPaths(result.fromPath, result.toPath)
-    else notifyWarning(t('app.notifications.moveRejected'))
-    return
-  }
-
-  if (intent.type === 'action.invoke') {
-    const entry = findProjectEntryByKey(intent.key)
-    if (!entry) return
-
-    if (intent.actionKey === PROJECT_ENTRY_RENAME_ACTION_KEY) {
-      await projectTreeRef.value?.beginRename(entry.key)
-      return
-    }
-
-    if (isProjectEntryConfirmDeleteActionKey(intent.actionKey)) {
-      await requestPathTrash(entry.key)
-      return
-    }
-    if (intent.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
-      console.debug('[workspace-action] reveal:start', { actionKey: intent.actionKey, path: entry.key })
-      try {
-        await revealEntryInFileManager(entry.key)
-        console.debug('[workspace-action] reveal:success', { actionKey: intent.actionKey, path: entry.key })
-      } catch (error) {
-        notifyAppError('OC-E2004', {
-          actionKey: intent.actionKey,
-          path: entry.key,
-          error,
-        }, locale.value)
-      }
-      return
-    }
-    if (intent.actionKey === PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY) {
-      try {
-        await navigator.clipboard.writeText(getRelativeProjectPath(entry.key))
-      } catch (error) {
-        notifyAppError('OC-E1002', { source: 'project-relative-path', path: entry.key, error }, locale.value)
-      }
-      return
-    }
-    if (intent.actionKey === PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY) {
-      try {
-        await navigator.clipboard.writeText(entry.key)
-      } catch (error) {
-        notifyAppError('OC-E1002', { source: 'project-absolute-path', path: entry.key, error }, locale.value)
-      }
+  if (event.actionKey === PROJECT_ENTRY_REVEAL_ACTION_KEY) {
+    console.debug('[workspace-action] reveal:start', { actionKey: event.actionKey, path: entry.key })
+    try {
+      await revealEntryInFileManager(entry.key)
+      console.debug('[workspace-action] reveal:success', { actionKey: event.actionKey, path: entry.key })
+    } catch (error) {
+      notifyAppError('OC-E2004', {
+        actionKey: event.actionKey,
+        path: entry.key,
+        error,
+      }, locale.value)
     }
     return
   }
-
-  if (intent.type !== 'node.activate') {
+  if (event.actionKey === PROJECT_ENTRY_COPY_RELATIVE_PATH_ACTION_KEY) {
+    try {
+      await navigator.clipboard.writeText(getRelativeProjectPath(entry.key))
+    } catch (error) {
+      notifyAppError('OC-E1002', { source: 'project-relative-path', path: entry.key, error }, locale.value)
+    }
     return
   }
-
-  const entry = findProjectEntryByKey(intent.key)
-  if (!entry) {
-    return
+  if (event.actionKey === PROJECT_ENTRY_COPY_ABSOLUTE_PATH_ACTION_KEY) {
+    try {
+      await navigator.clipboard.writeText(entry.key)
+    } catch (error) {
+      notifyAppError('OC-E1002', { source: 'project-absolute-path', path: entry.key, error }, locale.value)
+    }
   }
+}
+
+async function handleProjectNodeActivate(event: OcNodeActivateEvent): Promise<void> {
+  const entry = findProjectEntryByKey(event.key)
+  if (!entry) return
 
   if (entry.isDirectory) {
     await handleProjectTreeItemToggle(entry.key, !entry.isExpanded)
@@ -2766,30 +2690,28 @@ async function handleProjectTreeIntent(intent: OcTreeIntent) {
   await handleOpenFile(entry.key)
 }
 
-function handleExportTemplateTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type !== 'action.invoke') return
-  const relativePath = exportRelativePath(intent.key)
-  if (intent.actionKey === TEMPLATE_EXCLUDE_ACTION_KEY || intent.actionKey === TEMPLATE_INCLUDE_ACTION_KEY) {
+function handleExportTemplateAction(event: OcNodeActionEvent): void {
+  const relativePath = exportRelativePath(event.key)
+  if (event.actionKey === TEMPLATE_EXCLUDE_ACTION_KEY || event.actionKey === TEMPLATE_INCLUDE_ACTION_KEY) {
     exportTemplateWorkspaceRef.value?.togglePathIncluded(relativePath)
     return
   }
-  if (intent.actionKey === TEMPLATE_COVER_ADD_ACTION_KEY || intent.actionKey === TEMPLATE_COVER_REMOVE_ACTION_KEY) {
+  if (event.actionKey === TEMPLATE_COVER_ADD_ACTION_KEY || event.actionKey === TEMPLATE_COVER_REMOVE_ACTION_KEY) {
     exportTemplateWorkspaceRef.value?.toggleCover(relativePath)
     return
   }
-  if (intent.actionKey === TEMPLATE_ENTRY_ADD_ACTION_KEY || intent.actionKey === TEMPLATE_ENTRY_REMOVE_ACTION_KEY) {
+  if (event.actionKey === TEMPLATE_ENTRY_ADD_ACTION_KEY || event.actionKey === TEMPLATE_ENTRY_REMOVE_ACTION_KEY) {
     exportTemplateWorkspaceRef.value?.toggleEntry(relativePath)
   }
 }
 
-function handleExportSelectionTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type !== 'action.invoke') return
-  if (intent.key.startsWith(TEMPLATE_ENTRY_TREE_PREFIX)) {
-    exportTemplateWorkspaceRef.value?.toggleEntry(intent.key.slice(TEMPLATE_ENTRY_TREE_PREFIX.length))
+function handleExportSelectionAction(event: OcNodeActionEvent): void {
+  if (event.key.startsWith(TEMPLATE_ENTRY_TREE_PREFIX)) {
+    exportTemplateWorkspaceRef.value?.toggleEntry(event.key.slice(TEMPLATE_ENTRY_TREE_PREFIX.length))
     return
   }
-  if (intent.key.startsWith(TEMPLATE_COVER_TREE_PREFIX)) {
-    exportTemplateWorkspaceRef.value?.toggleCover(intent.key.slice(TEMPLATE_COVER_TREE_PREFIX.length))
+  if (event.key.startsWith(TEMPLATE_COVER_TREE_PREFIX)) {
+    exportTemplateWorkspaceRef.value?.toggleCover(event.key.slice(TEMPLATE_COVER_TREE_PREFIX.length))
   }
 }
 
@@ -3221,17 +3143,27 @@ async function commitVersion(value: { summary: string; description: string }): P
   }
 }
 
-function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): OcTreeData {
-  const items = new Map<string, OcTreeItem>()
+function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): OcNodeCollection {
+  const items = new Map<string, OcNode>()
   for (const pack of packs) {
     const isRegistered = selectedIconPackKeys.value.includes(pack.key)
     items.set(pack.key, {
       label: resolveProjectIconPackName(pack, locale.value),
       icon: 'file.project-icon',
-      actions: [isRegistered ? REGISTERED_ICON_PACK_ACTION_KEY : REGISTER_ICON_PACK_ACTION_KEY],
-      ...(isRegistered ? {
-        disabledActions: new Map([[REGISTERED_ICON_PACK_ACTION_KEY, t('projectTemplates.status.iconPackRegistered')]]),
-      } : {}),
+      actions: [isRegistered
+        ? {
+            key: REGISTERED_ICON_PACK_ACTION_KEY,
+            title: t('projectTemplates.status.iconPackRegistered'),
+            icon: 'action.check',
+            iconTone: 'success',
+            disabled: true,
+            disabledReason: t('projectTemplates.status.iconPackRegistered'),
+          }
+        : {
+            key: REGISTER_ICON_PACK_ACTION_KEY,
+            title: t('projectTemplates.actions.registerIconPack'),
+            icon: 'action.add',
+          }],
     })
   }
   return {

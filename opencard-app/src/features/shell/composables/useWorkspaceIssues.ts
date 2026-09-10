@@ -8,15 +8,17 @@ import type {
 } from '../../editor-runtime/model/editorIssue'
 import { resolveFileTypeById } from '../../workspace/model/fileTypes'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
-import type { OcTreeData, OcTreeItem } from '../../../shared/ui/tree/tree.types'
+import type { OcNode, OcNodeAction, OcNodeCollection } from '../../../shared/ui/node/node.types'
 
 const SESSION_KEY_PREFIX = 'workspace-issue-session:'
 const ISSUE_KEY_PREFIX = 'workspace-issue:'
 
+export const COPY_ISSUE_ACTION_KEY = 'copy-issue'
+
 type SessionIssueScopes = ReadonlyMap<string, readonly EditorIssue[]>
 
 export type WorkspaceIssueProjection = {
-  treeData: OcTreeData
+  treeData: OcNodeCollection
   navigationTargets: ReadonlyMap<string, SessionIssueNavigationRequest>
   issueDetails: ReadonlyMap<string, EditorIssue>
   issueCount: number
@@ -47,14 +49,14 @@ function issueLabel(issue: EditorIssue): string {
     : issue.description
 }
 
-function issueTreeItem(issue: EditorIssue): OcTreeItem {
+function issueTreeItem(issue: EditorIssue, copyAction: OcNodeAction): OcNode {
   if (issue.severity === 'error') {
-    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger', actions: ['copy-issue'] }
+    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger', actions: [copyAction] }
   }
   if (issue.severity === 'warning') {
-    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning', actions: ['copy-issue'] }
+    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning', actions: [copyAction] }
   }
-  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted', actions: ['copy-issue'] }
+  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted', actions: [copyAction] }
 }
 
 function dedupeIssues(issues: readonly EditorIssue[]): readonly EditorIssue[] {
@@ -78,9 +80,16 @@ function normalizeScopeOrder(snapshot: EditorIssueSnapshot): readonly string[] {
 export function buildWorkspaceIssueProjection(
   sessions: readonly EditorSession[],
   issuesBySession: ReadonlyMap<string, SessionIssueScopes>,
+  copyIssueLabel = 'copy-issue',
 ): WorkspaceIssueProjection {
+  const copyAction: OcNodeAction = {
+    key: COPY_ISSUE_ACTION_KEY,
+    title: copyIssueLabel,
+    icon: 'action.copy',
+    iconTone: 'muted',
+  }
   const rootKeys: string[] = []
-  const items = new Map<string, OcTreeItem>()
+  const items = new Map<string, OcNode>()
   const children = new Map<string, readonly string[]>()
   const navigationTargets = new Map<string, SessionIssueNavigationRequest>()
   const issueDetails = new Map<string, EditorIssue>()
@@ -103,7 +112,7 @@ export function buildWorkspaceIssueProjection(
     const fileType = resolveFileTypeById(session.fileTypeId)
     const addIssue = (scopeKey: string, issue: SessionIssue, path: readonly number[]): string => {
       const key = `${issueNodeKey(session.id, scopeKey, issue.id)}:${path.join('.')}`
-      items.set(key, issueTreeItem(issue))
+      items.set(key, issueTreeItem(issue, copyAction))
       issueDetails.set(key, issue)
       if (issue.navigationToken !== undefined) {
         navigationTargets.set(key, {
@@ -143,6 +152,7 @@ export function buildWorkspaceIssueProjection(
 
 export function useWorkspaceIssues(options: {
   sessions: Readonly<Ref<readonly EditorSession[]>>
+  copyIssueLabel: string
 }) {
   const issuesBySession = ref<ReadonlyMap<string, SessionIssueScopes>>(new Map())
   const expandedIssueKeys = ref<string[]>([])
@@ -150,6 +160,7 @@ export function useWorkspaceIssues(options: {
   const projection = computed(() => buildWorkspaceIssueProjection(
     options.sessions.value,
     issuesBySession.value,
+    options.copyIssueLabel,
   ))
 
   function reportSessionIssueSnapshot(sessionId: string, snapshot: EditorIssueSnapshot): void {

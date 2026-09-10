@@ -1,7 +1,9 @@
-import { Fragment, nextTick, ref } from 'vue'
+import { Fragment, computed, nextTick, ref } from 'vue'
 import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PackageManagerEditor from './PackageManagerEditor.vue'
+import OcTree from '../standard/OcTree.vue'
+import OcAlbum from '../standard/OcAlbum.vue'
 
 const storeState = vi.hoisted(() => ({
   packageManifests: new Map<string, unknown>(),
@@ -25,6 +27,18 @@ vi.mock('../../features/workspace/store/projectStore', () => ({
     checkResourcePackage: vi.fn(),
   }),
 }))
+
+vi.mock('../../features/settings/store/appSettingsStore', () => {
+  const view = ref('tree')
+  return {
+    useAppSettingsStore: () => ({
+      settings: computed(() => ({ workspace: { packageManagerView: view.value } })),
+      updateSetting: (key: string, value: unknown) => {
+        if (key === 'workspace.packageManagerView') view.value = String(value)
+      },
+    }),
+  }
+})
 
 describe('PackageManagerEditor', () => {
   beforeEach(() => {
@@ -119,5 +133,26 @@ describe('PackageManagerEditor', () => {
       { key: 'github-xx-xx-theme-764829', version: '1.0.0', source: 'github:xx/xx-theme' },
     ])
     closeDialog(wrapper)
+  })
+
+  it('shows the same packages as a tree or as an album and remembers the choice', async () => {
+    storeState.packageManifests.set('theme', { version: '1.0.0' })
+    const wrapper = mount(PackageManagerEditor, {
+      props: { filePath: 'D:/project/.opencard/packages/packages.json' },
+    })
+    await nextTick()
+
+    expect(wrapper.findComponent(OcTree).exists()).toBe(true)
+    expect(wrapper.findComponent(OcAlbum).exists()).toBe(false)
+
+    await wrapper.get('button[aria-label="packageManager.viewAlbum"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.findComponent(OcTree).exists()).toBe(false)
+    const album = wrapper.getComponent(OcAlbum)
+    expect(album.props('data').rootKeys).toEqual(['theme'])
+    expect(album.props('data').items.get('theme')?.label).toBe('theme@1.0.0')
+
+    wrapper.unmount()
   })
 })

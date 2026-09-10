@@ -1,8 +1,56 @@
 /** Card instance operations and their key-only tree view projection. */
 import { computed, toRaw, watch, type Ref } from 'vue'
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
-import type { OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeCollection,
+  OcNodeMoveEvent,
+  OcNodeRenameCommitEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
+import { getCdeShortcutParts } from './useCdeShortcuts'
 import type { CdeDocumentChangeMode } from './useCdeDocumentState'
+
+type InstanceActionSet = {
+  more: OcNodeAction
+  rename: OcNodeAction
+  duplicate: OcNodeAction
+  remove: OcNodeAction
+}
+
+function createInstanceActions(): InstanceActionSet {
+  const rename: OcNodeAction = {
+    key: 'rename',
+    icon: 'action.edit',
+    title: '重命名',
+    shortcut: getCdeShortcutParts('block.rename'),
+  }
+  const duplicate: OcNodeAction = {
+    key: 'duplicate-instance',
+    icon: 'action.copy',
+    title: '复制实例',
+    shortcut: getCdeShortcutParts('instance.duplicate'),
+  }
+  const remove: OcNodeAction = {
+    key: 'delete-instance',
+    icon: 'action.delete',
+    title: '删除实例',
+    shortcut: getCdeShortcutParts('instance.delete'),
+  }
+  return {
+    more: {
+      key: 'instance-more',
+      icon: 'nav.more',
+      title: '更多操作',
+      children: [rename, duplicate, remove],
+    },
+    rename,
+    duplicate,
+    remove,
+  }
+}
 
 type UseCdeInstanceOpsOptions = {
   cardDoc: Ref<CardDocument | null>
@@ -21,10 +69,11 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     return options.cardDoc.value?.instances?.find((instance) => instance.id === options.selectedCardId.value) ?? null
   })
 
-  const instanceTreeData = computed<OcTreeData>(() => {
+  const instanceTreeData = computed<OcNodeCollection>(() => {
     options.documentRevision.value
     const rootKeys = [options.blueprintCardId]
-    const items = new Map<string, OcTreeItem>()
+    const items = new Map<string, OcNode>()
+    const actions = createInstanceActions()
 
     items.set(options.blueprintCardId, {
       label: '蓝图',
@@ -39,12 +88,12 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
         icon: 'entity.card-instance',
         renamable: true,
         draggable: true,
-        actions: ['instance-more'],
+        actions: [actions.more],
         contextActions: [
-          'rename',
-          'duplicate-instance',
+          actions.rename,
+          actions.duplicate,
           { type: 'divider', key: 'instance-delete-divider' },
-          'delete-instance',
+          actions.remove,
         ],
       })
     }
@@ -64,27 +113,24 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     options.selectedCardId.value = options.selectedCardKeys.value[0] ?? null
   }
 
-  function handleInstanceTreeIntent(intent: OcTreeIntent): void {
-    switch (intent.type) {
-      case 'selection.change':
-        selectInstance(intent.selectedKeys)
-        return
-      case 'action.invoke':
-        if (intent.source !== 'context' || !options.selectedCardKeys.value.includes(intent.key)) {
-          selectInstance([intent.key])
-        }
-        if (intent.actionKey === 'duplicate-instance') duplicateInstance(intent.key)
-        else if (intent.actionKey === 'delete-instance') deleteInstance(intent.key)
-        return
-      case 'rename.commit':
-        renameInstance(intent.key, intent.name)
-        return
-      case 'move.request':
-        moveInstance(intent.key, intent.targetKey, intent.position)
-        return
-      default:
-        return
+  function handleInstanceSelection(event: OcNodeSelectionEvent): void {
+    selectInstance(event.selectedKeys)
+  }
+
+  function handleInstanceAction(event: OcNodeActionEvent): void {
+    if (event.source !== 'context' || !options.selectedCardKeys.value.includes(event.key)) {
+      selectInstance([event.key])
     }
+    if (event.actionKey === 'duplicate-instance') duplicateInstance(event.key)
+    else if (event.actionKey === 'delete-instance') deleteInstance(event.key)
+  }
+
+  function handleInstanceRenameCommit(event: OcNodeRenameCommitEvent): void {
+    renameInstance(event.key, event.name)
+  }
+
+  function handleInstanceMove(event: OcNodeMoveEvent): void {
+    moveInstance(event.key, event.targetKey, event.position)
   }
 
   function renameInstance(instanceId: string, name: string): void {
@@ -219,7 +265,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
   return {
     selectedCard,
     instanceTreeData,
-    handleInstanceTreeIntent,
+    handleInstanceSelection,
+    handleInstanceAction,
+    handleInstanceRenameCommit,
+    handleInstanceMove,
     createInstance,
     renameInstance,
     duplicateInstance,

@@ -135,6 +135,7 @@ describe('validateRenderResources', () => {
       packages: new Map([['theme', {
         manifest: normalizeResourcePackageManifest({}, 'theme').manifest,
         rootPath: packageEnvironment.rootPath!,
+        cover: null,
         issues: [],
       }]]),
       packageEnvironments: new Map([['theme', packageEnvironment]]),

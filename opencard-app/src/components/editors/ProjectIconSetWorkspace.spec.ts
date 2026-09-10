@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
+import type { OcNodeAction } from '../../shared/ui/node/node.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcTree from '../standard/OcTree.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
@@ -36,16 +37,31 @@ describe('ProjectIconSetWorkspace', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndexes: [0] },
     })
+    const nodeActions = (key: string): readonly OcNodeAction[] => {
+      const actions = wrapper.getComponent(OcTree).props('data').items.get(key)?.actions
+      expect(actions).toBeDefined()
+      return actions ?? []
+    }
+    const disabledActionEntries = (key: string): unknown[] => nodeActions(key)
+      .filter(action => action.disabled)
+      .map(action => [action.key, action.disabledReason])
+
     expect(wrapper.find('.project-icon-set-workspace__tree-pane').exists()).toBe(true)
     expect(wrapper.find('.project-icon-set-workspace__property-pane').exists()).toBe(true)
     expect(wrapper.getComponent(OcTree).props('virtualized')).toBe(true)
-    expect(wrapper.getComponent(OcTree).props('data').items.get('icon:0')?.actions).toEqual([
+    expect(nodeActions('icon:0').map(action => action.key)).toEqual([
       'duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete',
     ])
-    expect(wrapper.getComponent(OcTree).props('actions')?.get('move-top')?.icon).toBe('format.vertical-top')
-    expect(wrapper.getComponent(OcTree).props('actions')?.get('move-bottom')?.icon).toBe('format.vertical-bottom')
-    expect([...wrapper.getComponent(OcTree).props('data').items.get('icon:0')!.disabledActions!.keys()])
-      .toEqual(['move-top', 'move-up'])
+    expect(nodeActions('icon:0').find(action => action.key === 'move-top')?.icon).toBe('format.vertical-top')
+    expect(nodeActions('icon:0').find(action => action.key === 'move-bottom')?.icon).toBe('format.vertical-bottom')
+    expect(disabledActionEntries('icon:0')).toEqual([
+      ['move-top', 'projectConfig.icons.alreadyAtTop'],
+      ['move-up', 'projectConfig.icons.alreadyAtTop'],
+    ])
+    expect(disabledActionEntries('icon:1')).toEqual([
+      ['move-down', 'projectConfig.icons.alreadyAtBottom'],
+      ['move-bottom', 'projectConfig.icons.alreadyAtBottom'],
+    ])
     expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Warning')
   })
 
@@ -59,8 +75,8 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.getComponent(OcTree).props('data').rootKeys).toEqual(['icon:1'])
 
     await input.setValue('warning')
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'selection.change', triggerKey: 'icon:0', selectedKeys: ['icon:0'], mode: 'replace',
+    wrapper.getComponent(OcTree).vm.$emit('selection-change', {
+      triggerKey: 'icon:0', selectedKeys: ['icon:0'],
     })
     expect(wrapper.emitted('update:selectedIconIndexes')).toEqual([[[0]]])
   })
@@ -89,8 +105,8 @@ describe('ProjectIconSetWorkspace', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndexes: [0] },
     })
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'selection.change', triggerKey: 'icon:1', selectedKeys: ['icon:1'], mode: 'replace',
+    wrapper.getComponent(OcTree).vm.$emit('selection-change', {
+      triggerKey: 'icon:1', selectedKeys: ['icon:1'],
     })
     expect(wrapper.emitted('update:selectedIconIndexes')).toEqual([[[1]]])
 
@@ -127,8 +143,8 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.getComponent(OcTree).props('selectedKeys')).toEqual(['icon:0', 'icon:2'])
     expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Warning')
 
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke', key: 'icon:2', actionKey: 'move-bottom', source: 'context',
+    wrapper.getComponent(OcTree).vm.$emit('action', {
+      key: 'icon:2', actionKey: 'move-bottom', source: 'context',
     })
     let updates = wrapper.emitted('update:series') ?? []
     let updated = updates[updates.length - 1]?.[0] as ProjectIconSeries
@@ -136,8 +152,8 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.emitted('update:selectedIconIndexes')).toContainEqual([[1, 2]])
 
     await wrapper.setProps({ series: updated, selectedIconIndexes: [1, 2] })
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke', key: 'icon:2', actionKey: 'delete', source: 'context',
+    wrapper.getComponent(OcTree).vm.$emit('action', {
+      key: 'icon:2', actionKey: 'delete', source: 'context',
     })
     updates = wrapper.emitted('update:series') ?? []
     updated = updates[updates.length - 1]?.[0] as ProjectIconSeries
@@ -149,16 +165,16 @@ describe('ProjectIconSetWorkspace', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndexes: [0] },
     })
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke', key: 'icon:0', actionKey: 'move-bottom', source: 'inline',
+    wrapper.getComponent(OcTree).vm.$emit('action', {
+      key: 'icon:0', actionKey: 'move-bottom', source: 'inline',
     })
     let updates = wrapper.emitted('update:series') ?? []
     expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).icons.map(icon => icon.iconKey))
       .toEqual(['success', 'warning'])
 
     await wrapper.setProps({ selectedIconIndexes: [1] })
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke', key: 'icon:1', actionKey: 'move-top', source: 'inline',
+    wrapper.getComponent(OcTree).vm.$emit('action', {
+      key: 'icon:1', actionKey: 'move-top', source: 'inline',
     })
     updates = wrapper.emitted('update:series') ?? []
     expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).icons.map(icon => icon.iconKey))
@@ -169,8 +185,8 @@ describe('ProjectIconSetWorkspace', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series, runtime, selectedIconIndexes: [0] },
     })
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke', key: 'icon:0', actionKey: 'duplicate', source: 'inline',
+    wrapper.getComponent(OcTree).vm.$emit('action', {
+      key: 'icon:0', actionKey: 'duplicate', source: 'inline',
     })
 
     const updates = wrapper.emitted('update:series') ?? []
@@ -188,8 +204,8 @@ describe('ProjectIconSetWorkspace', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
       props: { series: { ...series, icons }, runtime, selectedIconIndexes: [1] },
     })
-    wrapper.getComponent(OcTree).vm.$emit('intent', {
-      type: 'action.invoke', key: 'icon:1', actionKey: 'delete', source: 'inline',
+    wrapper.getComponent(OcTree).vm.$emit('action', {
+      key: 'icon:1', actionKey: 'delete', source: 'inline',
     })
     const updates = wrapper.emitted('update:series') ?? []
     const updated = updates[updates.length - 1]?.[0] as ProjectIconSeries

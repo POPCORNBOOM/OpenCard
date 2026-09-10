@@ -1,6 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 
-import type { OcTreeData } from '../../shared/ui/tree/tree.types'
+import type { OcNode, OcNodeAction, OcNodeBadge, OcNodeCollection } from '../../shared/ui/node/node.types'
 import { inspectRepository, readFileHistory, readHistory, readStatus } from './gitService'
 import { formatRelativeTime } from '../../shared/i18n/relativeTime'
 import type { CommitChangedFile, CommitSummary, GitErrorKind, GitStatusEntry } from './git.types'
@@ -26,6 +26,7 @@ export function useProjectTimeline(
   projectPath: Ref<string | null | undefined>,
   currentFilePath: Ref<string | null | undefined>,
   locale: Ref<string>,
+  compareWithDiskLabel: Ref<string>,
 ) {
   const commits = ref<CommitSummary[]>([])
   const projectCommits = ref<CommitSummary[]>([])
@@ -42,33 +43,33 @@ export function useProjectTimeline(
   let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
   let statusRefreshResolvers: Array<() => void> = []
 
-  function changedFileTail(file: CommitChangedFile) {
+  function changedFileTail(file: CommitChangedFile): OcNodeBadge {
     const titles = locale.value === 'zh-CN'
       ? { added: '新增', modified: '修改', deleted: '删除' }
       : { added: 'Added', modified: 'Modified', deleted: 'Deleted' }
-    if (file.status === 'added') return { key: 'status', title: titles.added, icon: 'action.add' as const, iconTone: 'success' as const }
-    if (file.status === 'deleted') return { key: 'status', title: titles.deleted, icon: 'action.minus' as const, iconTone: 'danger' as const }
-    return { key: 'status', title: titles.modified, icon: 'status.circle-medium' as const, iconTone: 'warning' as const }
+    if (file.status === 'added') return { type: 'badge', label: titles.added, icon: 'action.add', tone: 'success' }
+    if (file.status === 'deleted') return { type: 'badge', label: titles.deleted, icon: 'action.minus', tone: 'danger' }
+    return { type: 'badge', label: titles.modified, icon: 'status.circle-medium', tone: 'warning' }
   }
 
-  function statusTail(entry: GitStatusEntry) {
+  function statusTail(entry: GitStatusEntry): OcNodeBadge {
     const titles = locale.value === 'zh-CN'
       ? { added: '新增', modified: '修改', deleted: '删除' }
       : { added: 'Added', modified: 'Modified', deleted: 'Deleted' }
-    if (entry.indexDeleted || entry.worktreeDeleted) return { key: 'git-status', title: titles.deleted, icon: 'action.minus' as const, iconTone: 'danger' as const }
-    if (entry.indexNew || entry.worktreeNew) return { key: 'git-status', title: titles.added, icon: 'action.add' as const, iconTone: 'success' as const }
-    return { key: 'git-status', title: titles.modified, icon: 'status.circle-medium' as const, iconTone: 'warning' as const }
+    if (entry.indexDeleted || entry.worktreeDeleted) return { type: 'badge', label: titles.deleted, icon: 'action.minus', tone: 'danger' }
+    if (entry.indexNew || entry.worktreeNew) return { type: 'badge', label: titles.added, icon: 'action.add', tone: 'success' }
+    return { type: 'badge', label: titles.modified, icon: 'status.circle-medium', tone: 'warning' }
   }
 
   function createCommitTree(
     commits: CommitSummary[],
     keyPrefix: string,
     visible = historyLoaded.value,
-    actions: readonly string[] = [],
+    actions: readonly OcNodeAction[] = [],
     includeChangedPaths = false,
-  ): OcTreeData {
+  ): OcNodeCollection {
     if (!visible) return { rootKeys: [], items: new Map(), children: new Map() }
-    const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
+    const items = new Map<string, OcNode>()
     const children = new Map<string, readonly string[]>()
     const rootKeys = commits.map(commit => `${keyPrefix}:${commit.id}`)
     for (const commit of commits) {
@@ -96,11 +97,17 @@ export function useProjectTimeline(
     return { rootKeys, items, children }
   }
 
+  const compareWithDiskAction = computed<OcNodeAction>(() => ({
+    key: TIMELINE_COMPARE_WITH_DISK_ACTION_KEY,
+    title: compareWithDiskLabel.value,
+    icon: 'action.file-arrow-up-down',
+  }))
+
   const treeData = computed(() => createCommitTree(
     commits.value,
     'timeline',
     Boolean(currentFilePath.value) && historyLoaded.value,
-    [TIMELINE_COMPARE_WITH_DISK_ACTION_KEY],
+    [compareWithDiskAction.value],
   ))
   const projectTreeData = computed(() => createCommitTree(
     projectCommits.value,
@@ -116,8 +123,8 @@ export function useProjectTimeline(
     || entry.conflicted
   )))
 
-  const changesTreeData = computed<OcTreeData>(() => {
-    const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
+  const changesTreeData = computed<OcNodeCollection>(() => {
+    const items = new Map<string, OcNode>()
     const rootKeys = changeEntries.value.map(entry => `change:${entry.path}`)
     for (const entry of changeEntries.value) {
       const presentation = resolveEntryIcon(entry.path, false)

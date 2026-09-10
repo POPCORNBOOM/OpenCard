@@ -4,6 +4,11 @@
       {{ t('packageManifest.unavailable') }}
     </OcEmpty>
     <div v-else class="package-manifest-editor">
+      <OcPanel v-if="cover" gap="3" padding="4" border="muted" radius="md">
+        <h2>{{ t('packageManifest.cover') }}</h2>
+        <img class="package-manifest-editor__cover" :src="cover.src" :alt="t('packageManifest.coverAlt')" />
+      </OcPanel>
+
       <OcPanel gap="3" padding="4" border="muted" radius="md">
         <h2>{{ t('packageManifest.information') }}</h2>
         <dl class="package-manifest-editor__details">
@@ -60,6 +65,7 @@ const projectStore = useProjectStore()
 
 const packageKey = computed(() => resolveInstalledResourcePackageKey(props.filePath) ?? '')
 const manifest = computed(() => projectStore.projectResourcePackages.value.get(packageKey.value)?.manifest ?? null)
+const cover = computed(() => projectStore.projectResourcePackages.value.get(packageKey.value)?.cover ?? null)
 
 const presentation = computed<EditorPresentation>(() => ({
   title: manifest.value?.name ?? packageKey.value ?? t('packageManifest.title'),
@@ -89,6 +95,14 @@ watch(() => props.filePath, () => emit('modified', false), { immediate: true })
 .package-manifest-editor h2 {
   font-size: var(--oc-text-md);
   color: var(--oc-fg-default);
+}
+
+.package-manifest-editor__cover {
+  width: var(--oc-cover-preview-width);
+  height: var(--oc-cover-preview-height);
+  border: var(--oc-border-width) solid var(--oc-border-muted);
+  border-radius: var(--oc-radius-md);
+  object-fit: cover;
 }
 
 .package-manifest-editor__details,

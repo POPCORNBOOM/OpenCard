@@ -237,7 +237,7 @@ describe('ShellSidebar', () => {
             role: 'tree',
             selectionMode: 'single',
             activationMode: 'none',
-            onIntent: intent => intents.push(intent),
+            onSelectionChange: event => intents.push(event),
           },
         }]),
       },
@@ -246,11 +246,8 @@ describe('ShellSidebar', () => {
     expect(wrapper.find('.open-card-shell__sidebar-tree').exists()).toBe(true)
     await wrapper.get('.oc-tree__row').trigger('click')
     expect(intents).toEqual([{
-      type: 'selection.change',
       triggerKey: 'file',
       selectedKeys: ['file'],
-      mode: 'replace',
-      input: 'left',
     }])
   })
 

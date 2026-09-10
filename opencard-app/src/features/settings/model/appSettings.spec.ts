@@ -50,6 +50,8 @@ describe('appSettings', () => {
         structureTreeSelectionBehavior: 'expand-exclusive',
         structureTreeScrollToSelection: true,
         hideDotFiles: true,
+        showWelcomeBackground: true,
+        packageManagerView: 'tree',
         showSelectionPositionOnMove: true,
         showSelectionSizeOnResize: true,
         alignmentSnappingEnabledByDefault: true,
@@ -57,6 +59,30 @@ describe('appSettings', () => {
       },
       projectCreation: { lastParentPath: '', recentProjects: [], workspaceStates: {} },
     })
+  })
+
+  it('normalizes the welcome background flag', () => {
+    expect(normalizeAppSettings({ version: APP_SETTINGS_VERSION }).workspace.showWelcomeBackground).toBe(true)
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { showWelcomeBackground: false },
+    }).workspace.showWelcomeBackground).toBe(false)
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { showWelcomeBackground: 'yes' },
+    }).workspace.showWelcomeBackground).toBe(true)
+  })
+
+  it('normalizes the package manager list view', () => {
+    expect(normalizeAppSettings({ version: APP_SETTINGS_VERSION }).workspace.packageManagerView).toBe('tree')
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { packageManagerView: 'album' },
+    }).workspace.packageManagerView).toBe('album')
+    expect(normalizeAppSettings({
+      version: APP_SETTINGS_VERSION,
+      workspace: { packageManagerView: 'mosaic' },
+    }).workspace.packageManagerView).toBe('tree')
   })
 
   it('keeps only editable valid theme colors for each theme', () => {

@@ -577,26 +577,6 @@ export function useEditorSessionStore() {
     }
   }
 
-  function detachWorkspaceSessions(oldProjectRoot: string) {
-    const normalizedRoot = normalizePath(oldProjectRoot)
-    if (!normalizedRoot) return
-
-    sessions.value = sessions.value.map((session) => {
-      if (session.resourceKind !== 'workspace') {
-        return session
-      }
-
-      taskScheduler.cancel(projectConfigurationAutosaveKey(session.id))
-      return {
-        ...session,
-        resourceKind: 'external',
-        path: session.path && !isAbsolutePath(session.path)
-          ? normalizePath(`${normalizedRoot}/${session.path}`)
-          : session.path,
-      }
-    })
-  }
-
   function closeSessionsByPath(path: string) {
     const normalizedPath = normalizePath(path)
     const closedSessionIds = new Set(
@@ -695,12 +675,14 @@ export function useEditorSessionStore() {
         ? (() => {
           const hasNewerDraft = candidate.draftContent !== session.draftContent
           const draftContent = hasNewerDraft ? candidate.draftContent : savedContent
+          const nextName = getPathBasename(nextPath)
           return {
             ...candidate,
             path: nextPath,
             resourceKind: nextResourceKind,
-            name: getPathBasename(nextPath),
-            title: undefined,
+            name: nextName,
+            // 只有文件名真的变了（另存为、草稿落盘）才丢弃显式标题；原地保存保留编辑器标题。
+            title: nextName === candidate.name ? candidate.title : undefined,
             fileTypeId: nextFileTypeId,
             editorId: resolveFileTypeById(nextFileTypeId).editorId,
             savedContent,
@@ -808,7 +790,6 @@ export function useEditorSessionStore() {
     setSessionMode,
     closeSession,
     closeWorkspaceSessions,
-    detachWorkspaceSessions,
     closeSessionsByPath,
     saveSession,
     saveActiveSession,

@@ -14,9 +14,9 @@
       <OcAutocompletePopover :id="autocompleteId" :open="menuOpen" :anchor="pickerRef"
         :items="suggestions" :active-key="activePath" @select="selectSuggestion" />
       <OcTree v-if="selectedDocuments.length" class="project-export-task-editor__documents"
-        :data="documentTreeData" :actions="documentTreeActions" :selected-keys="[]"
+        :data="documentTreeData" :selected-keys="[]"
         role="listbox" selection-mode="none" activation-mode="none"
-        @intent="handleDocumentTreeIntent" />
+        @action="handleDocumentTreeAction" @move="handleDocumentTreeMove" />
       <OcText v-else tone="muted" size="sm">{{ t('projectConfig.export.noDocuments') }}</OcText>
     </div>
 
@@ -90,10 +90,12 @@ import type { PropertyEditorFieldDefinition } from '../../shared/ui/property-edi
 import type { ProjectExportTask } from '../../features/workspace/model/projectMetadata'
 import type { ExportTaskValidationIssue } from '../../features/exporting/exportTask'
 import type {
-  OcTreeActionDefinition,
-  OcTreeData,
-  OcTreeIntent,
-} from '../../shared/ui/tree/tree.types'
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeCollection,
+  OcNodeMoveEvent,
+} from '../../shared/ui/node/node.types'
 
 export type ExportDocumentCandidate = {
   path: string
@@ -176,24 +178,25 @@ const suggestions = computed<OcAutocompleteItem[]>(() => {
     .filter(document => !normalizedQuery || document.path.toLocaleLowerCase().includes(normalizedQuery))
     .map(document => ({ key: document.path, label: document.path, detail: '.ocdocument', icon: 'file.opencard' }))
 })
-const documentTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  [REMOVE_DOCUMENT_ACTION_KEY, {
+const documentTreeData = computed<OcNodeCollection>(() => {
+  const removeDocumentActions: readonly OcNodeAction[] = [{
+    key: REMOVE_DOCUMENT_ACTION_KEY,
     title: t('projectConfig.export.removeDocument'),
     icon: 'action.delete',
     iconTone: 'danger',
-  }],
-]))
-const documentTreeData = computed<OcTreeData>(() => ({
-  rootKeys: selectedDocuments.value.map(document => document.path),
-  items: new Map(selectedDocuments.value.map(document => [document.path, {
-    label: document.path,
-    tail: targetResolution(document),
-    icon: 'file.opencard',
-    draggable: !busy.value,
-    actions: busy.value ? [] : [REMOVE_DOCUMENT_ACTION_KEY],
-  }])),
-  children: new Map(),
-}))
+  }]
+  return {
+    rootKeys: selectedDocuments.value.map(document => document.path),
+    items: new Map(selectedDocuments.value.map((document): [string, OcNode] => [document.path, {
+      label: document.path,
+      tail: targetResolution(document),
+      icon: 'file.opencard',
+      draggable: !busy.value,
+      actions: busy.value ? [] : removeDocumentActions,
+    }])),
+    children: new Map(),
+  }
+})
 const candidatePath = computed(() => activePath.value && suggestions.value.some(item => item.key === activePath.value)
   ? activePath.value : null)
 const scale = computed(() => Number(scaleText.value))
@@ -289,20 +292,19 @@ function removeDocument(index: number): void {
   selectedDocuments.value = selectedDocuments.value.filter((_, candidate) => candidate !== index)
   refreshActiveSuggestion()
 }
-function handleDocumentTreeIntent(intent: OcTreeIntent): void {
-  if (busy.value) return
-  if (intent.type === 'action.invoke' && intent.actionKey === REMOVE_DOCUMENT_ACTION_KEY) {
-    const index = selectedDocuments.value.findIndex(document => document.path === intent.key)
-    if (index < 0) return
-    removeDocument(index)
-    return
-  }
-  if (intent.type !== 'move.request' || !intent.targetKey || intent.key === intent.targetKey) return
-  const index = selectedDocuments.value.findIndex(document => document.path === intent.key)
+function handleDocumentTreeAction(event: OcNodeActionEvent): void {
+  if (busy.value || event.actionKey !== REMOVE_DOCUMENT_ACTION_KEY) return
+  const index = selectedDocuments.value.findIndex(document => document.path === event.key)
   if (index < 0) return
-  const targetIndex = selectedDocuments.value.findIndex(document => document.path === intent.targetKey)
+  removeDocument(index)
+}
+function handleDocumentTreeMove(event: OcNodeMoveEvent): void {
+  if (busy.value || !event.targetKey || event.key === event.targetKey) return
+  const index = selectedDocuments.value.findIndex(document => document.path === event.key)
+  if (index < 0) return
+  const targetIndex = selectedDocuments.value.findIndex(document => document.path === event.targetKey)
   if (targetIndex < 0) return
-  let nextIndex = targetIndex + (intent.position === 'after' ? 1 : 0)
+  let nextIndex = targetIndex + (event.position === 'after' ? 1 : 0)
   if (index < nextIndex) nextIndex -= 1
   moveDocument(index, nextIndex)
 }

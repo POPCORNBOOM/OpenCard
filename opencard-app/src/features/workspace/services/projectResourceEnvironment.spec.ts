@@ -61,4 +61,42 @@ describe('ProjectResourceEnvironment', () => {
       'asset:///project/.opencard/packages/assets/icons/theme.png',
     )
   })
+
+  it('resolves a package cover and stays silent when it is missing', async () => {
+    const files = new Map<string, string>([
+      ['/project/.opencard/packages', ''],
+      ['/project/.opencard/packages/theme/.opencard/manifest.json', JSON.stringify({
+        type: 'opencard-resource-package', key: 'theme', name: 'Theme', version: '1.0.0',
+        cover: 'assets/cover.png', contentHash: '0'.repeat(64),
+        public: { fonts: [], iconSeries: [] },
+      })],
+      ['/project/.opencard/packages/theme/assets/cover.png', 'bytes'],
+      ['/project/.opencard/packages/plain/.opencard/manifest.json', JSON.stringify({
+        type: 'opencard-resource-package', key: 'plain', name: 'Plain', version: '1.0.0',
+        cover: 'assets/missing.png', contentHash: '0'.repeat(64),
+        public: { fonts: [], iconSeries: [] },
+      })],
+    ])
+    const environment = await loadProjectResourceEnvironment({
+      rootPath: '/project',
+      kind: 'project',
+      identity: 'project',
+      fs: {
+        fileExists: async path => files.has(path),
+        readFile: async path => files.get(path) ?? '',
+        readDirectoryEntries: async () => [
+          { name: 'theme', isDirectory: true, isFile: false, isSymlink: false },
+          { name: 'plain', isDirectory: true, isFile: false, isSymlink: false },
+        ],
+      },
+    })
+
+    expect(environment.packages?.get('theme')?.cover).toEqual({
+      relativePath: 'assets/cover.png',
+      absolutePath: '/project/.opencard/packages/theme/assets/cover.png',
+      src: 'asset:///project/.opencard/packages/theme/assets/cover.png',
+    })
+    expect(environment.packages?.get('plain')?.cover).toBeNull()
+    expect(environment.packages?.get('plain')?.issues).toEqual([])
+  })
 })

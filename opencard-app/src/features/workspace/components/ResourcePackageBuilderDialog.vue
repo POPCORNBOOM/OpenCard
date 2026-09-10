@@ -13,9 +13,10 @@
             </div>
           </div>
           <OcPanel fill padding="none" overflow="auto">
-            <OcTree v-if="treeData.rootKeys.length" fill :data="treeData" :actions="treeActions"
+            <OcTree v-if="treeData.rootKeys.length" fill :data="treeData"
               :expanded-keys="expandedKeys" :virtualized="true" selection-mode="none" action-visibility="always"
-              :aria-label="t('resourcePackage.contents')" @intent="handleTreeIntent" />
+              :aria-label="t('resourcePackage.contents')"
+              @expansion-change="handleTreeExpansionChange" @action="handleTreeAction" />
             <OcEmpty v-else tone="muted" inset="comfortable">{{ t('resourcePackage.noCandidates') }}</OcEmpty>
           </OcPanel>
         </section>
@@ -48,6 +49,11 @@
               <OcFieldInput variant="underline" full-width mono :value="version" :disabled="busy"
                 @input="version = ($event.target as HTMLInputElement).value" />
             </label>
+            <label class="resource-package-builder__cover">
+              <OcText as="span" size="sm">{{ t('resourcePackage.cover') }}</OcText>
+              <OcFieldInput variant="underline" full-width mono readonly
+                :value="projectCover?.relativePath ?? t('resourcePackage.coverNone')" :disabled="busy" />
+            </label>
           </div>
           <OcText v-if="errorText" class="resource-package-builder__error" tone="danger" role="alert">{{ errorText }}</OcText>
         </aside>
@@ -78,9 +84,17 @@ import { createPackageKey, toKeySlug } from '../../../shared/model/keySlug'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import type { ProjectPackageBuilderState } from '../../settings/model/appSettings'
 import { findProjectWorkspaceState, updateProjectWorkspaceState, type ProjectWorkspaceStateRead } from '../../settings/model/workspaceState'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeCollection,
+  OcNodeExpansionEvent,
+} from '../../../shared/ui/node/node.types'
 import { buildResourcePackageFromProject } from '../services/buildResourcePackage'
 import { fileSystemService } from '../services/fileSystemService'
+import { readProjectCover } from '../services/projectCoverService'
+import type { ProjectCover } from '../model/projectCover'
 import { useProjectStore } from '../store/projectStore'
 
 const props = defineProps<{ open: boolean, projectRootPath: string, projectName: string, entries: readonly string[] }>()
@@ -97,6 +111,7 @@ const selectedIconSeriesKeys = ref<Set<string>>(new Set())
 const selectedImageIds = ref<Set<string>>(new Set())
 const busy = ref(false)
 const errorText = ref('')
+const projectCover = ref<ProjectCover | null>(null)
 
 type PackageCandidate = {
   id: string
@@ -162,14 +177,13 @@ const selectedCount = computed(() => selectedFamilyKeys.value.size
   + selectedCompositionKeys.value.size + selectedIconSeriesKeys.value.size + selectedImageIds.value.size)
 const canBuild = computed(() => Boolean(packageKey.value && version.value.trim() && selectedCount.value > 0))
 
-const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['select', { title: t('resourcePackage.select'), icon: 'action.checkbox-blank' }],
-  ['deselect', { title: t('resourcePackage.deselect'), icon: 'action.checkbox-marked' }],
-]))
-const treeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeItem>()
+const treeData = computed<OcNodeCollection>(() => {
+  const items = new Map<string, OcNode>()
   const children = new Map<string, string[]>()
   const rootKeys: string[] = []
+  const selectAction: OcNodeAction = { key: 'select', title: t('resourcePackage.select'), icon: 'action.checkbox-blank' }
+  const deselectAction: OcNodeAction = { key: 'deselect', title: t('resourcePackage.deselect'), icon: 'action.checkbox-marked' }
+  const toggleSelection = (selected: boolean): readonly OcNodeAction[] => [selected ? deselectAction : selectAction]
   const addChild = (parentKey: string, childKey: string): void => {
     const existing = children.get(parentKey) ?? []
     if (!existing.includes(childKey)) children.set(parentKey, [...existing, childKey])
@@ -196,7 +210,7 @@ const treeData = computed<OcTreeData>(() => {
       const selected = selectedFamilyKeys.value.has(family.key)
       items.set(key, {
         label: family.name, tail: family.key, icon: 'file.font', iconTone: selected ? 'active' : 'muted',
-        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
       })
       return key
     }))
@@ -205,7 +219,7 @@ const treeData = computed<OcTreeData>(() => {
       const selected = selectedCompositionKeys.value.has(composition.key)
       items.set(key, {
         label: composition.name, tail: composition.key, icon: 'data.layers', iconTone: selected ? 'active' : 'muted',
-        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
       })
       return key
     }))
@@ -222,7 +236,7 @@ const treeData = computed<OcTreeData>(() => {
       const selected = selectedIconSeriesKeys.value.has(series.key)
       items.set(key, {
         label: series.name, tail: series.key, icon: 'file.project-icon', iconTone: selected ? 'active' : 'muted',
-        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
       })
       return key
     }))
@@ -250,7 +264,7 @@ const treeData = computed<OcTreeData>(() => {
       items.set(entry.id, {
         label: segments[segments.length - 1] ?? entry.label,
         icon: 'file.image', iconTone: selected ? 'active' : 'muted',
-        actions: [selected ? 'deselect' : 'select'], contextActions: [selected ? 'deselect' : 'select'],
+        actions: toggleSelection(selected), contextActions: toggleSelection(selected),
       })
       addChild(parentKey, entry.id)
     }
@@ -284,7 +298,16 @@ watch(() => props.open, open => {
     'category:fonts', 'font-group:families', 'font-group:compositions', 'category:icons', 'category:images',
   ])
   errorText.value = ''
+  void refreshProjectCover()
 }, { immediate: true })
+
+/** 包封面自动沿用项目封面，这里只做只读展示。 */
+async function refreshProjectCover(): Promise<void> {
+  projectCover.value = await readProjectCover({
+    fs: fileSystemService,
+    projectRootPath: props.projectRootPath,
+  })
+}
 
 function close(): void {
   if (!busy.value) emit('close')
@@ -295,43 +318,43 @@ function packageBuilderCache(): ProjectWorkspaceStateRead['packageBuilder'] {
     props.projectRootPath,
   )?.packageBuilder
 }
-function handleTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'expansion.change') {
-    const next = new Set(expandedKeySet.value)
-    if (intent.expanded) next.add(intent.key)
-    else next.delete(intent.key)
-    expandedKeySet.value = next
-    return
-  }
-  if (intent.type !== 'action.invoke') return
-  if (intent.key.startsWith('font-family:')) {
-    const familyKey = intent.key.slice('font-family:'.length)
+function handleTreeExpansionChange(event: OcNodeExpansionEvent): void {
+  const next = new Set(expandedKeySet.value)
+  if (event.expanded) next.add(event.key)
+  else next.delete(event.key)
+  expandedKeySet.value = next
+}
+function handleTreeAction(event: OcNodeActionEvent): void {
+  const selected = event.actionKey === 'select'
+  if (!selected && event.actionKey !== 'deselect') return
+  if (event.key.startsWith('font-family:')) {
+    const familyKey = event.key.slice('font-family:'.length)
     const nextFamilies = new Set(selectedFamilyKeys.value)
-    if (intent.actionKey === 'select') nextFamilies.add(familyKey)
-    if (intent.actionKey === 'deselect') nextFamilies.delete(familyKey)
+    if (selected) nextFamilies.add(familyKey)
+    else nextFamilies.delete(familyKey)
     selectedFamilyKeys.value = nextFamilies
     return
   }
-  if (intent.key.startsWith('font-composition:')) {
-    const compositionKey = intent.key.slice('font-composition:'.length)
-    const next = new Set(selectedCompositionKeys.value)
-    if (intent.actionKey === 'select') next.add(compositionKey)
-    if (intent.actionKey === 'deselect') next.delete(compositionKey)
-    selectedCompositionKeys.value = next
+  if (event.key.startsWith('font-composition:')) {
+    const compositionKey = event.key.slice('font-composition:'.length)
+    const nextCompositions = new Set(selectedCompositionKeys.value)
+    if (selected) nextCompositions.add(compositionKey)
+    else nextCompositions.delete(compositionKey)
+    selectedCompositionKeys.value = nextCompositions
     return
   }
-  if (intent.key.startsWith('icon-series:')) {
-    const seriesKey = intent.key.slice('icon-series:'.length)
-    const next = new Set(selectedIconSeriesKeys.value)
-    if (intent.actionKey === 'select') next.add(seriesKey)
-    if (intent.actionKey === 'deselect') next.delete(seriesKey)
-    selectedIconSeriesKeys.value = next
+  if (event.key.startsWith('icon-series:')) {
+    const seriesKey = event.key.slice('icon-series:'.length)
+    const nextSeries = new Set(selectedIconSeriesKeys.value)
+    if (selected) nextSeries.add(seriesKey)
+    else nextSeries.delete(seriesKey)
+    selectedIconSeriesKeys.value = nextSeries
     return
   }
-  const next = new Set(selectedImageIds.value)
-  if (intent.actionKey === 'select') next.add(intent.key)
-  if (intent.actionKey === 'deselect') next.delete(intent.key)
-  selectedImageIds.value = next
+  const nextImages = new Set(selectedImageIds.value)
+  if (selected) nextImages.add(event.key)
+  else nextImages.delete(event.key)
+  selectedImageIds.value = nextImages
 }
 
 async function build(): Promise<void> {

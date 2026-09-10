@@ -89,7 +89,7 @@ describe('CardDesignEditor issue navigation', () => {
         expandedKeys: Array,
         tabNavigation: String,
       },
-      emits: ['intent'],
+      emits: ['node-activate'],
       template: '<div />',
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
@@ -113,11 +113,11 @@ describe('CardDesignEditor issue navigation', () => {
 
     expect(structureTree.props('activationMode')).toBe('double-click')
     expect(structureTree.props('tabNavigation')).toBe('none')
-    structureTree.vm.$emit('intent', { type: 'node.activate', key: 'container-1' })
+    structureTree.vm.$emit('node-activate', { key: 'container-1' })
     await nextTick()
     expect(structureTree.props('expandedKeys')).toContain('container-1')
 
-    structureTree.vm.$emit('intent', { type: 'node.activate', key: 'container-1' })
+    structureTree.vm.$emit('node-activate', { key: 'container-1' })
     await nextTick()
     expect(structureTree.props('expandedKeys')).not.toContain('container-1')
   })
@@ -126,7 +126,7 @@ describe('CardDesignEditor issue navigation', () => {
     const OcTreeStub = defineComponent({
       name: 'OcTree',
       props: { role: String, selectedKeys: Array, selectionMode: String },
-      emits: ['intent'],
+      emits: ['selection-change'],
       template: '<div />',
     })
     const CardViewportStub = defineComponent({
@@ -164,12 +164,9 @@ describe('CardDesignEditor issue navigation', () => {
       .find(tree => tree.props('role') !== 'listbox')!
     expect(structureTree.props('selectionMode')).toBe('multiple')
 
-    structureTree.vm.$emit('intent', {
-      type: 'selection.change',
+    structureTree.vm.$emit('selection-change', {
       triggerKey: 'text-1',
       selectedKeys: ['container-1', 'text-1'],
-      mode: 'range',
-      input: 'left',
     })
     await nextTick()
 
@@ -193,7 +190,7 @@ describe('CardDesignEditor issue navigation', () => {
     const OcTreeStub = defineComponent({
       name: 'OcTree',
       props: { role: String, selectedKeys: Array },
-      emits: ['intent'],
+      emits: ['selection-change'],
       template: '<div />',
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
@@ -211,12 +208,9 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const structureTree = wrapper.findAllComponents(OcTreeStub)
       .find(tree => tree.props('role') !== 'listbox')!
-    structureTree.vm.$emit('intent', {
-      type: 'selection.change',
+    structureTree.vm.$emit('selection-change', {
       triggerKey: 'text-1',
       selectedKeys: ['container-1', 'text-1'],
-      mode: 'range',
-      input: 'left',
     })
     await nextTick()
 
@@ -392,7 +386,7 @@ describe('CardDesignEditor issue navigation', () => {
     const OcTreeStub = defineComponent({
       name: 'OcTree',
       props: { role: String, selectedKeys: Array },
-      emits: ['intent'],
+      emits: ['selection-change'],
       template: '<div />',
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
@@ -418,19 +412,13 @@ describe('CardDesignEditor issue navigation', () => {
     const trees = wrapper.findAllComponents(OcTreeStub)
     const instanceTree = trees.find(tree => tree.props('role') === 'listbox')!
     const structureTree = trees.find(tree => tree.props('role') !== 'listbox')!
-    instanceTree.vm.$emit('intent', {
-      type: 'selection.change',
+    instanceTree.vm.$emit('selection-change', {
       triggerKey: 'instance-1',
       selectedKeys: ['instance-1'],
-      mode: 'replace',
-      input: 'left',
     })
-    structureTree.vm.$emit('intent', {
-      type: 'selection.change',
+    structureTree.vm.$emit('selection-change', {
       triggerKey: 'text-1',
       selectedKeys: ['text-1'],
-      mode: 'replace',
-      input: 'left',
     })
     await nextTick()
 

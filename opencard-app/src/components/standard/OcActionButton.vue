@@ -22,8 +22,8 @@
       icon-only
       :icon="action.icon"
       :icon-tone="action.iconTone"
-      :data-tooltip="action.title || null"
-      :aria-label="actionAccessibleLabel(inlineMarkupToText(action.title ?? action.key), action.badgeLabel)"
+      :data-tooltip="actionTitleText(action) || null"
+      :aria-label="actionAccessibleLabel(inlineMarkupToText(actionTitleText(action) ?? action.key), action.badgeLabel)"
       :aria-haspopup="hasActionChildren(action) ? 'menu' : undefined"
       :aria-expanded="hasActionChildren(action) ? isMenuOpen : undefined"
       :aria-pressed="props.ariaPressed"
@@ -79,7 +79,7 @@ import OcActionMenu, {
   isActionMenuBranchEvent,
 } from './OcActionMenu.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
-import { actionAccessibleLabel, formatActionBadge, hasActionBadge } from './actionBadge'
+import { actionAccessibleLabel, actionTitleText, formatActionBadge, hasActionBadge } from './actionBadge'
 
 defineOptions({
   name: 'OcActionButton',

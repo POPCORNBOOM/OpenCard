@@ -78,12 +78,13 @@
                   @action="handleFieldAction(category.inputKey, entry, $event)"
                 />
                 <span v-if="entry.tail" class="property-editor__tail">
-                  <template v-for="(part, index) in normalizeItemTail(entry.tail)"
-                    :key="typeof part === 'string' ? `text:${index}` : `action:${part.key}`">
+                  <template v-for="(part, index) in normalizeNodeTail(entry.tail)"
+                    :key="typeof part === 'string' ? `text:${index}` : `badge:${index}`">
                     <OcText v-if="typeof part === 'string'" tone="muted" size="xs">{{ part }}</OcText>
-                    <OcActionButton v-else class="property-editor__tail-action" :action="part"
-                      size="sm" variant="ghost"
-                      @select="handleTailAction(category.inputKey, entry, $event)" />
+                    <span v-else class="property-editor__tail-badge" role="img"
+                      :aria-label="part.label" :data-tooltip="part.label">
+                      <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
+                    </span>
                   </template>
                 </span>
               </div>
@@ -109,7 +110,6 @@ import type {
   PropertyEditorInput,
   PropertyEditorAddMutation,
   PropertyEditorMutation,
-  PropertyEditorTailActionIntent,
   PropertyEditorSortMode,
 } from './propertyEditor.types'
 import {
@@ -131,7 +131,7 @@ import {
 import { getPropertyFieldIcon } from './propertyFieldRegistry'
 import { formatPropertyFieldReadonlyValue } from './propertyFieldRegistry'
 import { useFloatingMenu } from '../../../composables/useFloatingMenu'
-import { normalizeItemTail } from '../itemViewModel.types'
+import { normalizeNodeTail } from '../node/node.types'
 
 // 输出事件协议。
 const emit = defineEmits<{
@@ -139,7 +139,6 @@ const emit = defineEmits<{
   (e: 'add-property', payload: PropertyEditorAddMutation): void
   (e: 'reset-property', payload: PropertyEditorFieldIntent): void
   (e: 'delete-property', payload: PropertyEditorFieldIntent): void
-  (e: 'tail-action', payload: PropertyEditorTailActionIntent): void
 }>()
 
 // 组件输入协议。
@@ -190,14 +189,6 @@ async function copyFieldKey(fieldKey: string): Promise<void> {
   } catch (error) {
     notifyAppError('OC-E1002', { source: 'property-field-key', fieldKey, error })
   }
-}
-
-function handleTailAction(
-  key: string,
-  entry: PropertyEditorEntry,
-  payload: { key: string },
-): void {
-  emit('tail-action', { key, fieldKey: entry.fieldKey, actionKey: payload.key })
 }
 
 const { displaySources } = usePropertyEditorView({
@@ -576,7 +567,7 @@ onBeforeUnmount(() => {
   gap: var(--oc-space-1);
 }
 
-.property-editor__tail-action { display: inline-flex; align-items: center; }
+.property-editor__tail-badge { display: inline-flex; align-items: center; }
 
 @media (hover: none) {
   .property-editor__category-actions {

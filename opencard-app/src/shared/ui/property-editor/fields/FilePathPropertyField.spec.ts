@@ -19,7 +19,7 @@ describe('FilePathPropertyField', () => {
       fonts: {}, fontDocument: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
       packages: new Map([['theme', {
         manifest: { ...normalizeResourcePackageManifest({}, 'theme').manifest, name: 'Theme Pack' },
-        rootPath: '/project/.opencard/packages/theme', issues: [],
+        rootPath: '/project/.opencard/packages/theme', cover: null, issues: [],
       }]]),
     }, { readDirectoryEntries })
     const wrapper = mount(FilePathPropertyField, {

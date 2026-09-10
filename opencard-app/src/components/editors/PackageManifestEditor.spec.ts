@@ -17,7 +17,7 @@ const manifest: ResourcePackageManifest = {
 }
 
 const projectResourcePackages = vi.hoisted(() => (
-  { value: new Map() } as { value: Map<string, { manifest: unknown }> }
+  { value: new Map() } as { value: Map<string, { manifest: unknown, cover?: unknown }> }
 ))
 
 vi.mock('vue-i18n', () => ({
@@ -84,5 +84,25 @@ describe('PackageManifestEditor', () => {
     const wrapper = mountEditor()
 
     expect(wrapper.text()).toContain('packageManifest.unavailable')
+  })
+
+  it('shows a package cover only when the manifest declares a resolvable one', () => {
+    const wrapper = mountEditor()
+    expect(wrapper.find('.package-manifest-editor__cover').exists()).toBe(false)
+
+    projectResourcePackages.value = new Map([['theme', {
+      manifest,
+      cover: {
+        relativePath: 'assets/cover.png',
+        absolutePath: '/project/assets/cover.png',
+        src: 'asset:///project/assets/cover.png',
+      },
+    }]])
+    const covered = mountEditor()
+
+    expect(covered.get('.package-manifest-editor__cover').attributes('src'))
+      .toBe('asset:///project/assets/cover.png')
+    expect(covered.findAll('.package-manifest-editor h2').map(node => node.text())[0])
+      .toBe('packageManifest.cover')
   })
 })

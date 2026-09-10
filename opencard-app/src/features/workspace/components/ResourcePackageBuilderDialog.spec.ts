@@ -2,12 +2,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OcTree from '../../../components/standard/OcTree.vue'
-import type { OcTreeData } from '../../../shared/ui/tree/tree.types'
+import type { OcNodeCollection } from '../../../shared/ui/node/node.types'
 import type { AppSettings, ProjectWorkspaceState } from '../../settings/model/appSettings'
+import type { ProjectCover } from '../model/projectCover'
 import ResourcePackageBuilderDialog from './ResourcePackageBuilderDialog.vue'
 
 const buildPackage = vi.hoisted(() => vi.fn(async () => ({ outputPath: '/output/theme.ocpack' })))
 const pickSavePath = vi.hoisted(() => vi.fn(async () => '/output/theme.ocpack'))
+const readProjectCover = vi.hoisted(() => vi.fn(async (): Promise<ProjectCover | null> => null))
 
 const projectStore = vi.hoisted(() => ({
   projectFontFamilies: { value: [
@@ -40,6 +42,7 @@ vi.mock('../../settings/store/appSettingsStore', () => ({
 }))
 vi.mock('../services/buildResourcePackage', () => ({ buildResourcePackageFromProject: buildPackage }))
 vi.mock('../services/fileSystemService', () => ({ fileSystemService: { pickSavePath } }))
+vi.mock('../services/projectCoverService', () => ({ readProjectCover }))
 
 const imageEntries = [
   'images/card.png', 'images/nested/banner.svg', 'images/notes.txt',
@@ -53,8 +56,8 @@ function mountBuilder(entries: readonly string[] = [], projectRootPath = '/proje
   })
 }
 
-function actionsOf(data: OcTreeData, key: string): readonly string[] | undefined {
-  return data.items.get(key)?.actions
+function actionsOf(data: OcNodeCollection, key: string): readonly string[] | undefined {
+  return data.items.get(key)?.actions?.map(action => action.key)
 }
 
 beforeEach(() => {
@@ -63,30 +66,56 @@ beforeEach(() => {
   updateProjectCreation.mockClear()
   pickSavePath.mockClear()
   buildPackage.mockClear()
+  readProjectCover.mockClear()
+  readProjectCover.mockResolvedValue(null)
+})
+
+describe('ResourcePackageBuilderDialog cover summary', () => {
+  it('shows the inherited project cover as read-only information', async () => {
+    readProjectCover.mockResolvedValue({
+      relativePath: 'assets/cover.png',
+      absolutePath: '/project/assets/cover.png',
+      src: 'asset:///project/assets/cover.png',
+    })
+    const wrapper = mountBuilder()
+    await flushPromises()
+
+    expect(readProjectCover).toHaveBeenCalledWith(expect.objectContaining({ projectRootPath: '/project' }))
+    expect((wrapper.get('.resource-package-builder__cover input').element as HTMLInputElement).value)
+      .toBe('assets/cover.png')
+  })
+
+  it('states that a project without a cover produces a package without one', async () => {
+    const wrapper = mountBuilder()
+    await flushPromises()
+
+    expect((wrapper.get('.resource-package-builder__cover input').element as HTMLInputElement).value)
+      .toBe('resourcePackage.coverNone')
+  })
 })
 
 describe('ResourcePackageBuilderDialog selection', () => {
   it('keeps public font and composition selections independent and selects everything by default', async () => {
     const wrapper = mountBuilder()
     const tree = wrapper.findComponent(OcTree)
-    let data = tree.props('data') as OcTreeData
+    let data = tree.props('data') as OcNodeCollection
     expect(data.children.get('category:fonts')).toEqual(['font-group:families', 'font-group:compositions'])
     expect(actionsOf(data, 'font-family:latin')).toEqual(['deselect'])
     expect(actionsOf(data, 'font-family:cjk')).toEqual(['deselect'])
     expect(actionsOf(data, 'font-composition:body')).toEqual(['deselect'])
     expect(actionsOf(data, 'icon-series:status')).toEqual(['deselect'])
 
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'font-composition:body', actionKey: 'deselect' })
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'font-family:cjk', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'font-composition:body', actionKey: 'deselect', source: 'inline' })
+    tree.vm.$emit('action', { key: 'font-family:cjk', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    data = tree.props('data') as OcTreeData
+    data = tree.props('data') as OcNodeCollection
     expect(actionsOf(data, 'font-composition:body')).toEqual(['select'])
     expect(actionsOf(data, 'font-family:cjk')).toEqual(['select'])
     expect(actionsOf(data, 'font-family:latin')).toEqual(['deselect'])
 
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'font-family:cjk', actionKey: 'select' })
+    tree.vm.$emit('action', { key: 'font-family:cjk', actionKey: 'select', source: 'inline' })
     await nextTick()
-    data = tree.props('data') as OcTreeData
+    data = tree.props('data') as OcNodeCollection
     expect(actionsOf(data, 'font-composition:body')).toEqual(['select'])
     expect(actionsOf(data, 'font-family:cjk')).toEqual(['deselect'])
   })
@@ -94,25 +123,25 @@ describe('ResourcePackageBuilderDialog selection', () => {
   it('selects project icon series without exposing spritesheet files', async () => {
     const wrapper = mountBuilder()
     const tree = wrapper.findComponent(OcTree)
-    let data = tree.props('data') as OcTreeData
+    let data = tree.props('data') as OcNodeCollection
     expect(data.children.get('category:icons')).toEqual(['icon-series:status'])
     expect(data.items.get('category:icons')?.tail).toBeUndefined()
     expect([...data.items.keys()].some(key => key.includes('status.png'))).toBe(false)
 
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'icon-series:status', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'icon-series:status', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    data = tree.props('data') as OcTreeData
+    data = tree.props('data') as OcNodeCollection
     expect(actionsOf(data, 'icon-series:status')).toEqual(['select'])
 
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'icon-series:status', actionKey: 'select' })
+    tree.vm.$emit('action', { key: 'icon-series:status', actionKey: 'select', source: 'inline' })
     await nextTick()
-    expect(actionsOf(tree.props('data') as OcTreeData, 'icon-series:status')).toEqual(['deselect'])
+    expect(actionsOf(tree.props('data') as OcNodeCollection, 'icon-series:status')).toEqual(['deselect'])
   })
 
   it('shows project images by directory without paths or counts and builds from the selection', async () => {
     const wrapper = mountBuilder(imageEntries)
     const tree = wrapper.findComponent(OcTree)
-    let data = tree.props('data') as OcTreeData
+    let data = tree.props('data') as OcNodeCollection
 
     expect(data.children.get('category:images')).toEqual(['folder:images:images'])
     expect(data.children.get('folder:images:images')).toEqual([
@@ -123,16 +152,16 @@ describe('ResourcePackageBuilderDialog selection', () => {
       || key.includes('.git') || key.includes('outside'))).toBe(false)
     expect(data.items.get('category:images')?.tail).toBeUndefined()
     expect(data.items.get('image:images/card.png')?.tail).toBeUndefined()
-    expect(data.items.get('image:images/card.png')?.actions).toEqual(['deselect'])
+    expect(actionsOf(data, 'image:images/card.png')).toEqual(['deselect'])
 
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'image:images/card.png', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'image:images/card.png', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'image:images/nested/banner.svg', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'image:images/nested/banner.svg', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    data = tree.props('data') as OcTreeData
-    expect(data.items.get('image:images/card.png')?.actions).toEqual(['select'])
+    data = tree.props('data') as OcNodeCollection
+    expect(actionsOf(data, 'image:images/card.png')).toEqual(['select'])
 
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'image:images/card.png', actionKey: 'select' })
+    tree.vm.$emit('action', { key: 'image:images/card.png', actionKey: 'select', source: 'inline' })
     await nextTick()
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -159,7 +188,7 @@ describe('ResourcePackageBuilderDialog selection', () => {
     }
     const wrapper = mountBuilder(imageEntries)
     const tree = wrapper.findComponent(OcTree)
-    const data = tree.props('data') as OcTreeData
+    const data = tree.props('data') as OcNodeCollection
 
     expect(actionsOf(data, 'font-family:latin')).toEqual(['select'])
     expect(actionsOf(data, 'font-family:cjk')).toEqual(['deselect'])
@@ -182,13 +211,13 @@ describe('ResourcePackageBuilderDialog selection', () => {
   it('remembers the build inputs for the project and restores them on reopen', async () => {
     const wrapper = mountBuilder(imageEntries)
     const tree = wrapper.findComponent(OcTree)
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'image:images/card.png', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'image:images/card.png', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'font-family:latin', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'font-family:latin', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'font-composition:body', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'font-composition:body', actionKey: 'deselect', source: 'inline' })
     await nextTick()
-    tree.vm.$emit('intent', { type: 'action.invoke', key: 'icon-series:status', actionKey: 'deselect' })
+    tree.vm.$emit('action', { key: 'icon-series:status', actionKey: 'deselect', source: 'inline' })
     await nextTick()
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -206,7 +235,7 @@ describe('ResourcePackageBuilderDialog selection', () => {
 
     const reopened = mountBuilder(imageEntries)
     const reopenedTree = reopened.findComponent(OcTree)
-    const data = reopenedTree.props('data') as OcTreeData
+    const data = reopenedTree.props('data') as OcNodeCollection
     expect(actionsOf(data, 'font-family:latin')).toEqual(['select'])
     expect(actionsOf(data, 'font-family:cjk')).toEqual(['deselect'])
     expect(actionsOf(data, 'image:images/card.png')).toEqual(['select'])

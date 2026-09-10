@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest'
 import enUS from '../../../locales/en-US'
 import OcPhaseImage from '../../../components/standard/OcPhaseImage.vue'
 import WorkbenchWorkspace from './WorkbenchWorkspace.vue'
+import OcSwitch from '../../../components/base/OcSwitch.vue'
+import WelcomeCoverWall from './WelcomeCoverWall.vue'
+import WelcomeGravityField from './WelcomeGravityField.vue'
 import WelcomeWorkspace from './WelcomeWorkspace.vue'
 
 function mountOptions() {
@@ -27,7 +30,7 @@ describe('workspace pages', () => {
     expect(phaseImages.every(image => image.props('fit') === 'contain')).toBe(true)
     expect(phaseImages[1]!.props('src')).toContain('opencard-wordmark-phase-map')
     expect(phaseImages[1]!.props('brightnessSrc')).toContain('opencard-wordmark-brightness-map')
-    expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.findAll('.workspace-empty-state__actions button')).toHaveLength(2)
     expect(wrapper.text()).toContain('New Project')
     expect(wrapper.text()).toContain('Open Project Folder')
     expect(wrapper.text()).not.toContain('No editors open')
@@ -47,6 +50,48 @@ describe('workspace pages', () => {
     })
 
     expect(wrapper.get('[role="alert"]').text()).toBe('Project structure could not be loaded.')
+  })
+
+  it('gates the cover wall and the gravity background from the bottom-left switch', async () => {
+    const wrapper = mount(WelcomeWorkspace, {
+      props: { backgroundVisible: true },
+      ...mountOptions(),
+    })
+
+    const toggle = wrapper.getComponent(OcSwitch)
+    expect(toggle.props('checked')).toBe(true)
+    expect(toggle.props('label')).toBe('Background effects')
+    expect(wrapper.findComponent(WelcomeCoverWall).exists()).toBe(true)
+    expect(wrapper.findComponent(WelcomeGravityField).exists()).toBe(true)
+
+    toggle.vm.$emit('update:checked', false)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('update:backgroundVisible')).toEqual([[false]])
+  })
+
+  it('renders no background effects when the setting is off', () => {
+    const wrapper = mount(WelcomeWorkspace, {
+      props: { backgroundVisible: false },
+      ...mountOptions(),
+    })
+
+    expect(wrapper.findComponent(WelcomeCoverWall).exists()).toBe(false)
+    expect(wrapper.findComponent(WelcomeGravityField).exists()).toBe(false)
+    expect(wrapper.getComponent(OcSwitch).props('checked')).toBe(false)
+    expect(wrapper.findAll('.workspace-empty-state__actions button')).toHaveLength(2)
+  })
+
+  it('feeds recent project covers and the sidebar selection into the background wall', () => {
+    const covers = [{ projectKey: 'recent-project:/Project', src: 'asset:///Project/assets/cover.png' }]
+    const wrapper = mount(WelcomeWorkspace, {
+      props: { covers, highlightKeys: ['recent-project:/Project'] },
+      ...mountOptions(),
+    })
+
+    const wall = wrapper.getComponent(WelcomeCoverWall)
+    expect(wall.props('covers')).toEqual(covers)
+    expect(wall.props('highlightKeys')).toEqual(['recent-project:/Project'])
+    expect(wrapper.findAll('.workspace-empty-state__actions button')).toHaveLength(2)
   })
 
   it('shows the editor placeholder when the workbench has no active document', () => {

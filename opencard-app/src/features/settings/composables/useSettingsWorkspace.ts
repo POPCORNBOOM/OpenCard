@@ -1,6 +1,6 @@
-/** Projects application settings into key-only tree and row view models. */
+/** Projects application settings into node and row view models. */
 import { computed, type ComputedRef, type DeepReadonly, type Ref } from 'vue'
-import type { OcTreeData } from '../../../shared/ui/tree/tree.types'
+import type { OcNodeCollection } from '../../../shared/ui/node/node.types'
 import type {
   EditorItem,
   EditorItemActionPart,
@@ -85,7 +85,7 @@ const CATEGORY_KEYS: readonly SettingsCategoryKey[] = ['general', 'appearance', 
 export function useSettingsWorkspace(
   options: UseSettingsWorkspaceOptions,
 ): {
-  categoryTreeData: ComputedRef<OcTreeData>
+  categoryTreeData: ComputedRef<OcNodeCollection>
   activeCategory: ComputedRef<SettingsCategoryViewModel>
 } {
   const categoryLabels = computed<Record<SettingsCategoryKey, string>>(() => ({
@@ -95,7 +95,7 @@ export function useSettingsWorkspace(
   }))
   const systemFontFamilies = computed(() => options.systemFontFamilies?.value ?? [])
 
-  const categoryTreeData = computed<OcTreeData>(() => ({
+  const categoryTreeData = computed<OcNodeCollection>(() => ({
     rootKeys: CATEGORY_KEYS,
     items: new Map([
       ['general', { label: categoryLabels.value.general, icon: 'tool.settings' }],

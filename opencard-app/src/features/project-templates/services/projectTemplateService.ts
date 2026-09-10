@@ -30,7 +30,6 @@ import {
   parseProjectTemplateManifest,
   resolveTemplateEntries,
   isSafeProjectTemplateId,
-  isProjectTemplateCoverPath,
   validateProjectName,
   validateTemplateDescription,
   validateTemplateName,
@@ -45,6 +44,7 @@ import {
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
 import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
+import { isProjectCoverPath } from '../../workspace/model/projectCover'
 
 const BUILTIN_TEMPLATE_INDEX_PATH = 'templates/index.json'
 const USER_TEMPLATE_DIRECTORY_NAME = 'templates'
@@ -246,7 +246,7 @@ export class ProjectTemplateService {
     for (const entry of entries) {
       if (!entry.isFile) continue
       const relativePath = normalizeRelativePath(entry.name)
-      if (isProjectTemplateCoverPath(relativePath)) coverCandidates.push(relativePath)
+      if (isProjectCoverPath(relativePath)) coverCandidates.push(relativePath)
       if (!isOpenCardDocument(relativePath)) continue
 
       const absolutePath = await this.paths.join(sourcePath, ...pathSegments(relativePath))

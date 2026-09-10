@@ -34,6 +34,8 @@ function createIssue(id: string, severity: EditorIssue['severity'] = 'warning'):
 }
 
 describe('workspace issue projection', () => {
+  const COPY_ISSUE_LABEL = 'Copy error information'
+
   it('projects severity presentation and opaque navigation targets', () => {
     const session = createSession('a', 'Card A')
     const projection = buildWorkspaceIssueProjection(
@@ -41,6 +43,7 @@ describe('workspace issue projection', () => {
       new Map([[session.id, new Map([
         ['blueprint', [createIssue('invalid', 'error')]],
       ])]]),
+      COPY_ISSUE_LABEL,
     )
 
     expect(projection.issueCount).toBe(1)
@@ -52,6 +55,12 @@ describe('workspace issue projection', () => {
       icon: 'status.error',
       iconTone: 'danger',
     })
+    expect(projection.treeData.items.get(issueKey!)?.actions).toEqual([{
+      key: 'copy-issue',
+      title: COPY_ISSUE_LABEL,
+      icon: 'action.copy',
+      iconTone: 'muted',
+    }])
     expect(projection.navigationTargets.get(issueKey!)).toEqual({
       sessionId: 'a',
       token: { protocol: 'test', id: 'invalid' },
@@ -62,7 +71,7 @@ describe('workspace issue projection', () => {
   it('replaces one scope, deduplicates ids, preserves ordered cached scopes, and prunes invalid scopes', () => {
     const session = createSession('a', 'Card A')
     const sessions = ref<EditorSession[]>([session])
-    const issues = useWorkspaceIssues({ sessions })
+    const issues = useWorkspaceIssues({ sessions, copyIssueLabel: COPY_ISSUE_LABEL })
 
     issues.reportSessionIssueSnapshot(session.id, {
       scopeKey: 'instance-a',
@@ -96,7 +105,7 @@ describe('workspace issue projection', () => {
     const first = createSession('a', 'Card A')
     const second = createSession('b', 'Card B')
     const sessions = ref<EditorSession[]>([first, second])
-    const issues = useWorkspaceIssues({ sessions })
+    const issues = useWorkspaceIssues({ sessions, copyIssueLabel: COPY_ISSUE_LABEL })
 
     issues.reportSessionIssueSnapshot(first.id, {
       scopeKey: 'blueprint',
@@ -120,7 +129,7 @@ describe('workspace issue projection', () => {
   it('clears every cached scope when the producer reports an empty scope order', () => {
     const session = createSession('a', 'Card A')
     const sessions = ref<EditorSession[]>([session])
-    const issues = useWorkspaceIssues({ sessions })
+    const issues = useWorkspaceIssues({ sessions, copyIssueLabel: COPY_ISSUE_LABEL })
 
     issues.reportSessionIssueSnapshot(session.id, {
       scopeKey: 'blueprint',
@@ -141,7 +150,7 @@ describe('workspace issue projection', () => {
   it('does not republish an unchanged issue snapshot', () => {
     const session = createSession('a', 'Card A')
     const sessions = ref<EditorSession[]>([session])
-    const issues = useWorkspaceIssues({ sessions })
+    const issues = useWorkspaceIssues({ sessions, copyIssueLabel: COPY_ISSUE_LABEL })
     const snapshot = {
       scopeKey: 'blueprint',
       scopeOrder: ['blueprint'],

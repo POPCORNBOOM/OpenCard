@@ -16,10 +16,11 @@ type ProjectLifecycleOptions = {
     readDirectoryEntries: (path?: string, depth?: number) => Promise<void>
   }
   sessions: {
-    detachWorkspaceSessions: (oldProjectRoot: string) => void
     closeWorkspaceSessions: () => void
     openFile: (path: string) => Promise<unknown>
   }
+  /** 按“关闭项目”流程收尾当前项目（含未保存确认）；返回是否已经完成。 */
+  closeCurrentProject: () => Promise<'completed' | 'prompted'>
   settings: {
     rememberRecentProject: (path: string) => void
     forgetRecentProject: (path: string) => void
@@ -38,27 +39,21 @@ function normalizePath(path: string): string {
 export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   const isActivating = ref(false)
   const activationError = ref('')
+  /** 用户正在回答未保存确认时暂存的打开请求；取消时直接丢弃。 */
+  let deferredActivation: { path: string, entryPath?: string } | null = null
 
   async function ensureProjectTreeLoaded(): Promise<void> {
     if (!options.project.projectPath.value) return
     await options.project.readDirectoryEntries('', Number.POSITIVE_INFINITY)
   }
 
-  async function activatePreparedProject(
-    path: string,
-    entryPath?: string,
-  ): Promise<boolean> {
+  async function activateNow(path: string, entryPath?: string): Promise<boolean> {
     if (isActivating.value) return false
 
     isActivating.value = true
     activationError.value = ''
-    const previousProjectPath = options.project.projectPath.value
 
     try {
-      if (previousProjectPath && normalizePath(previousProjectPath) !== normalizePath(path)) {
-        options.sessions.detachWorkspaceSessions(previousProjectPath)
-      }
-
       await options.project.setProjectPath(path)
       options.settings.rememberRecentProject(options.project.projectPath.value)
       if (entryPath) {
@@ -75,8 +70,32 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
     }
   }
 
+  /** 打开另一个项目前先走一遍关闭当前项目的流程，确认之后才切换。 */
+  async function activatePreparedProject(path: string, entryPath?: string): Promise<boolean> {
+    const previousProjectPath = options.project.projectPath.value
+    if (previousProjectPath && normalizePath(previousProjectPath) !== normalizePath(path)) {
+      const outcome = await options.closeCurrentProject()
+      if (outcome === 'prompted') {
+        deferredActivation = { path, ...(entryPath ? { entryPath } : {}) }
+        return false
+      }
+    }
+    return await activateNow(path, entryPath)
+  }
+
   async function activateProject(path: string, entryPath?: string): Promise<boolean> {
     return await activatePreparedProject(path, entryPath)
+  }
+
+  /** 未保存确认结束后继续打开被暂存的项目。 */
+  async function resumeDeferredActivation(): Promise<boolean> {
+    const pending = deferredActivation
+    deferredActivation = null
+    return pending ? await activateNow(pending.path, pending.entryPath) : false
+  }
+
+  function dropDeferredActivation(): void {
+    deferredActivation = null
   }
 
   async function openProject(): Promise<boolean> {
@@ -128,6 +147,8 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
     openRecentProject,
     relocateRecentProject,
     activateCreatedProject,
+    resumeDeferredActivation,
+    dropDeferredActivation,
     enterCreateProject,
     completeProjectClose,
     ensureProjectTreeLoaded,

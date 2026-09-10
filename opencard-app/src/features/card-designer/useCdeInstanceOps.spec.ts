@@ -35,7 +35,10 @@ describe('useCdeInstanceOps tree actions', () => {
     })
 
     expect(state.instanceTreeData.value.items.get('__blueprint__')?.actions).toBeUndefined()
-    expect(state.instanceTreeData.value.items.get('instance-1')?.actions).toEqual(['instance-more'])
+    expect(state.instanceTreeData.value.items.get('instance-1')?.actions?.map(action => action.key))
+      .toEqual(['instance-more'])
+    expect(state.instanceTreeData.value.items.get('instance-1')?.actions?.[0]?.children?.map(action => action.key))
+      .toEqual(['rename', 'duplicate-instance', 'delete-instance'])
   })
 
   it('duplicates and deletes the complete selected instance set', () => {
@@ -67,13 +70,13 @@ describe('useCdeInstanceOps tree actions', () => {
       markDocumentChanged: vi.fn(),
     })
 
-    state.handleInstanceTreeIntent({
-      type: 'action.invoke', key: 'one', actionKey: 'duplicate-instance', source: 'context',
+    state.handleInstanceAction({
+      key: 'one', actionKey: 'duplicate-instance', source: 'context',
     })
     expect(document.instances).toHaveLength(4)
     expect(selectedCardKeys.value).toHaveLength(2)
-    state.handleInstanceTreeIntent({
-      type: 'action.invoke', key: selectedCardKeys.value[0]!, actionKey: 'delete-instance', source: 'context',
+    state.handleInstanceAction({
+      key: selectedCardKeys.value[0]!, actionKey: 'delete-instance', source: 'context',
     })
     expect(document.instances).toHaveLength(2)
     expect(document.dataTable?.exportInstanceIds).toEqual(['one', 'two'])

@@ -4,11 +4,15 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import OcTree from '../../../components/standard/OcTree.vue'
-import type { OcTreeData, OcTreeIntent } from '../../../shared/ui/tree/tree.types'
+import type {
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeExpansionEvent,
+} from '../../../shared/ui/node/node.types'
 import { APP_OUTPUT_SEVERITIES, type AppOutputEntry } from '../../logging/appOutput'
 import WorkspaceBottomPanel from './WorkspaceBottomPanel.vue'
 
-const issueTreeData: OcTreeData = {
+const issueTreeData: OcNodeCollection = {
   rootKeys: ['session:a'],
   items: new Map([
     ['session:a', { label: 'Card A (1)', icon: 'file.opencard' }],
@@ -46,7 +50,6 @@ function mountPanel(
       issuesLabel: 'Problems',
       outputLabel: 'Output',
       issueEmptyLabel: 'No problems',
-      issueCopyLabel: 'Copy error information',
       issueFilterLabel: 'Filter problems',
       outputEmptyLabel: 'No output',
       outputFilterEmptyLabel: 'No matching output',
@@ -69,14 +72,11 @@ describe('WorkspaceBottomPanel', () => {
   it('projects controlled tree data and emits navigation only for an issue leaf', () => {
     const wrapper = mountPanel()
     const tree = wrapper.getComponent(OcTree)
-    const intent: OcTreeIntent = {
-      type: 'node.activate',
-      key: 'issue:a',
-    }
+    const event: OcNodeActivateEvent = { key: 'issue:a' }
 
     expect(tree.props('data')).toEqual(issueTreeData)
     expect(tree.props('expandedKeys')).toEqual(['session:a'])
-    tree.vm.$emit('intent', intent)
+    tree.vm.$emit('node-activate', event)
 
     expect(wrapper.emitted('issue-navigate')).toEqual([[
       { sessionId: 'a', token: navigationToken },
@@ -98,11 +98,10 @@ describe('WorkspaceBottomPanel', () => {
     const wrapper = mountPanel()
     const tree = wrapper.getComponent(OcTree)
 
-    tree.vm.$emit('intent', {
-      type: 'expansion.change',
+    tree.vm.$emit('expansion-change', {
       key: 'session:a',
       expanded: false,
-    } satisfies OcTreeIntent)
+    } satisfies OcNodeExpansionEvent)
 
     expect(wrapper.emitted('issue-expansion-change')).toEqual([['session:a', false]])
   })
@@ -111,10 +110,9 @@ describe('WorkspaceBottomPanel', () => {
     const wrapper = mountPanel()
     const tree = wrapper.getComponent(OcTree)
 
-    tree.vm.$emit('intent', {
-      type: 'node.activate',
+    tree.vm.$emit('node-activate', {
       key: 'session:a',
-    } satisfies OcTreeIntent)
+    } satisfies OcNodeActivateEvent)
 
     expect(wrapper.emitted('issue-navigate')).toBeUndefined()
   })

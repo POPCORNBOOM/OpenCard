@@ -10,3 +10,13 @@ export function formatActionBadge(value: number): string {
 export function actionAccessibleLabel(title: string, badgeLabel?: string): string {
   return badgeLabel ? `${title}, ${badgeLabel}` : title
 }
+
+/** Title text for an action, appending the reason while it is disabled. */
+export function actionTitleText(action: {
+  title?: string
+  disabled?: boolean
+  disabledReason?: string
+}): string | undefined {
+  if (!action.disabled || !action.disabledReason) return action.title
+  return action.title ? `${action.title}: ${action.disabledReason}` : action.disabledReason
+}

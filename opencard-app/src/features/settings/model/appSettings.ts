@@ -27,6 +27,7 @@ export const MAX_AUTO_SAVE_INTERVAL_SECONDS = 300
 export type AppLocale = 'system' | 'zh-CN' | 'en-US'
 export type AppThemePreference = OcThemeId | 'system'
 export type StructureTreeSelectionBehavior = 'none' | 'expand' | 'expand-exclusive'
+export type PackageManagerView = 'tree' | 'album'
 export type SettingsCategoryKey = 'general' | 'appearance' | 'workspace'
 export type AppThemePresetId =
   | 'default'
@@ -131,6 +132,8 @@ export type AppSettingKey =
   | 'workspace.structureTreeSelectionBehavior'
   | 'workspace.structureTreeScrollToSelection'
   | 'workspace.hideDotFiles'
+  | 'workspace.showWelcomeBackground'
+  | 'workspace.packageManagerView'
   | 'workspace.showSelectionPositionOnMove'
   | 'workspace.showSelectionSizeOnResize'
   | 'workspace.alignmentSnappingEnabledByDefault'
@@ -172,6 +175,10 @@ export interface AppSettings {
     structureTreeSelectionBehavior: StructureTreeSelectionBehavior
     structureTreeScrollToSelection: boolean
     hideDotFiles: boolean
+    /** 欢迎页的背景效果（桌游封面墙 + 引力背景）。 */
+    showWelcomeBackground: boolean
+    /** 包管理器列表视图：树形或相册。 */
+    packageManagerView: PackageManagerView
     showSelectionPositionOnMove: boolean
     showSelectionSizeOnResize: boolean
     alignmentSnappingEnabledByDefault: boolean
@@ -256,6 +263,8 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     structureTreeSelectionBehavior: 'expand-exclusive',
     structureTreeScrollToSelection: true,
     hideDotFiles: true,
+    showWelcomeBackground: true,
+    packageManagerView: 'tree',
     showSelectionPositionOnMove: true,
     showSelectionSizeOnResize: true,
     alignmentSnappingEnabledByDefault: true,
@@ -706,6 +715,10 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       hideDotFiles: typeof workspace.hideDotFiles === 'boolean'
         ? workspace.hideDotFiles
         : DEFAULT_APP_SETTINGS.workspace.hideDotFiles,
+      showWelcomeBackground: typeof workspace.showWelcomeBackground === 'boolean'
+        ? workspace.showWelcomeBackground
+        : DEFAULT_APP_SETTINGS.workspace.showWelcomeBackground,
+      packageManagerView: workspace.packageManagerView === 'album' ? 'album' : 'tree',
       showSelectionPositionOnMove: typeof workspace.showSelectionPositionOnMove === 'boolean'
         ? workspace.showSelectionPositionOnMove
         : DEFAULT_APP_SETTINGS.workspace.showSelectionPositionOnMove,

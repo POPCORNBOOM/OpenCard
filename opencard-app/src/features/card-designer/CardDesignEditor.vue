@@ -128,8 +128,9 @@
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
                   data-cde-shortcut-scope="instance-tree" tab-navigation="none"
                   :data="props.mode === 'diff' ? diffInstanceTreeData : instanceTreeData"
-                  :actions="props.mode === 'diff' ? emptyTreeActions : treeActions" :selected-keys="selectedCardKeys"
-                  selection-mode="multiple" @intent="handleInstanceTreeIntent" />
+                  :selected-keys="selectedCardKeys" selection-mode="multiple"
+                  @selection-change="handleInstanceTreeSelection" @action="handleInstanceTreeAction"
+                  @rename-commit="handleInstanceRenameCommit" @move="handleInstanceMove" />
               </OcPanel>
             </OcCard>
           </template>
@@ -177,12 +178,15 @@
               <OcPanel align="stretch" fill tone="transparent" border="none" padding="none" overflow="auto">
                 <OcTree ref="structureTreeRef" fill data-cde-shortcut-scope="structure-tree" tab-navigation="none"
                   :data="props.mode === 'diff' ? diffBlockTreeData : blockTreeData"
-                  :actions="props.mode === 'diff' ? emptyTreeActions : treeActions"
                   :selected-keys="props.mode === 'diff' ? diffSelectedBlockKeys : selectedBlockKeys"
                   :expanded-keys="expandedBlockKeys"
                   :selection-expansion-mode="forceStructureTreeReveal ? 'expand' : props.structureTreeSelectionBehavior ?? 'expand-exclusive'"
                   :scroll-to-selection="forceStructureTreeReveal || (props.structureTreeScrollToSelection ?? true)"
-                  selection-mode="multiple" activation-mode="double-click" @intent="handleStructureTreeIntent" />
+                  selection-mode="multiple" activation-mode="double-click"
+                  @selection-change="handleStructureTreeSelection" @expansion-change="handleStructureTreeExpansion"
+                  @expansion-sync="handleStructureTreeExpansionSync" @node-activate="handleStructureTreeNodeActivate"
+                  @action="handleStructureTreeAction" @rename-commit="handleBlockRenameCommit"
+                  @move="handleBlockMove" />
               </OcPanel>
             </OcCard>
           </template>
@@ -275,7 +279,7 @@ import {
   type CdeAdditionalFieldType,
   type CdePropertySortMode,
 } from './useCdePropertyPanelState'
-import { useCdeTreeOps } from './useCdeTreeOps'
+import { createBlockAddActions, useCdeTreeOps } from './useCdeTreeOps'
 import CardDataTable from './CardDataTable.vue'
 import DataTableWorkbookImportDialog from './DataTableWorkbookImportDialog.vue'
 import { useCdeDataTableModel } from './useCdeDataTableModel'
@@ -303,7 +307,15 @@ import {
 import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeActionEvent,
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeExpansionEvent,
+  OcNodeExpansionSyncEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
 import { applyInstance } from '../../entities/card/instance'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
@@ -771,119 +783,6 @@ const instanceTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | nu
 const structureTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 const loadedFilePath = ref<string | null>(null)
 
-const nativeAddActionKeys = [
-  'add-text-block',
-  'add-markdown-text-block',
-  'add-image-block',
-  'add-qrcode-block',
-  'add-shape-block',
-  'add-simple-container-block',
-  'add-flow-container-block',
-]
-
-// 结构树操作定义
-const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
-  const addChildren = [...nativeAddActionKeys]
-  return new Map<string, OcTreeActionDefinition>([
-    ['instance-more', {
-      icon: 'nav.more',
-      title: '更多操作',
-      children: ['rename', 'duplicate-instance', 'delete-instance'],
-    }],
-    ['block-more', {
-      icon: 'nav.more',
-      title: '更多操作',
-      children: ['copy-block', 'paste-block', 'rename', 'duplicate', 'delete']
-    }],
-    ['container-more', {
-      icon: 'nav.more',
-      title: '更多操作',
-      children: ['copy-block', 'paste-block', 'rename', 'add', 'package', 'duplicate', 'delete']
-    }],
-    ['packaged-container-more', {
-      icon: 'nav.more',
-      title: '更多操作',
-      children: ['rename', 'unpackage', 'duplicate', 'delete'],
-    }],
-    ['add-root', {
-      icon: 'action.add',
-      title: '添加',
-      children: addChildren,
-    }],
-    ['copy-block', { icon: 'action.copy', title: '复制块', shortcut: getCdeShortcutParts('block.copy') }],
-    ['paste-block', { icon: 'action.copy', title: '粘贴块', shortcut: getCdeShortcutParts('block.paste') }],
-    ['duplicate-selected', {
-      icon: 'action.copy',
-      title: '复制选中',
-      shortcut: getCdeShortcutParts('block.duplicate'),
-    }],
-    ['delete-selected', {
-      icon: 'action.delete',
-      title: '删除选中',
-      shortcut: getCdeShortcutParts('block.delete'),
-    }],
-    ['add', {
-      icon: 'action.add',
-      title: '添加子块',
-      children: addChildren,
-    }],
-    ['add-text-block', { ...getBlockPresentation('text-block'), title: '文本块' }],
-    ['add-markdown-text-block', { ...getBlockPresentation('markdown-text-block'), title: 'Markdown 文本块' }],
-    ['add-image-block', { ...getBlockPresentation('image-block'), title: '图片块' }],
-    ['add-qrcode-block', { ...getBlockPresentation('qrcode-block'), title: '二维码' }],
-    ['add-shape-block', { ...getBlockPresentation('shape-block'), title: '形状' }],
-    ['add-simple-container-block', { ...getBlockPresentation('simple-container-block'), title: '简单容器' }],
-    ['add-flow-container-block', { ...getBlockPresentation('flow-container-block'), title: '流式容器' }],
-    ['duplicate', {
-      icon: 'action.copy',
-      title: '复制',
-      shortcut: getCdeShortcutParts('block.duplicate'),
-    }],
-    ['delete', {
-      icon: 'action.delete',
-      title: '删除',
-      shortcut: getCdeShortcutParts('block.delete'),
-    }],
-    ['rename', {
-      icon: 'action.edit',
-      title: '重命名',
-      shortcut: getCdeShortcutParts('block.rename'),
-    }],
-    ['package', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.package') }],
-    ['unpackage', { icon: 'entity.block-package', title: t('cardDesigner.treeActions.unpackage') }],
-    ['hide-block', { icon: 'status.eye', title: '隐藏' }],
-    ['show-block', { icon: 'status.eye-off', title: '显示' }],
-    ['duplicate-instance', {
-      icon: 'action.copy',
-      title: '复制实例',
-      shortcut: getCdeShortcutParts('instance.duplicate'),
-    }],
-    ['delete-instance', {
-      icon: 'action.delete',
-      title: '删除实例',
-      shortcut: getCdeShortcutParts('instance.delete'),
-    }],
-  ])
-})
-const emptyTreeActions = new Map<string, OcTreeActionDefinition>()
-const treeActionKeys = ['add-root', 'duplicate-selected', 'delete-selected']
-
-function toCardActionDefinition(actionKey: string, disabled = false): OcCardAction | null {
-  const action = treeActions.value.get(actionKey)
-  if (!action) return null
-  return {
-    key: actionKey,
-    icon: action.icon,
-    iconTone: action.iconTone,
-    title: action.title,
-    shortcut: action.shortcut,
-    disabled,
-    children: action.children
-      ?.map((childKey) => toCardActionDefinition(childKey))
-      .filter((child): child is OcCardAction => child !== null),
-  }
-}
-
 function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
   return {
     key,
@@ -938,8 +837,8 @@ const diffAfterProjectedDocument = computed(() => {
   const document = diffModel.value?.afterDocument
   return document ? applyInstance(document, diffAfterInstance.value) : null
 })
-const diffInstanceTreeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
+const diffInstanceTreeData = computed<OcNodeCollection>(() => {
+  const items = new Map<string, OcNode>()
   const rootKeys = ['__blueprint__']
   items.set('__blueprint__', { label: t('cardDesigner.dataTable.blueprint'), icon: 'file.opencard' })
   const ids = new Set([
@@ -955,19 +854,19 @@ const diffInstanceTreeData = computed<OcTreeData>(() => {
       icon: 'file.opencard',
       tone: after && !before ? 'success' : before && !after ? 'danger' : changed ? 'warning' : undefined,
       tail: after && !before
-        ? { key: `diff:${id}:added`, icon: 'action.add', iconTone: 'success', title: t('sidebar.diffViewer.added') }
+        ? { type: 'badge', icon: 'action.add', tone: 'success', label: t('sidebar.diffViewer.added') }
         : before && !after
-          ? { key: `diff:${id}:removed`, icon: 'action.minus', iconTone: 'danger', title: t('sidebar.diffViewer.removed') }
+          ? { type: 'badge', icon: 'action.minus', tone: 'danger', label: t('sidebar.diffViewer.removed') }
           : changed
-            ? { key: `diff:${id}:changed`, icon: 'status.circle-medium', iconTone: 'warning', title: t('sidebar.diffViewer.changed') }
+            ? { type: 'badge', icon: 'status.circle-medium', tone: 'warning', label: t('sidebar.diffViewer.changed') }
             : undefined,
     })
     rootKeys.push(id)
   }
   return { rootKeys, items, children: new Map() }
 })
-const diffBlockTreeData = computed<OcTreeData>(() => {
-  const items = new Map<string, OcTreeData['items'] extends ReadonlyMap<string, infer Item> ? Item : never>()
+const diffBlockTreeData = computed<OcNodeCollection>(() => {
+  const items = new Map<string, OcNode>()
   const children = new Map<string, string[]>()
   const beforeBlocks = new Map<string, CardBlock>()
   const afterBlocks = new Map<string, CardBlock>()
@@ -1015,10 +914,10 @@ const diffBlockTreeData = computed<OcTreeData>(() => {
       iconTone: getBlockPresentation(block.type).iconTone,
       tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : kind === 'changed' ? 'warning' : undefined,
       tail: kind ? {
-        key: `diff:${id}:${kind}`,
+        type: 'badge',
         icon: kind === 'added' ? 'action.add' : kind === 'removed' ? 'action.minus' : 'status.circle-medium',
-        iconTone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : 'warning',
-        title: t(`sidebar.diffViewer.${kind}`),
+        tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : 'warning',
+        label: t(`sidebar.diffViewer.${kind}`),
       } : undefined,
     })
   }
@@ -1130,7 +1029,10 @@ const {
 const {
   selectedCard,
   instanceTreeData,
-  handleInstanceTreeIntent: handleInstanceModelTreeIntent,
+  handleInstanceSelection,
+  handleInstanceAction,
+  handleInstanceRenameCommit,
+  handleInstanceMove,
   createInstance,
   renameInstance,
   duplicateInstance,
@@ -1181,20 +1083,19 @@ const canMutateSelectedInstance = computed(() => selectedCardKeys.value.some(
   key => key !== BLUEPRINT_CARD_ID && instanceTreeData.value.items.has(key),
 ))
 
-function handleInstanceTreeIntent(intent: OcTreeIntent): void {
+function handleInstanceTreeSelection(event: OcNodeSelectionEvent): void {
   if (props.mode === 'diff') {
-    if (intent.type === 'selection.change') {
-      const key = intent.selectedKeys[0] ?? BLUEPRINT_CARD_ID
-      selectedCardId.value = key
-      selectedCardKeys.value = [key]
-    }
+    const key = event.selectedKeys[0] ?? BLUEPRINT_CARD_ID
+    selectedCardId.value = key
+    selectedCardKeys.value = [key]
     return
   }
-  handleInstanceModelTreeIntent(intent)
-  if (intent.type === 'rename.request'
-    || (intent.type === 'action.invoke' && intent.actionKey === 'rename')) {
-    void instanceTreeRef.value?.beginRename(intent.key)
-  }
+  handleInstanceSelection(event)
+}
+
+function handleInstanceTreeAction(event: OcNodeActionEvent): void {
+  handleInstanceAction(event)
+  if (event.actionKey === 'rename') void instanceTreeRef.value?.beginRename(event.key)
 }
 
 const instanceCardActions = computed<OcCardAction[]>(() => [
@@ -1308,7 +1209,11 @@ const {
   blockTreeData,
   selectedBlock,
   selectedLocation,
-  handleTreeIntent,
+  handleBlockSelection,
+  handleBlockAction,
+  handleBlockRenameCommit,
+  handleBlockMove,
+  selectBlockKeys,
   handleRootAction,
   handleViewportBlockClick: selectViewportBlock,
   resolveVisibleBlockKey,
@@ -1323,6 +1228,7 @@ const {
   parentLookup,
   selectedBlockKeys,
   getDefaultBlockName: type => t(`cardDesigner.blockNames.${type}`),
+  translate: messageKey => t(messageKey),
   refreshDocumentState,
   markDocumentChanged,
 })
@@ -1352,90 +1258,70 @@ function clearEffectiveBlockSelection(): void {
 
 const expandedBlockKeys = ref<string[]>([])
 
-async function handleStructureTreeIntent(intent: OcTreeIntent): Promise<void> {
-  if (props.mode === 'diff') {
-    if (intent.type === 'selection.change') diffSelectedBlockKeys.value = intent.selectedKeys
-    if (intent.type === 'expansion.sync') expandedBlockKeys.value = intent.expandedKeys
-    if (intent.type === 'expansion.change') {
-      const next = new Set(expandedBlockKeys.value)
-      if (intent.expanded) next.add(intent.key)
-      else next.delete(intent.key)
-      expandedBlockKeys.value = [...next]
-    }
-    return
-  }
-  if (intent.type === 'expansion.sync') {
-    expandedBlockKeys.value = intent.expandedKeys
-    return
-  }
-  if (intent.type === 'expansion.change') {
-    const nextKeys = new Set(expandedBlockKeys.value)
-    if (intent.expanded) nextKeys.add(intent.key)
-    else nextKeys.delete(intent.key)
-    expandedBlockKeys.value = [...nextKeys]
-    return
-  }
-  if (intent.type === 'node.activate') {
-    if ((blockTreeData.value.children.get(intent.key)?.length ?? 0) === 0) return
-    const nextKeys = new Set(expandedBlockKeys.value)
-    if (nextKeys.has(intent.key)) nextKeys.delete(intent.key)
-    else nextKeys.add(intent.key)
-    expandedBlockKeys.value = [...nextKeys]
-    return
-  }
-  if (intent.type === 'rename.request') {
-    handleTreeIntent({
-      type: 'selection.change',
-      triggerKey: intent.key,
-      selectedKeys: [intent.key],
-      mode: 'replace',
-      input: 'keyboard',
-    })
-    void structureTreeRef.value?.beginRename(intent.key)
-    return
-  }
-  if (intent.type === 'action.invoke' && (intent.actionKey === 'copy-block' || intent.actionKey === 'paste-block')) {
-    if (!selectedBlockKeys.value.includes(intent.key)) {
-      handleTreeIntent({
-        type: 'selection.change',
-        triggerKey: intent.key,
-        selectedKeys: [intent.key],
-        mode: 'replace',
-        input: 'right',
-      })
-    }
-    if (intent.actionKey === 'copy-block') await copySelectedBlocks()
+async function handleStructureTreeAction(event: OcNodeActionEvent): Promise<void> {
+  if (event.actionKey === 'copy-block' || event.actionKey === 'paste-block') {
+    if (!selectedBlockKeys.value.includes(event.key)) selectBlockKeys([event.key])
+    if (event.actionKey === 'copy-block') await copySelectedBlocks()
     else await pasteClipboardBlocks()
     return
   }
-  if (intent.type === 'action.invoke' && intent.actionKey === 'rename') {
-    handleTreeIntent(intent)
-    void structureTreeRef.value?.beginRename(intent.key)
+  handleBlockAction(event)
+  if (event.actionKey === 'rename') {
+    void structureTreeRef.value?.beginRename(event.key)
     return
   }
-  if (intent.type === 'action.invoke' && intent.actionKey.startsWith('add-')) {
-    const nextKeys = new Set(expandedBlockKeys.value)
-    nextKeys.add(intent.key)
-    expandedBlockKeys.value = [...nextKeys]
-  }
-  handleTreeIntent(intent)
+  if (event.actionKey.startsWith('add-')) toggleBlockExpansion(event.key, true)
 }
 
-const structureTreeCardActions = computed<OcCardAction[]>(() =>
-  [
-    ...treeActionKeys
-      .map((actionKey) => {
-        const disabled = actionKey === 'duplicate-selected'
-          ? !selectedBlock.value
-          : actionKey === 'delete-selected'
-            ? selectedBlockKeys.value.length === 0
-            : false
-        return toCardActionDefinition(actionKey, disabled)
-      })
-      .filter((action): action is OcCardAction => action !== null),
-    createPanelToggleAction('toggle-structure-tree-panel', isStructureTreePanelExpanded.value),
-  ],
-)
+function handleStructureTreeSelection(event: OcNodeSelectionEvent): void {
+  if (props.mode === 'diff') diffSelectedBlockKeys.value = event.selectedKeys
+  else handleBlockSelection(event)
+}
+
+function handleStructureTreeExpansion(event: OcNodeExpansionEvent): void {
+  toggleBlockExpansion(event.key, event.expanded)
+}
+
+function handleStructureTreeExpansionSync(event: OcNodeExpansionSyncEvent): void {
+  expandedBlockKeys.value = event.expandedKeys
+}
+
+function handleStructureTreeNodeActivate(event: OcNodeActivateEvent): void {
+  if (props.mode === 'diff') return
+  if ((blockTreeData.value.children.get(event.key)?.length ?? 0) === 0) return
+  toggleBlockExpansion(event.key, !expandedBlockKeys.value.includes(event.key))
+}
+
+function toggleBlockExpansion(key: string, expanded: boolean): void {
+  const nextKeys = new Set(expandedBlockKeys.value)
+  if (expanded) nextKeys.add(key)
+  else nextKeys.delete(key)
+  expandedBlockKeys.value = [...nextKeys]
+}
+
+const structureTreeCardActions = computed<OcCardAction[]>(() => [
+  {
+    key: 'add-root',
+    icon: 'action.add',
+    title: '添加',
+    children: createBlockAddActions(),
+  },
+  {
+    key: 'duplicate-selected',
+    icon: 'action.copy',
+    title: '复制选中',
+    shortcut: getCdeShortcutParts('block.duplicate'),
+    disabled: !selectedBlock.value,
+  },
+  {
+    key: 'delete-selected',
+    icon: 'action.delete',
+    title: '删除选中',
+    shortcut: getCdeShortcutParts('block.delete'),
+    disabled: selectedBlockKeys.value.length === 0,
+  },
+  createPanelToggleAction('toggle-structure-tree-panel', isStructureTreePanelExpanded.value),
+])
 
 async function handleStructureTreeCardAction(payload: { key: string }): Promise<void> {
   if (payload.key === 'toggle-structure-tree-panel') {
@@ -1557,10 +1443,10 @@ function createDiffPropertyProjection(
         ...definition,
         isReadonly: true,
         tail: {
-          key: `diff:${fieldKey}:removed`,
+          type: 'badge',
           icon: 'action.minus',
-          iconTone: 'danger',
-          title: t('sidebar.diffViewer.removed'),
+          tone: 'danger',
+          label: t('sidebar.diffViewer.removed'),
         },
       }
     }
@@ -1571,10 +1457,10 @@ function createDiffPropertyProjection(
         ...definition,
         isReadonly: true,
         tail: {
-          key: `diff:${fieldKey}:added`,
+          type: 'badge',
           icon: 'action.add',
-          iconTone: 'success',
-          title: t('sidebar.diffViewer.added'),
+          tone: 'success',
+          label: t('sidebar.diffViewer.added'),
         },
       }
     }

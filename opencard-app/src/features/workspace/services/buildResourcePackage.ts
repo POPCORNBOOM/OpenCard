@@ -13,7 +13,9 @@ import {
   serializeProjectIconRegistry,
   type ProjectIconRegistryDocument,
 } from '../model/projectIconRegistry'
-import { PROJECT_FONT_REGISTRY_FILE_NAME, PROJECT_ICON_REGISTRY_FILE_NAME } from '../model/projectStructure'
+import { PROJECT_FONT_REGISTRY_FILE_NAME, PROJECT_ICON_REGISTRY_FILE_NAME, PROJECT_PROFILE_FILE_NAME } from '../model/projectStructure'
+import { isProjectCoverPath, resolveCoverAbsolutePath } from '../model/projectCover'
+import { parseProjectMetadataText } from '../model/projectMetadata'
 import type { FileSystemService } from './fileSystemService'
 import { buildResourcePackageArchive, type ResourcePackageBuildResult } from './resourcePackageBuilder'
 import type { ResourcePackageContentFile } from './resourcePackageHash'
@@ -54,6 +56,32 @@ type ResourcePackageIconProjection = {
 
 export type ResourcePackageProjectBuildResult = ResourcePackageBuildResult & {
   imagePaths: readonly string[]
+}
+
+type ResourcePackageCoverProjection = {
+  relativePath: string
+  bytes: Uint8Array
+}
+
+/**
+ * 包自动沿用项目封面；没有封面、封面缺失或不是图片时返回 null，绝不中断打包。
+ */
+async function buildCoverProjection(
+  options: ResourcePackageProjectBuildOptions,
+  root: string,
+): Promise<ResourcePackageCoverProjection | null> {
+  try {
+    const profilePath = `${root}/${PROJECT_PROFILE_FILE_NAME}`
+    if (!await options.fs.fileExists(profilePath)) return null
+    const profile = parseProjectMetadataText(await options.fs.readFile(profilePath))
+    const relativePath = profile?.cover
+    if (!relativePath || !isProjectCoverPath(relativePath)) return null
+    const absolutePath = resolveCoverAbsolutePath(root, relativePath)
+    if (!await options.fs.fileExists(absolutePath)) return null
+    return { relativePath, bytes: await options.fs.readBinaryFile(absolutePath) }
+  } catch {
+    return null
+  }
 }
 
 function resolveSelectedImage(root: string, value: string): { absolutePath: string, relativePath: string } {
@@ -271,6 +299,10 @@ export async function buildResourcePackageFromProject(
     }
     files.push({ path: image.relativePath, bytes: await options.fs.readBinaryFile(image.absolutePath) })
   }
+  const cover = await buildCoverProjection(options, root)
+  if (cover && !files.some(file => file.path.toLocaleLowerCase() === cover.relativePath.toLocaleLowerCase())) {
+    files.push({ path: cover.relativePath, bytes: cover.bytes })
+  }
   const localePath = `${root}/.opencard/locale.json`
   if (await options.fs.fileExists(localePath)) {
     files.push({ path: '.opencard/locale.json', bytes: new TextEncoder().encode(await options.fs.readFile(localePath)) })
@@ -279,6 +311,7 @@ export async function buildResourcePackageFromProject(
     fs: options.fs,
     outputPath: options.outputPath,
     key, name: options.name, version: options.version, files,
+    ...(cover ? { cover: cover.relativePath } : {}),
     public: {
       fonts: fontProjection.publicFonts,
       iconSeries: iconProjection.publicIconSeries,

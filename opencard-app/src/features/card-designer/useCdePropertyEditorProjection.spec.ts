@@ -133,7 +133,7 @@ describe('useCdePropertyEditorProjection', () => {
     expect(await completionItems(fields().fontFamily?.completion?.provider, 'theme@', 6)).toEqual([])
     environment.value = {
       ...environment.value,
-      packages: new Map([['theme', { manifest: normalizeResourcePackageManifest({}, 'theme').manifest, rootPath: child.rootPath!, issues: [] }]]),
+      packages: new Map([['theme', { manifest: normalizeResourcePackageManifest({}, 'theme').manifest, rootPath: child.rootPath!, cover: null, issues: [] }]]),
       packageEnvironments: new Map([['theme', child], ['invisible', child]]),
     }
     expect(await completionItems(fields().fontFamily?.completion?.provider, 'theme@', 6)).toEqual([

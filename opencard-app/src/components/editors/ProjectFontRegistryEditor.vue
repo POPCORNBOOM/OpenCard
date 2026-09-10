@@ -9,10 +9,10 @@
 
       <div class="project-font-registry-workbench__list">
         <OcTree fill role="listbox" selection-mode="single"
-          activation-mode="double-click" scroll-to-selection :data="treeData" :actions="treeActions"
+          activation-mode="double-click" scroll-to-selection :data="treeData"
           :expanded-keys="['families', 'compositions']"
           :selected-keys="selectedTreeKeys" :action-overflow-title="t('projectConfig.fonts.entryActions')"
-          @intent="handleTreeIntent" />
+          @selection-change="handleSelectionChange" @node-activate="handleNodeActivate" @action="handleNodeAction" />
       </div>
     </section>
 
@@ -95,7 +95,14 @@ import {
   subtractUnicodeRanges,
   type ProjectFontPreviewCandidate,
 } from '../../features/workspace/services/projectFontCoverage'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent, OcTreeItem } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeActivateEvent,
+  OcNodeCollection,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -139,43 +146,47 @@ const selectedTreeKeys = computed(() => {
 const referencedFamilyKeys = computed(() => new Set(
   props.compositions.flatMap(composition => composition.members.map(member => member.fontKey.toLocaleLowerCase())),
 ))
-const treeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['configure-family', { title: t('projectConfig.fonts.configure'), icon: 'tool.settings' }],
-  ['configure-composition', { title: t('projectConfig.fonts.configureSet'), icon: 'tool.settings' }],
-  ['delete-family', { title: t('projectConfig.fonts.remove'), icon: 'action.delete', iconTone: 'danger' }],
-  ['delete-composition', { title: t('projectConfig.fonts.removeSet'), icon: 'action.delete', iconTone: 'danger' }],
-]))
-const treeData = computed<OcTreeData>(() => {
+const treeData = computed<OcNodeCollection>(() => {
+  const configureFamilyAction: OcNodeAction = {
+    key: 'configure-family', title: t('projectConfig.fonts.configure'), icon: 'tool.settings',
+  }
+  const removeFamilyAction: OcNodeAction = {
+    key: 'delete-family', title: t('projectConfig.fonts.remove'), icon: 'action.delete', iconTone: 'danger',
+  }
+  const configureCompositionAction: OcNodeAction = {
+    key: 'configure-composition', title: t('projectConfig.fonts.configureSet'), icon: 'tool.settings',
+  }
+  const removeCompositionAction: OcNodeAction = {
+    key: 'delete-composition', title: t('projectConfig.fonts.removeSet'), icon: 'action.delete', iconTone: 'danger',
+  }
   const familyKeys = props.families.map(entry => treeKey('families', entry.key))
   const compositionKeys = props.compositions.map(entry => treeKey('compositions', entry.key))
-  const items = new Map<string, OcTreeItem>([
+  const items = new Map<string, OcNode>([
     ['families', { label: t('projectConfig.fonts.projectFonts'), icon: 'file.font' }],
     ['compositions', { label: t('projectConfig.fonts.compositions'), icon: 'data.layers' }],
-    ...props.families.map(entry => {
+    ...props.families.map((entry): [string, OcNode] => {
       const referenced = referencedFamilyKeys.value.has(entry.key.toLocaleLowerCase())
-      const actions = referenced ? ['configure-family'] : ['configure-family', 'delete-family']
-      const item: OcTreeItem = {
+      return [treeKey('families', entry.key), {
         label: entry.name,
         icon: 'file.font',
-        actions,
-        contextActions: referenced ? ['configure-family'] : [
-          'configure-family',
+        actions: referenced ? [configureFamilyAction] : [configureFamilyAction, removeFamilyAction],
+        contextActions: referenced ? [configureFamilyAction] : [
+          configureFamilyAction,
           { type: 'divider', key: 'font-delete-divider' },
-          'delete-family',
+          removeFamilyAction,
         ],
-      }
-      return [treeKey('families', entry.key), item] as const
+      }]
     }),
-    ...props.compositions.map(entry => [treeKey('compositions', entry.key), {
+    ...props.compositions.map((entry): [string, OcNode] => [treeKey('compositions', entry.key), {
       label: entry.name,
       icon: 'data.layers',
-      actions: ['configure-composition', 'delete-composition'],
+      actions: [configureCompositionAction, removeCompositionAction],
       contextActions: [
-        'configure-composition',
+        configureCompositionAction,
         { type: 'divider', key: 'composition-delete-divider' },
-        'delete-composition',
+        removeCompositionAction,
       ],
-    }] as const),
+    }]),
   ])
   return {
     rootKeys: ['families', 'compositions'],
@@ -308,33 +319,30 @@ function removeEntry(page: 'families' | 'compositions', key: string): void {
   if (page === 'families') removeFamily(props.families.findIndex(family => family.key === key))
   else removeComposition(props.compositions.findIndex(composition => composition.key === key))
 }
-function handleTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'selection.change') {
-    const selectedKey = intent.selectedKeys[0] ?? intent.triggerKey
-    const page = entryPage(selectedKey)
-    if (!page) return
-    activePage.value = page
-    if (selectedKey === page) return
-    const key = entryKey(selectedKey)
-    if (page === 'families') selectedFamilyKey.value = key
-    else selectedCompositionKey.value = key
+function handleSelectionChange(event: OcNodeSelectionEvent): void {
+  const selectedKey = event.selectedKeys[0] ?? event.triggerKey
+  const page = entryPage(selectedKey)
+  if (!page) return
+  activePage.value = page
+  if (selectedKey === page) return
+  const key = entryKey(selectedKey)
+  if (page === 'families') selectedFamilyKey.value = key
+  else selectedCompositionKey.value = key
+}
+function handleNodeActivate(event: OcNodeActivateEvent): void {
+  if (event.key === 'families' || event.key === 'compositions') {
+    activePage.value = event.key
     return
   }
-  if (intent.type === 'node.activate' && (intent.key === 'families' || intent.key === 'compositions')) {
-    activePage.value = intent.key
-    return
-  }
-  if (intent.type === 'node.activate') {
-    const page = entryPage(intent.key)
-    if (page) configureEntry(page, entryKey(intent.key))
-    return
-  }
-  if (intent.type !== 'action.invoke') return
-  const key = entryKey(intent.key)
-  if (intent.actionKey === 'configure-family') configureEntry('families', key)
-  else if (intent.actionKey === 'configure-composition') configureEntry('compositions', key)
-  else if (intent.actionKey === 'delete-family') removeEntry('families', key)
-  else if (intent.actionKey === 'delete-composition') removeEntry('compositions', key)
+  const page = entryPage(event.key)
+  if (page) configureEntry(page, entryKey(event.key))
+}
+function handleNodeAction(event: OcNodeActionEvent): void {
+  const key = entryKey(event.key)
+  if (event.actionKey === 'configure-family') configureEntry('families', key)
+  else if (event.actionKey === 'configure-composition') configureEntry('compositions', key)
+  else if (event.actionKey === 'delete-family') removeEntry('families', key)
+  else if (event.actionKey === 'delete-composition') removeEntry('compositions', key)
 }
 function removeFamily(index: number): void {
   if (index < 0) return

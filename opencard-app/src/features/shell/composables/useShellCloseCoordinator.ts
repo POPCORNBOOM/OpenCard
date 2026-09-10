@@ -12,6 +12,8 @@ import {
 } from './useUnsavedSessionGuard'
 
 type CloseResult = void | Promise<void>
+/** 关闭请求的结果：已完成，或因为要确认未保存的编辑器而交给了用户。 */
+export type CloseOutcome = 'completed' | 'prompted'
 
 type ShellCloseCompletions = {
   sessions: (sessionIds: readonly string[]) => CloseResult
@@ -65,19 +67,19 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     completeClose,
   })
 
-  async function request(intent: UnsavedCloseIntent): Promise<void> {
+  async function request(intent: UnsavedCloseIntent): Promise<CloseOutcome> {
     await options.flushAffectedSessions(intent.sessionIds)
-    await guard.requestClose(intent)
+    return await guard.requestClose(intent)
   }
 
-  async function requestSessionClose(sessionIds: readonly string[]): Promise<void> {
-    await request({ type: 'sessions', sessionIds })
+  async function requestSessionClose(sessionIds: readonly string[]): Promise<CloseOutcome> {
+    return await request({ type: 'sessions', sessionIds })
   }
 
   async function requestProjectClose(
     destination: ProjectCloseDestination = 'current',
-  ): Promise<void> {
-    await request({
+  ): Promise<CloseOutcome> {
+    return await request({
       type: 'project',
       sessionIds: options.sessions.value
         .filter(session => session.resourceKind === 'workspace')
@@ -86,8 +88,8 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     })
   }
 
-  async function requestPathTrash(path: string): Promise<void> {
-    await request({
+  async function requestPathTrash(path: string): Promise<CloseOutcome> {
+    return await request({
       type: 'trash',
       sessionIds: options.sessions.value
         .filter(session => session.path && isSameOrDescendantPath(session.path, path))
@@ -96,8 +98,8 @@ export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOption
     })
   }
 
-  async function requestApplicationClose(action: ApplicationCloseAction = 'close'): Promise<void> {
-    await request({
+  async function requestApplicationClose(action: ApplicationCloseAction = 'close'): Promise<CloseOutcome> {
+    return await request({
       type: 'app',
       sessionIds: options.sessions.value.map(session => session.id),
       applicationAction: action,

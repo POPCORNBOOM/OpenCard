@@ -26,9 +26,10 @@
       </OcFieldFrame>
       <div class="project-icon-set-workspace__tree-scroll">
         <OcTree v-if="filteredIconIndexes.length" class="project-icon-set-workspace__icon-tree" fill
-          virtualized scroll-to-selection role="listbox" :data="iconTreeData" :actions="iconTreeActions"
+          virtualized scroll-to-selection role="listbox" :data="iconTreeData"
           :action-overflow-title="t('projectConfig.icons.iconActions')"
-          :selected-keys="selectedTreeKeys" selection-mode="multiple" @intent="handleTreeIntent" />
+          :selected-keys="selectedTreeKeys" selection-mode="multiple"
+          @selection-change="handleSelectionChange" @action="handleNodeAction" @move="handleNodeMove" />
         <OcEmpty v-else tone="muted">
           {{ series.icons.length ? t('projectConfig.icons.noMatchingIcons') : t('projectConfig.icons.emptyIconList') }}
         </OcEmpty>
@@ -64,7 +65,15 @@ import type {
   PropertyEditorInput,
   PropertyEditorMutation,
 } from '../../shared/ui/property-editor/propertyEditor.types'
-import type { OcTreeActionDefinition, OcTreeData, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import type {
+  OcNode,
+  OcNodeAction,
+  OcNodeActionEvent,
+  OcNodeCollection,
+  OcNodeContextEntry,
+  OcNodeMoveEvent,
+  OcNodeSelectionEvent,
+} from '../../shared/ui/node/node.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
@@ -99,14 +108,50 @@ const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCatego
   ['crop', { title: t('projectConfig.icons.crop'), icon: 'tool.box-cutter' }],
   ['appearance', { title: t('projectConfig.icons.appearance'), icon: 'file.image' }],
 ]))
-const iconTreeActions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => new Map([
-  ['duplicate', { title: t('projectConfig.icons.duplicateIcon'), icon: 'action.copy' }],
-  ['move-top', { title: t('projectConfig.icons.moveToTop'), icon: 'format.vertical-top' }],
-  ['move-up', { title: t('propertyEditor.arrays.moveUp'), icon: 'nav.arrow-up' }],
-  ['move-down', { title: t('propertyEditor.arrays.moveDown'), icon: 'nav.arrow-down' }],
-  ['move-bottom', { title: t('projectConfig.icons.moveToBottom'), icon: 'format.vertical-bottom' }],
-  ['delete', { title: t('projectConfig.icons.removeIcon'), icon: 'action.delete', iconTone: 'danger' }],
-]))
+/** Boundary moves are disabled on the node that cannot move further, with the reason the action button surfaces. */
+function iconNodeActions(index: number): {
+  inline: readonly OcNodeAction[]
+  context: readonly OcNodeContextEntry[]
+} {
+  const atTop = index === 0
+  const atBottom = index === props.series.icons.length - 1
+  const boundary = (blocked: boolean, reason: string): Partial<OcNodeAction> => (
+    blocked ? { disabled: true, disabledReason: t(reason) } : {}
+  )
+  const duplicate: OcNodeAction = { key: 'duplicate', title: t('projectConfig.icons.duplicateIcon'), icon: 'action.copy' }
+  const moveTop: OcNodeAction = {
+    key: 'move-top', title: t('projectConfig.icons.moveToTop'), icon: 'format.vertical-top',
+    ...boundary(atTop, 'projectConfig.icons.alreadyAtTop'),
+  }
+  const moveUp: OcNodeAction = {
+    key: 'move-up', title: t('propertyEditor.arrays.moveUp'), icon: 'nav.arrow-up',
+    ...boundary(atTop, 'projectConfig.icons.alreadyAtTop'),
+  }
+  const moveDown: OcNodeAction = {
+    key: 'move-down', title: t('propertyEditor.arrays.moveDown'), icon: 'nav.arrow-down',
+    ...boundary(atBottom, 'projectConfig.icons.alreadyAtBottom'),
+  }
+  const moveBottom: OcNodeAction = {
+    key: 'move-bottom', title: t('projectConfig.icons.moveToBottom'), icon: 'format.vertical-bottom',
+    ...boundary(atBottom, 'projectConfig.icons.alreadyAtBottom'),
+  }
+  const remove: OcNodeAction = {
+    key: 'delete', title: t('projectConfig.icons.removeIcon'), icon: 'action.delete', iconTone: 'danger',
+  }
+  return {
+    inline: [duplicate, moveTop, moveUp, moveDown, moveBottom, remove],
+    context: [
+      duplicate,
+      { type: 'divider', key: 'icon-move-divider' },
+      moveTop,
+      moveUp,
+      moveDown,
+      moveBottom,
+      { type: 'divider', key: 'icon-delete-divider' },
+      remove,
+    ],
+  }
+}
 
 function catalogEntry(index: number): ProjectIconCatalogEntry | null {
   const icon = props.series.icons[index]
@@ -132,41 +177,23 @@ const filteredIconIndexes = computed(() => {
       : []
   ))
 })
-const iconTreeData = computed<OcTreeData>(() => {
+const iconTreeData = computed<OcNodeCollection>(() => {
   const rootKeys = filteredIconIndexes.value.map(index => `icon:${index}`)
   return {
     rootKeys,
-    items: new Map(filteredIconIndexes.value.map(index => {
+    items: new Map(filteredIconIndexes.value.map((index): [string, OcNode] => {
       const key = `icon:${index}`
       const icon = props.series.icons[index]!
       const entry = catalogEntry(index)
+      const actions = iconNodeActions(index)
       return [key, {
         label: icon.name,
         ...(entry
           ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name }
           : { icon: 'file.image' as const }),
         draggable: true,
-        actions: ['duplicate', 'move-top', 'move-up', 'move-down', 'move-bottom', 'delete'],
-        contextActions: [
-          'duplicate',
-          { type: 'divider', key: 'icon-move-divider' },
-          'move-top',
-          'move-up',
-          'move-down',
-          'move-bottom',
-          { type: 'divider', key: 'icon-delete-divider' },
-          'delete',
-        ],
-        disabledActions: new Map([
-          ...(index === 0 ? [
-            ['move-top', t('projectConfig.icons.alreadyAtTop')],
-            ['move-up', t('projectConfig.icons.alreadyAtTop')],
-          ] as const : []),
-          ...(index === props.series.icons.length - 1 ? [
-            ['move-down', t('projectConfig.icons.alreadyAtBottom')],
-            ['move-bottom', t('projectConfig.icons.alreadyAtBottom')],
-          ] as const : []),
-        ]),
+        actions: actions.inline,
+        contextActions: actions.context,
       }]
     })),
     children: new Map(),
@@ -215,34 +242,33 @@ function updateFilter(event: Event): void {
   if (event.target instanceof HTMLInputElement) filterQuery.value = event.target.value
 }
 
-function handleTreeIntent(intent: OcTreeIntent): void {
-  if (intent.type === 'selection.change') {
-    emit('update:selectedIconIndexes', intent.selectedKeys
-      .map(key => treeIndex(key))
-      .filter((index): index is number => index !== null))
-    return
-  }
-  if (intent.type === 'move.request') {
-    const fromIndex = treeIndex(intent.key)
-    const targetIndex = treeIndex(intent.targetKey)
-    if (fromIndex === null || targetIndex === null) return
-    let toIndex = targetIndex + (intent.position === 'after' ? 1 : 0)
-    if (fromIndex < toIndex) toIndex -= 1
-    moveIcon(fromIndex, toIndex)
-    return
-  }
-  if (intent.type !== 'action.invoke') return
-  const index = treeIndex(intent.key)
+function handleSelectionChange(event: OcNodeSelectionEvent): void {
+  emit('update:selectedIconIndexes', event.selectedKeys
+    .map(key => treeIndex(key))
+    .filter((index): index is number => index !== null))
+}
+
+function handleNodeMove(event: OcNodeMoveEvent): void {
+  const fromIndex = treeIndex(event.key)
+  const targetIndex = treeIndex(event.targetKey)
+  if (fromIndex === null || targetIndex === null) return
+  let toIndex = targetIndex + (event.position === 'after' ? 1 : 0)
+  if (fromIndex < toIndex) toIndex -= 1
+  moveIcon(fromIndex, toIndex)
+}
+
+function handleNodeAction(event: OcNodeActionEvent): void {
+  const index = treeIndex(event.key)
   if (index === null) return
-  const indexes = intent.source === 'context' && ['delete', 'move-top', 'move-up', 'move-down', 'move-bottom'].includes(intent.actionKey)
+  const indexes = event.source === 'context' && ['delete', 'move-top', 'move-up', 'move-down', 'move-bottom'].includes(event.actionKey)
     ? selectedIconIndexes.value
     : selectedIconIndex.value === null ? [index] : [selectedIconIndex.value]
-  if (intent.actionKey === 'duplicate') duplicateIcon(indexes[0] ?? index)
-  else if (intent.actionKey === 'delete') removeIcons(indexes)
-  else if (intent.actionKey === 'move-top') moveIcons(indexes, 'top')
-  else if (intent.actionKey === 'move-up') moveIcons(indexes, 'up')
-  else if (intent.actionKey === 'move-down') moveIcons(indexes, 'down')
-  else if (intent.actionKey === 'move-bottom') moveIcons(indexes, 'bottom')
+  if (event.actionKey === 'duplicate') duplicateIcon(indexes[0] ?? index)
+  else if (event.actionKey === 'delete') removeIcons(indexes)
+  else if (event.actionKey === 'move-top') moveIcons(indexes, 'top')
+  else if (event.actionKey === 'move-up') moveIcons(indexes, 'up')
+  else if (event.actionKey === 'move-down') moveIcons(indexes, 'down')
+  else if (event.actionKey === 'move-bottom') moveIcons(indexes, 'bottom')
 }
 
 function moveIcon(fromIndex: number, toIndex: number): void {

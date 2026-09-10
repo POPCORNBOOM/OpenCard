@@ -3,7 +3,19 @@
     <div class="package-manager">
       <OcText v-if="error" class="package-manager__error" tone="danger" role="alert">{{ error }}</OcText>
       <OcEmpty v-if="!rows.length" tone="muted" inset="comfortable">{{ t('packageManager.empty') }}</OcEmpty>
-      <OcTree v-else fill :data="treeData" :actions="actions" :aria-label="t('packageManager.title')" @intent="handleIntent" />
+      <template v-else>
+        <div class="package-manager__toolbar">
+          <OcOptionGroup :model-value="packageManagerView" :options="viewOptions"
+            :aria-label="t('packageManager.viewLabel')" icon-only square size="sm"
+            appearance="sliding-outline" @update:model-value="setPackageManagerView" />
+        </div>
+        <div class="package-manager__view">
+          <OcAlbum v-if="packageManagerView === 'album'" fill :data="treeData"
+            :aria-label="t('packageManager.title')" selection-mode="none" activation-mode="none"
+            @action="handleNodeAction" />
+          <OcTree v-else fill :data="treeData" :aria-label="t('packageManager.title')" @action="handleNodeAction" />
+        </div>
+      </template>
     </div>
     <OcDialog :open="Boolean(confirmRequest)" :title="t('packageManager.confirmTitle')"
       :description="confirmRequest?.message ?? ''" size="sm" @close="resolveConfirm(false)">
@@ -40,7 +52,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { ResourcePackageManifest } from '../../features/workspace/model/resourcePackage'
-import type { OcTreeData, OcTreeActionDefinition, OcTreeIntent } from '../../shared/ui/tree/tree.types'
+import type { OcNode, OcNodeActionEvent, OcNodeCollection } from '../../shared/ui/node/node.types'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import type { ShellWorkspaceAction } from '../../features/shell/shell.types'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
@@ -52,7 +64,9 @@ import OcText from '../base/OcText.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcDialog from '../standard/OcDialog.vue'
 import OcTree from '../standard/OcTree.vue'
+import OcAlbum from '../standard/OcAlbum.vue'
 import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
+import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 import { notifyError, notifySuccess } from '../../features/notifications/titlebarNotices'
 import { useShellProgressTasks } from '../../features/shell/composables/useShellProgressTasks'
@@ -62,6 +76,7 @@ const props = defineProps<EditorProps>()
 const emit = defineEmits<EditorEmits>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
+const settingsStore = useAppSettingsStore()
 const shellProgress = useShellProgressTasks()
 const busy = ref(false)
 const error = ref('')
@@ -74,6 +89,15 @@ const addModeOptions = computed<readonly OcOption[]>(() => [
   { value: 'local', label: t('packageManager.local') },
   { value: 'remote', label: t('packageManager.remote') },
 ])
+const packageManagerView = computed(() => settingsStore.settings.value.workspace.packageManagerView)
+const viewOptions = computed<readonly OcOption[]>(() => [
+  { value: 'tree', label: t('packageManager.viewTree'), icon: 'data.list-tree' },
+  { value: 'album', label: t('packageManager.viewAlbum'), icon: 'layout.columns' },
+])
+
+function setPackageManagerView(value: string): void {
+  settingsStore.updateSetting('workspace.packageManagerView', value)
+}
 const remoteEntries = computed(() => remoteSource.value.split(/[;\n]+/)
   .map(entry => entry.trim())
   .filter(Boolean)
@@ -87,6 +111,7 @@ type PackageRow = {
   version: string
   source?: string | null
   status: 'missing' | 'version' | null
+  coverSrc?: string
 }
 const presentation = computed<EditorPresentation>(() => ({
   title: t('packageManager.title'),
@@ -136,31 +161,26 @@ const rows = computed<PackageRow[]>(() => {
         version: required.version,
         source: required.source,
         status: actual && actual.manifest.version !== required.version ? 'version' : actual ? null : 'missing',
+        coverSrc: actual?.cover?.src,
       }
     })
     .sort((left, right) => left.key.localeCompare(right.key))
 })
-const treeData = computed<OcTreeData>(() => ({
+const treeData = computed<OcNodeCollection>(() => ({
   rootKeys: rows.value.map(row => row.key),
-  items: new Map(rows.value.map(row => [row.key, {
+  items: new Map(rows.value.map((row): [string, OcNode] => [row.key, {
     label: `${row.key}@${row.version}`,
     tail: [row.source?.trim() || t('packageManager.local'), row.status ? t(`packageManager.status.${row.status}`) : ''].filter(Boolean).join(' · '),
-    actions: [removeAction(row.key)],
+    actions: [{ key: removeAction(row.key), title: t('packageManager.noLongerNeeded'), icon: 'action.delete', iconTone: 'danger' }],
     icon: 'file.package',
     iconTone: row.status === 'missing' ? 'muted' : row.status === 'version' ? 'warning' : 'success',
+    thumbnailSrc: row.coverSrc,
+    thumbnailLabel: row.coverSrc ? `${row.key} ${t('packageManifest.coverAlt')}` : undefined,
   }])),
   children: new Map(),
 }))
-const actions = computed<ReadonlyMap<string, OcTreeActionDefinition>>(() => {
-  const next = new Map<string, OcTreeActionDefinition>()
-  for (const row of rows.value) {
-    next.set(removeAction(row.key), { title: t('packageManager.noLongerNeeded'), icon: 'action.delete', iconTone: 'danger' })
-  }
-  return next
-})
-function handleIntent(intent: OcTreeIntent): void {
-  if (intent.type !== 'action.invoke') return
-  if (intent.actionKey.startsWith('package-remove:')) void removePackage(intent.actionKey.slice('package-remove:'.length))
+function handleNodeAction(event: OcNodeActionEvent): void {
+  if (event.actionKey.startsWith('package-remove:')) void removePackage(event.actionKey.slice('package-remove:'.length))
 }
 async function removePackage(key: string): Promise<void> { await projectStore.removeRequiredPackage(key); await refresh() }
 watch(() => props.filePath, () => {
@@ -274,7 +294,21 @@ async function addPackage(): Promise<void> {
 </script>
 
 <style scoped>
-.package-manager { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+.package-manager {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.package-manager__toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  padding: var(--oc-space-2) var(--oc-space-3) 0;
+}
+.package-manager__view { flex: 1 1 auto; min-height: 0; }
 .package-manager__error { padding: var(--oc-space-3); }
 .package-manager__field { display: grid; gap: var(--oc-space-2); margin-block: var(--oc-space-3); }
 .package-manager__source { display: grid; gap: var(--oc-space-2); }
