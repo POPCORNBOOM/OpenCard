@@ -1,6 +1,5 @@
-import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RESOURCE_PACKAGE_TYPE, type ResourcePackageManifest } from '../../features/workspace/model/resourcePackage'
 import PackageManifestEditor from './PackageManifestEditor.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
@@ -17,19 +16,71 @@ const manifest: ResourcePackageManifest = {
   },
 }
 
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('../../features/workspace/store/projectStore', () => ({
-  useProjectStore: () => ({ projectResourcePackages: ref(new Map([['theme', { manifest }]])) }),
+const projectResourcePackages = vi.hoisted(() => (
+  { value: new Map() } as { value: Map<string, { manifest: unknown }> }
+))
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, unknown>) => (
+      params?.count === undefined ? key : `${key}:${String(params.count)}`
+    ),
+  }),
 }))
+vi.mock('../../features/workspace/store/projectStore', () => ({
+  useProjectStore: () => ({ projectResourcePackages }),
+}))
+
+function mountEditor() {
+  return mount(PackageManifestEditor, {
+    props: { filePath: 'D:/project/.opencard/packages/theme/.opencard/manifest.json' },
+  })
+}
+
+beforeEach(() => {
+  projectResourcePackages.value = new Map([['theme', { manifest }]])
+})
 
 describe('PackageManifestEditor', () => {
   it('renders the installed package through its dedicated viewer', () => {
-    const wrapper = mount(PackageManifestEditor, {
-      props: { filePath: 'D:/project/.opencard/packages/theme/.opencard/manifest.json' },
-    })
+    const wrapper = mountEditor()
 
     expect(wrapper.getComponent(ProjectRegistryEditorShell).props('heading')).toBe('Theme Package')
     expect(wrapper.text()).toContain('1.2.3')
     expect(wrapper.text()).toContain('0000000000000000000000000000000000000000000000000000000000000000')
+  })
+
+  it('lists the public fonts and icon series the package provides', () => {
+    const wrapper = mountEditor()
+
+    expect(wrapper.findAll('.package-manifest-editor h2').map(node => node.text())).toEqual([
+      'packageManifest.information',
+      'packageManifest.fonts',
+      'packageManifest.iconSeries',
+    ])
+    expect(wrapper.findAll('.package-manifest-editor__resources > li').map(node => node.text())).toEqual([
+      'Bodybody',
+      'ActionsactionspackageManifest.iconCount:4',
+    ])
+  })
+
+  it('explains an empty public resource list instead of rendering nothing', () => {
+    projectResourcePackages.value = new Map([['theme', {
+      manifest: { ...manifest, public: { fonts: [], iconSeries: [] } },
+    }]])
+
+    const wrapper = mountEditor()
+
+    expect(wrapper.text()).toContain('packageManifest.noFonts')
+    expect(wrapper.text()).toContain('packageManifest.noIconSeries')
+    expect(wrapper.findAll('.package-manifest-editor__resources')).toHaveLength(0)
+  })
+
+  it('reports an unavailable package instead of an empty overview', () => {
+    projectResourcePackages.value = new Map()
+
+    const wrapper = mountEditor()
+
+    expect(wrapper.text()).toContain('packageManifest.unavailable')
   })
 })

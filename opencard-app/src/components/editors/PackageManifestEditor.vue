@@ -15,6 +15,31 @@
         </dl>
       </OcPanel>
 
+      <OcPanel gap="3" padding="4" border="muted" radius="md">
+        <h2>{{ t('packageManifest.fonts') }}</h2>
+        <OcEmpty v-if="manifest.public.fonts.length === 0" tone="muted" inset="compact">
+          {{ t('packageManifest.noFonts') }}
+        </OcEmpty>
+        <ul v-else class="package-manifest-editor__resources">
+          <li v-for="font in manifest.public.fonts" :key="font.key">
+            <span>{{ font.title }}</span><code>{{ font.key }}</code>
+          </li>
+        </ul>
+      </OcPanel>
+
+      <OcPanel gap="3" padding="4" border="muted" radius="md">
+        <h2>{{ t('packageManifest.iconSeries') }}</h2>
+        <OcEmpty v-if="manifest.public.iconSeries.length === 0" tone="muted" inset="compact">
+          {{ t('packageManifest.noIconSeries') }}
+        </OcEmpty>
+        <ul v-else class="package-manifest-editor__resources">
+          <li v-for="series in manifest.public.iconSeries" :key="series.key">
+            <span>{{ series.title }}</span>
+            <code>{{ series.key }}</code>
+            <span>{{ t('packageManifest.iconCount', { count: series.count }) }}</span>
+          </li>
+        </ul>
+      </OcPanel>
     </div>
   </ProjectRegistryEditorShell>
 </template>
