@@ -165,12 +165,12 @@ describe('useShellFileTree opened editors', () => {
     await result.handleProjectManagementSelect([`${projectPath}/.opencard/fonts/fonts.json`])
     expect(ensureProjectManagementStructure).toHaveBeenCalledOnce()
     expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/.opencard/fonts/fonts.json`, {
-      title: 'translated:fontRegistry.title',
+      title: 'translated:fileTypes.opencardFontRegistry',
     })
 
   })
 
-  it('opens every managed project file under its editor page heading', async () => {
+  it('opens every managed project file under its file tree name', async () => {
     const projectPath = 'D:/project'
     const openPreviewFile = vi.fn(async () => undefined)
     const result = useShellFileTree({
@@ -196,7 +196,7 @@ describe('useShellFileTree opened editors', () => {
       openPreviewFile.mockClear()
       await result.handleProjectManagementSelect([`${projectPath}/${fileName}`])
       expect(openPreviewFile).toHaveBeenCalledWith(`${projectPath}/${fileName}`, {
-        title: expect.stringMatching(/^translated:/),
+        title: expect.stringMatching(/^translated:fileTypes\.opencard/),
       })
     }
   })

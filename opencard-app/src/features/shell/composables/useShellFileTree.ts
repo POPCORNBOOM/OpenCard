@@ -330,7 +330,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
     }
   }
 
-  /** Managed project files open under their editor page heading instead of their JSON file name. */
+  /** Managed project files open under the name they carry in the file tree instead of their JSON file name. */
   function resolveManagedFileTitle(targetPath: string): string | undefined {
     const titleKey = PROJECT_FILE_TYPE_TITLE_KEYS[resolveFileType(targetPath, options.projectPath.value).id]
     return titleKey ? options.translate(titleKey) : undefined
