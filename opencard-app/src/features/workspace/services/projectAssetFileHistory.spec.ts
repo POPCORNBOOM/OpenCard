@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { FileSystemService } from './fileSystemService'
-import { stageProjectFontFiles } from './projectFontFileHistory'
+import { stageProjectAssetFiles } from './projectAssetFileHistory'
 
 vi.mock('../../../shared/storage/appStoragePaths', () => ({
   resolveAppStoragePath: vi.fn(async (...segments: string[]) => `C:/Users/Test/.opencard/${segments.join('/')}`),
@@ -29,13 +29,13 @@ function createFileSystem(initialFiles: readonly string[]) {
   return { fs, files, directories, copyFile, deleteFile }
 }
 
-describe('project font file history', () => {
+describe('project asset file history', () => {
   it('stages across storage volumes and follows undo, redo, and release', async () => {
-    const original = 'D:/Cards/.opencard/fonts/Brand.ttf'
-    const staged = 'C:/Users/Test/.opencard/history/fonts/remove-1/0-Brand.ttf'
+    const original = 'D:/Cards/.opencard/assets/Brand.png'
+    const staged = 'C:/Users/Test/.opencard/history/assets/remove-1/0-Brand.png'
     const { fs, files, directories, copyFile } = createFileSystem([original])
 
-    const resource = await stageProjectFontFiles([original], 'remove-1', fs)
+    const resource = await stageProjectAssetFiles([original], 'remove-1', fs)
     expect(files.has(original)).toBe(false)
     expect(files.has(staged)).toBe(true)
     expect(copyFile).toHaveBeenCalledWith(original, staged)
@@ -50,13 +50,24 @@ describe('project font file history', () => {
 
     await resource.release()
     expect(files.has(staged)).toBe(false)
-    expect(directories.has('C:/Users/Test/.opencard/history/fonts/remove-1')).toBe(false)
+    expect(directories.has('C:/Users/Test/.opencard/history/assets/remove-1')).toBe(false)
   })
 
   it('deduplicates source paths within one history operation', async () => {
-    const original = 'D:/Cards/.opencard/fonts/Brand.ttf'
+    const original = 'D:/Cards/.opencard/assets/Brand.png'
     const { fs, copyFile } = createFileSystem([original])
-    await stageProjectFontFiles([original, original], 'remove-2', fs)
+    await stageProjectAssetFiles([original, original], 'remove-2', fs)
     expect(copyFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores the moved files when a later file in the batch is missing', async () => {
+    const present = 'D:/Cards/.opencard/assets/A.png'
+    const missing = 'D:/Cards/.opencard/assets/Gone.png'
+    const { fs, files } = createFileSystem([present])
+
+    await expect(stageProjectAssetFiles([present, missing], 'remove-3', fs)).rejects.toThrow()
+    // The first file is back where it started, and nothing is left staged.
+    expect(files.has(present)).toBe(true)
+    expect(files.has('C:/Users/Test/.opencard/history/assets/remove-3/0-A.png')).toBe(false)
   })
 })

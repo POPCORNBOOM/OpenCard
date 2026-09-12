@@ -67,7 +67,7 @@ describe('OcActionMenu', () => {
       props: {
         actions: [{
           key: 'status/wide',
-          thumbnailStyle: { '--oc-project-icon-renderer': 'atlas-crop' },
+          thumbnailStyle: { '--oc-project-icon-renderer': 'mask' },
         }],
       },
     })

@@ -77,7 +77,7 @@ export function useProjectTimeline(
       items.set(key, {
         label: `${commit.summary.trim() || commit.shortId} ${commit.shortId}`,
         tail: [formatRelativeTime(commit.authoredAtSeconds * 1000, locale.value), ...actions],
-        icon: 'file.git',
+        visual: { type: 'icon', icon: 'file.git' },
       })
       const changedFiles = Array.isArray(commit.changedFiles) ? commit.changedFiles : []
       if (!includeChangedPaths || changedFiles.length === 0) continue
@@ -87,8 +87,7 @@ export function useProjectTimeline(
         const presentation = resolveEntryIcon(file.path, false)
         items.set(childKeys[index]!, {
           label: file.path,
-          icon: presentation.icon,
-          iconTone: presentation.tone,
+          visual: { type: 'icon', icon: presentation.icon, iconTone: presentation.tone },
           tail: changedFileTail(file),
         })
       })
@@ -129,8 +128,7 @@ export function useProjectTimeline(
       const presentation = resolveEntryIcon(entry.path, false)
       items.set(`change:${entry.path}`, {
         label: entry.path,
-        icon: presentation.icon,
-        iconTone: presentation.tone,
+        visual: { type: 'icon', icon: presentation.icon, iconTone: presentation.tone },
         tail: statusTail(entry),
       })
     }

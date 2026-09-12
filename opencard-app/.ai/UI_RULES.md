@@ -271,6 +271,8 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 
 全部引用 `--oc-*` CSS 变量。
 
+把字面量改名成局部常量或 CSS 自定义属性**不算**设计 token。缺少所需语义值时，先把它加到 foundation/theme 体系、对所有适用主题显式定义，再由使用方引用该 token。
+
 ### 铁律 22 — Props interface 必须完整 JSDoc
 
 每个 prop 注释格式：`/** 做什么。影响什么。 */`
@@ -295,6 +297,20 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 - 每个 variant/size/tone 正确产生对应 class
 - emit 正确触发
 - disabled 阻止交互
+
+### 铁律 26 — 模态对话框一律使用 `OcDialog`
+
+- 应用级模态对话框必须使用 `components/standard/OcDialog.vue`；feature 组件不得自行实现 Teleport、backdrop、`aria-modal`、焦点陷阱、容器几何、z-index 或进出动画。
+- `OcDialog` 负责模态语义、初始焦点、Tab 收束、焦点恢复、关闭来源、表面几何与动效；调用方只负责业务状态、内容布局、校验与命令处理。
+- 除非确实需要额外头部控件，使用默认的标题与描述头部；自定义头部必须把 slot 提供的 `titleId` 与 `descriptionId` 应用到可见标题与描述上。
+- 锚定式非模态菜单与选择器仍用 `OcFloatingLayer`，不得迁移到 `OcDialog`，也不得标记 `aria-modal`。
+- 对话框高度必须使用 `OcDialog` 的 `heightMode`、`height`、`minHeight`、`maxHeight` 语义预设：内容驱动保持 `content`，工作台与变量列表选择固定预设；feature CSS 不得设置对话框高度，也不得覆盖 header/body/footer 内边距。
+- 新增的共享对话框尺寸与颜色必须加入 foundation theme token；feature 对话框只能选择共享尺寸与 padded/scrollable 模式。
+
+### 铁律 27 — 共享几何只有一个来源，嵌入控件必须真正消除几何
+
+- 相关 UI（表头、分组行、数据行、内嵌字段）必须消费同一套高度与盒模型契约，不得逐行或逐字段覆盖。
+- 嵌入控件必须真正移除被吸收的表面几何，而不只是隐藏它：边框、内边距、圆角、背景与焦点效果都要由共享外观上下文控制；占据布局空间的透明边框不算消除。
 
 ---
 
@@ -387,6 +403,9 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 | X8 | 新增 prop 没有默认值 | 影响已有使用 |
 | X9 | 组件文件超过 400 行 | 不可维护 |
 | X10 | 缺少头部注释说明 | 用户无法快速理解用途 |
+| X11 | 自建模态 Teleport / backdrop / 焦点陷阱 | 绕过 OcDialog 的统一模态契约 |
+| X12 | 把字面量改名成常量或 CSS 变量就当作 token | 并未建立语义来源 |
+| X13 | 用透明边框或隐藏来"消除"嵌入几何 | 仍占据布局空间 |
 
 ---
 
@@ -402,5 +421,8 @@ Agent 完成 UI 组件代码后，必须自检：
 - [ ] 相同 props 任何上下文效果一致？
 - [ ] dark/light 两套 token 值已提供？
 - [ ] 文件行数 ≤ 400？
+- [ ] 模态对话框走 `OcDialog`，没有自建 Teleport / backdrop / 焦点陷阱？
+- [ ] 对话框高度用语义预设，没有在 feature CSS 里覆盖高度或 header/body/footer 内边距？
+- [ ] 相关 UI 共用同一套高度与盒模型契约，嵌入控件真正移除了被吸收的几何？
 - [ ] 对应 .spec.ts 已更新？
 - [ ] 如涉及新 token，铁律文档 Token 表已更新？

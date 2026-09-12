@@ -22,6 +22,7 @@ import type { ResourcePackageContentFile } from './resourcePackageHash'
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
 import { resolveFileType } from '../model/fileTypes'
 import { resolveResourcePath } from '../model/scopedResourcePath'
+import type { ProjectIcon } from '../model/projectIcons'
 
 export type ResourcePackageProjectBuildOptions = {
   fs: Pick<FileSystemService, 'readBinaryFile' | 'readFile' | 'fileExists' | 'writeBinaryFile'>
@@ -250,18 +251,22 @@ async function buildIconProjection(
   const allocated = new Map<string, string>()
   const projectedSeries: typeof selectedSeries = []
   for (const entry of selectedSeries) {
-    const resolved = resolveResourcePath(root, registryPath, entry.source)
-    if (!resolved.ok) throw new Error(`Project icon spritesheet path is invalid: ${entry.source}`)
-    if (!await options.fs.fileExists(resolved.value)) {
-      throw new Error(`Project icon spritesheet is missing: ${entry.source}`)
+    const icons: ProjectIcon[] = []
+    for (const icon of entry.icons) {
+      const resolved = resolveResourcePath(root, registryPath, icon.source)
+      if (!resolved.ok) throw new Error(`Project icon path is invalid: ${icon.source}`)
+      if (!await options.fs.fileExists(resolved.value)) {
+        throw new Error(`Project icon file is missing: ${icon.source}`)
+      }
+      const packagePath = allocateDependencyPath('icons', resolved.value, allocated)
+      icons.push({ ...icon, source: packagePath })
+      const identity = packagePath.toLocaleLowerCase()
+      if (!files.has(identity)) files.set(identity, {
+        path: packagePath,
+        bytes: await options.fs.readBinaryFile(resolved.value),
+      })
     }
-    const packagePath = allocateDependencyPath('icons', resolved.value, allocated)
-    projectedSeries.push({ ...entry, source: packagePath })
-    const identity = packagePath.toLocaleLowerCase()
-    if (!files.has(identity)) files.set(identity, {
-      path: packagePath,
-      bytes: await options.fs.readBinaryFile(resolved.value),
-    })
+    projectedSeries.push({ ...entry, icons })
   }
   const projectedDocument: ProjectIconRegistryDocument = { iconSeries: projectedSeries }
   files.set(PROJECT_ICON_REGISTRY_FILE_NAME.toLocaleLowerCase(), {

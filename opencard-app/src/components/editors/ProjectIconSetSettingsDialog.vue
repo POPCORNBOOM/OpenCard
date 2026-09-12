@@ -11,14 +11,6 @@
       <OcFieldInput full-width mono :value="draftKey"
         :aria-invalid="!validKey || !uniqueKey" @input="updateKey" />
     </label>
-    <label class="project-icon-set-dialog__field">
-      <OcText as="span" size="sm">{{ t('projectConfig.icons.projectFile') }}</OcText>
-      <OcButton class="project-icon-set-dialog__source" type="button" variant="outline" block
-        :disabled="busy" :aria-label="draftSource ? t('projectConfig.icons.chooseAgain') : t('projectConfig.icons.chooseFile')"
-        @click="pickSource">
-        <OcText as="span" size="sm" mono>{{ draftSource || t('projectConfig.icons.chooseFile') }}</OcText>
-      </OcButton>
-    </label>
 
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">
       {{ validationMessage }}
@@ -26,7 +18,7 @@
 
     <template #footer>
       <OcButton type="button" :disabled="busy" @click="emit('close')">{{ t('projectConfig.icons.cancel') }}</OcButton>
-      <OcButton type="submit" variant="solid" :disabled="!validName || !validKey || !uniqueKey">
+      <OcButton type="submit" variant="solid" :disabled="!validName || !validKey || !uniqueKey || busy">
         {{ t('projectConfig.icons.save') }}
       </OcButton>
     </template>
@@ -37,7 +29,6 @@
 export type ProjectIconSetSettingsRequest = {
   name: string
   key: string
-  sourcePath: string
 }
 </script>
 
@@ -49,21 +40,16 @@ import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcText from '../base/OcText.vue'
 import OcDialog from '../standard/OcDialog.vue'
-import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 
 const props = withDefaults(defineProps<{
   open: boolean
   name?: string
   seriesKey?: string
-  source?: string
-  defaultOpenPath?: string
   busy?: boolean
   existingKeys?: readonly string[]
 }>(), {
   name: '',
   seriesKey: '',
-  source: '',
-  defaultOpenPath: undefined,
   busy: false,
   existingKeys: () => [],
 })
@@ -74,7 +60,6 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const draftName = ref('')
 const draftKey = ref('')
-const draftSource = ref('')
 
 const normalizedName = computed(() => draftName.value.trim())
 const normalizedKey = computed(() => draftKey.value.trim())
@@ -91,23 +76,12 @@ const validationMessage = computed(() => {
   return ''
 })
 
-watch([() => props.open, () => props.name, () => props.seriesKey, () => props.source], ([open, name, seriesKey, source]) => {
+watch([() => props.open, () => props.name, () => props.seriesKey], ([open, name, seriesKey]) => {
   if (open) {
     draftName.value = name
     draftKey.value = seriesKey
-    draftSource.value = source
   }
 }, { immediate: true })
-
-async function pickSource(): Promise<void> {
-  const path = await fileSystemService.pickFile({
-    title: t('projectConfig.icons.chooseFile'),
-    fileTypeName: t('projectConfig.icons.fileType'),
-    extensions: ['png', 'jpg', 'jpeg', 'webp'],
-    defaultPath: props.defaultOpenPath,
-  })
-  if (path) draftSource.value = path
-}
 
 function updateName(event: Event): void {
   if (event.target instanceof HTMLInputElement) draftName.value = event.target.value
@@ -118,8 +92,7 @@ function updateKey(event: Event): void {
 
 function submit(): void {
   if (!validName.value || !validKey.value || !uniqueKey.value) return
-  if (!draftSource.value.trim()) return
-  emit('submit', { name: normalizedName.value, key: normalizedKey.value, sourcePath: draftSource.value })
+  emit('submit', { name: normalizedName.value, key: normalizedKey.value })
 }
 </script>
 
@@ -128,22 +101,5 @@ function submit(): void {
   display: grid;
   min-width: 0;
   gap: var(--oc-space-2);
-}
-.project-icon-set-dialog__source {
-  width: 100%;
-  min-width: 0;
-  justify-content: flex-start;
-  overflow: hidden;
-}
-:deep(.project-icon-set-dialog__source .oc-button__content),
-:deep(.project-icon-set-dialog__source .oc-button__label) {
-  min-width: 0;
-  overflow: hidden;
-}
-:deep(.project-icon-set-dialog__source .oc-button__label) {
-  display: block;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 </style>

@@ -7,6 +7,27 @@ import type {
 import OcTree from './OcTree.vue'
 import OcActionButton from './OcActionButton.vue'
 import { useFloatingMenu } from '../../composables/useFloatingMenu'
+import { registerUnhandledExternalDrop } from '../../shared/ui/drop/externalFileDrop'
+
+const platform = vi.hoisted(() => ({
+  dragDropHandler: null as ((event: { payload: unknown }) => void) | null,
+  unlisten: vi.fn(),
+}))
+
+vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
+
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    onDragDropEvent: async (handler: (event: { payload: unknown }) => void) => {
+      platform.dragDropHandler = handler
+      return platform.unlisten
+    },
+  }),
+}))
+
+function emitPlatformDragDrop(payload: unknown): void {
+  platform.dragDropHandler?.({ payload })
+}
 
 function createData(options: {
   roots?: string[]
@@ -16,7 +37,7 @@ function createData(options: {
   return {
     rootKeys: options.roots ?? ['root'],
     items: new Map(options.items ?? [
-      ['root', { label: 'Root', icon: 'data.collection', renamable: true }],
+      ['root', { label: 'Root', visual: { type: 'icon', icon: 'data.collection' }, renamable: true }],
     ]),
     children: new Map(options.children ?? []),
   }
@@ -93,18 +114,18 @@ describe('OcTree', () => {
     expect(wrapper.get('.oc-tree__label').attributes()).toHaveProperty('data-tooltip-overflow')
   })
 
-  it('opts atlas crop thumbnails into the shared project-icon renderer', () => {
+  it('opts atlas crop visuals into the shared project-icon renderer', () => {
     const wrapper = mount(OcTree, {
       props: {
         data: createData({
           items: [['root', {
             label: 'Icon',
-            thumbnailStyle: { '--oc-project-icon-renderer': 'atlas-crop' },
+            visual: { type: 'style', style: { '--oc-project-icon-renderer': 'mask' } },
           }]],
         }),
       },
     })
-    expect(wrapper.get('.oc-tree__thumbnail').classes()).toContain('oc-project-icon')
+    expect(wrapper.get('.oc-tree__node-visual').classes()).toContain('oc-project-icon')
   })
 
   it.each([
@@ -263,7 +284,7 @@ describe('OcTree', () => {
       props: {
         data: createData({
           items: [
-            ['root', { label: 'Root', icon: 'data.collection' }],
+            ['root', { label: 'Root', visual: { type: 'icon', icon: 'data.collection' } }],
             ['child', { label: 'Child' }],
           ],
           children: [['root', ['child']]],
@@ -274,7 +295,7 @@ describe('OcTree', () => {
 
     expect(wrapper.findAll('[data-oc-tree-key]')).toHaveLength(2)
     expect(wrapper.get('[data-oc-tree-key="child"]').attributes('style')).toContain('12px')
-    expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__node-icon').classes()).toContain('is-expanded')
+    expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__node-visual').classes()).toContain('is-expanded')
     expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__child-count').classes()).toContain('is-expanded')
     expect(wrapper.get('[data-oc-tree-key="root"] .oc-tree__branch-guide').attributes('data-guide-rows')).toBe('1')
     expect(wrapper.find('[data-oc-tree-key="root"] .oc-tree__branch-connector').exists()).toBe(false)
@@ -313,7 +334,7 @@ describe('OcTree', () => {
       props: {
         data: createData({
           items: [
-            ['root', { label: 'Root', icon: 'data.collection' }],
+            ['root', { label: 'Root', visual: { type: 'icon', icon: 'data.collection' } }],
             ...childKeys.map((key): [string, OcNode] => [key, { label: key }]),
           ],
           children: [['root', childKeys]],
@@ -788,6 +809,63 @@ describe('OcTree', () => {
       { key: 'dragged', targetKey: 'target', position: 'before' },
     ]])
     wrapper.unmount()
+    Reflect.deleteProperty(document, 'elementFromPoint')
+  })
+
+  it('reports an external drop on the hovered row and clears the highlight after it', async () => {
+    const wrapper = mount(OcTree, {
+      attachTo: document.body,
+      props: {
+        data: createData({
+          roots: ['folder', 'file'],
+          items: [
+            ['folder', { label: 'Folder' }],
+            ['file', { label: 'File' }],
+          ],
+        }),
+        externalDrop: true,
+      },
+    })
+    const folderNode = wrapper.get('[data-oc-tree-key="folder"]').element as HTMLElement
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => folderNode) })
+    vi.spyOn(folderNode, 'getBoundingClientRect').mockReturnValue({
+      ...rect(200, 40), top: 100, bottom: 140, y: 100,
+    })
+    await wrapper.vm.$nextTick()
+
+    emitPlatformDragDrop({ type: 'enter', paths: ['D:/textures/tile.png'], position: { x: 10, y: 120 } })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-oc-tree-key="folder"]').classes()).toContain('is-drop-inside')
+
+    emitPlatformDragDrop({ type: 'drop', paths: ['D:/textures/tile.png'], position: { x: 10, y: 120 } })
+    expect(wrapper.emitted('external-drop')).toEqual([[
+      { targetKey: 'folder', position: 'inside', payload: ['D:/textures/tile.png'] },
+    ]])
+
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('[data-oc-tree-key="folder"]').classes()).not.toContain('is-drop-inside')
+    wrapper.unmount()
+    Reflect.deleteProperty(document, 'elementFromPoint')
+  })
+
+  it('leaves external drops to the window when it has not opted in', async () => {
+    const unhandled = vi.fn()
+    const disposeUnhandled = registerUnhandledExternalDrop(unhandled)
+    const wrapper = mount(OcTree, {
+      attachTo: document.body,
+      props: { data: createData({ roots: ['folder'], items: [['folder', { label: 'Folder' }]] }) },
+    })
+    const folderNode = wrapper.get('[data-oc-tree-key="folder"]').element as HTMLElement
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: vi.fn(() => folderNode) })
+    await wrapper.vm.$nextTick()
+
+    emitPlatformDragDrop({ type: 'enter', paths: ['D:/textures/tile.png'], position: { x: 10, y: 10 } })
+    emitPlatformDragDrop({ type: 'drop', paths: ['D:/textures/tile.png'], position: { x: 10, y: 10 } })
+
+    expect(wrapper.emitted('external-drop')).toBeUndefined()
+    expect(unhandled).toHaveBeenCalledWith(['D:/textures/tile.png'])
+    wrapper.unmount()
+    disposeUnhandled()
     Reflect.deleteProperty(document, 'elementFromPoint')
   })
 

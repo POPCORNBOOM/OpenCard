@@ -1,17 +1,29 @@
+<!-- 代码编辑器：Monaco 体积很大，只在真正需要编辑时才按需加载。 -->
 <template>
   <div class="monaco-editor-shell">
     <div ref="editorContainer" class="monaco-editor-host"></div>
+    <div v-if="loadState !== 'ready'" class="monaco-editor-loading" role="status" aria-live="polite">
+      <OcText tone="muted" size="sm">
+        {{ t(loadState === 'failed' ? 'monacoEditor.loadFailed' : 'monacoEditor.loading') }}
+      </OcText>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from 'vue'
-import * as monaco from 'monaco-editor'
+import { useI18n } from 'vue-i18n'
+import OcText from '../base/OcText.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundation'
 import { registerOcMonacoTheme } from '../../features/editor-runtime/services/monacoTheme'
 import { editorHistoryManager } from '../../features/editor-runtime/history/editorHistoryManager'
 import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
 import type { EditorComparisonInput } from '../../features/editor-runtime/registry/editorRegistry'
+
+type MonacoApi = typeof import('monaco-editor')
+type MonacoEditorInstance = import('monaco-editor').editor.IStandaloneCodeEditor
+type MonacoDiffEditorInstance = import('monaco-editor').editor.IStandaloneDiffEditor
+type MonacoTextModel = import('monaco-editor').editor.ITextModel
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -32,22 +44,32 @@ const emit = defineEmits<{
   'save': []
 }>()
 
+const { t } = useI18n()
 const editorContainer = ref<HTMLElement>()
-let editor: monaco.editor.IStandaloneCodeEditor | null = null
-let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null
-let diffModels: monaco.editor.ITextModel[] = []
+/** 编辑器模块是按需加载的，加载失败要让用户看到原因而不是留一块空白。 */
+const loadState = ref<'loading' | 'ready' | 'failed'>('loading')
+let monacoApi: MonacoApi | null = null
+let editor: MonacoEditorInstance | null = null
+let diffEditor: MonacoDiffEditorInstance | null = null
+let diffModels: MonacoTextModel[] = []
+/** 每次挂载递增：加载返回时若已不是本次挂载，就丢弃结果，避免为已卸载的组件建编辑器。 */
+let mountGeneration = 0
 
-onMounted(() => {
-  if (!editorContainer.value) return
+async function loadMonacoApi(): Promise<MonacoApi> {
+  // 同一个窗口内多次打开编辑器共用同一份按需模块。
+  monacoApi ??= await import('monaco-editor')
+  return monacoApi
+}
 
-  const appearance = registerOcMonacoTheme(monaco, props.themeId, props.themeOverrides)
+function createEditor(api: MonacoApi, container: HTMLElement): void {
+  const appearance = registerOcMonacoTheme(api, props.themeId, props.themeOverrides)
   if (props.mode === 'diff' && props.comparison) {
     const before = props.comparison.before
     const after = props.comparison.after
-    const beforeModel = monaco.editor.createModel(before.content, props.language, monaco.Uri.parse(`inmemory://opencard/diff/${before.revisionId ?? 'current'}/before`))
-    const afterModel = monaco.editor.createModel(after.content, props.language, monaco.Uri.parse(`inmemory://opencard/diff/${after.revisionId ?? 'current'}/after`))
+    const beforeModel = api.editor.createModel(before.content, props.language, api.Uri.parse(`inmemory://opencard/diff/${before.revisionId ?? 'current'}/before`))
+    const afterModel = api.editor.createModel(after.content, props.language, api.Uri.parse(`inmemory://opencard/diff/${after.revisionId ?? 'current'}/after`))
     diffModels = [beforeModel, afterModel]
-    diffEditor = monaco.editor.createDiffEditor(editorContainer.value, {
+    diffEditor = api.editor.createDiffEditor(container, {
       theme: appearance.themeName,
       automaticLayout: true,
       readOnly: true,
@@ -63,16 +85,16 @@ onMounted(() => {
   }
   const sessionModel = props.sessionId ? editorHistoryManager.getMonacoModel(props.sessionId) : null
   const managedModel = sessionModel ?? (props.sessionId
-    ? monaco.editor.createModel(
+    ? api.editor.createModel(
         props.modelValue,
         props.language,
-        monaco.Uri.parse(`inmemory://opencard/${props.sessionId}`),
+        api.Uri.parse(`inmemory://opencard/${props.sessionId}`),
       )
     : null)
   if (props.sessionId && managedModel && !sessionModel) {
     editorHistoryManager.attachMonacoModel(props.sessionId, managedModel)
   }
-  editor = monaco.editor.create(editorContainer.value, {
+  editor = api.editor.create(container, {
     ...(managedModel ? { model: managedModel } : { value: props.modelValue }),
     language: props.language,
     theme: appearance.themeName,
@@ -111,17 +133,34 @@ onMounted(() => {
   }
 
   // 监听保存快捷键 (Ctrl+S / Cmd+S)
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+  editor.addCommand(api.KeyMod.CtrlCmd | api.KeyCode.KeyS, () => {
     emit('save')
   })
+}
+
+onMounted(async () => {
+  const container = editorContainer.value
+  if (!container) return
+  const generation = ++mountGeneration
+  let api: MonacoApi
+  try {
+    api = await loadMonacoApi()
+  } catch (error) {
+    if (generation === mountGeneration) loadState.value = 'failed'
+    console.error('[MonacoEditor] Unable to load the code editor.', error)
+    return
+  }
+  if (generation !== mountGeneration) return
+  loadState.value = 'ready'
+  if (editorContainer.value) createEditor(api, editorContainer.value)
 })
 
 // 监听语言变化
 watch(() => props.language, (newLang) => {
-  if (editor && newLang) {
+  if (monacoApi && editor && newLang) {
     const model = editor.getModel()
     if (model) {
-      monaco.editor.setModelLanguage(model, newLang)
+      monacoApi.editor.setModelLanguage(model, newLang)
     }
   }
 })
@@ -131,8 +170,9 @@ watch(() => props.readOnly, (readOnly) => {
 })
 
 watch(() => [props.themeId, props.themeOverrides] as const, ([themeId, themeOverrides]) => {
-  const appearance = registerOcMonacoTheme(monaco, themeId, themeOverrides)
-  monaco.editor.setTheme(appearance.themeName)
+  if (!monacoApi) return
+  const appearance = registerOcMonacoTheme(monacoApi, themeId, themeOverrides)
+  monacoApi.editor.setTheme(appearance.themeName)
   editor?.updateOptions({ fontFamily: appearance.fontFamily })
 })
 
@@ -145,17 +185,22 @@ watch(() => props.modelValue, (newValue) => {
 })
 
 onUnmounted(() => {
+  mountGeneration += 1
   diffEditor?.dispose()
   diffModels.forEach(model => model.dispose())
+  diffModels = []
   const model = editor?.getModel()
   if (props.sessionId) editorHistoryManager.setMonacoViewState(props.sessionId, editor?.saveViewState() ?? null)
   editor?.dispose()
+  editor = null
+  diffEditor = null
   if (!props.sessionId) model?.dispose()
 })
 </script>
 
 <style scoped>
 .monaco-editor-shell {
+  position: relative;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -167,5 +212,13 @@ onUnmounted(() => {
 .monaco-editor-host {
   width: 100%;
   height: 100%;
+}
+
+.monaco-editor-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

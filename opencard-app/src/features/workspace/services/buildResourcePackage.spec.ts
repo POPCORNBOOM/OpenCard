@@ -54,18 +54,20 @@ function iconRegistry() {
   return {
     iconSeries: [
       {
-        key: 'status', name: 'Status', source: 'support@icons/shared.png',
-        grid: { snapToGrid: true, rows: 2, columns: 2, pixelated: true },
-        icons: [{ iconKey: 'ok', name: 'OK', x: 0, y: 0, width: 8, height: 8 }],
+        key: 'status', name: 'Status',
+        icons: [{ iconKey: 'ok', name: 'OK', source: 'support@icons/ok.svg', tint: 'theme' }],
       },
       {
-        key: 'controls', name: 'Controls', source: 'support@icons/shared.png',
+        key: 'controls', name: 'Controls',
         icons: [
-          { iconKey: 'play', name: 'Play', x: 8, y: 0, width: 8, height: 8 },
-          { iconKey: 'pause', name: 'Pause', x: 16, y: 0, width: 8, height: 8 },
+          { iconKey: 'play', name: 'Play', source: 'support@icons/play.svg', tint: 'theme' },
+          { iconKey: 'pause', name: 'Pause', source: 'support@icons/pause.svg', tint: 'original', pixelated: true },
         ],
       },
-      { key: 'unused-icons', name: 'Unused icons', source: '.opencard/icons/unused.png', icons: [] },
+      {
+        key: 'unused-icons', name: 'Unused icons',
+        icons: [{ iconKey: 'idle', name: 'Idle', source: '.opencard/icons/unused/idle.svg', tint: 'theme' }],
+      },
     ],
   }
 }
@@ -77,8 +79,10 @@ function createFileSystem(): MemoryFileSystem {
   fs.putBinary('/project/.opencard/fonts/cjk-bold.otf', 'bold')
   fs.putBinary('/project/.opencard/fonts/unused.ttf', 'unused')
   fs.putText(`/project/${PROJECT_ICON_REGISTRY_FILE_NAME}`, iconRegistry())
-  fs.putBinary('/project/.opencard/packages/support/icons/shared.png', 'shared-icons')
-  fs.putBinary('/project/.opencard/icons/unused.png', 'unused-icons')
+  fs.putBinary('/project/.opencard/packages/support/icons/ok.svg', 'ok-icon')
+  fs.putBinary('/project/.opencard/packages/support/icons/play.svg', 'play-icon')
+  fs.putBinary('/project/.opencard/packages/support/icons/pause.svg', 'pause-icon')
+  fs.putBinary('/project/.opencard/icons/unused/idle.svg', 'idle-icon')
   return fs
 }
 
@@ -228,6 +232,23 @@ describe('buildResourcePackageFromProject cover', () => {
     expect(strFromU8(archive['.opencard/cover.webp']!)).toBe('slot-bytes')
   })
 
+  it('carries a vector cover into the package', async () => {
+    const fs = createFileSystem()
+    fs.putText(`/project/${PROJECT_PROFILE_FILE_NAME}`, { name: 'Demo', cover: 'assets/cover.svg' })
+    fs.putBinary('/project/assets/cover.svg', 'vector-cover')
+
+    const result = await buildResourcePackageFromProject({
+      fs,
+      projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+      fontSelection: { familyKeys: ['latin'], compositionKeys: [] },
+    })
+    const archive = unzipSync(result.archive)
+    const manifest = JSON.parse(strFromU8(archive[RESOURCE_PACKAGE_MANIFEST_FILE_NAME]!)) as ResourcePackageManifest
+
+    expect(manifest.cover).toBe('assets/cover.svg')
+    expect(strFromU8(archive['assets/cover.svg']!)).toBe('vector-cover')
+  })
+
   it('builds without a cover when none is declared, the file is missing, or the path is not an image', async () => {
     const cases = [
       () => createFileSystem(),
@@ -296,14 +317,19 @@ describe('buildResourcePackageFromProject icons', () => {
       { key: 'controls', title: 'Controls', count: 2 },
     ])
     expect(icons.iconSeries.map((series: { key: string }) => series.key)).toEqual(['status', 'controls'])
-    expect(icons.iconSeries.map((series: { source: string }) => series.source))
-      .toEqual(['.opencard/icons/shared.png', '.opencard/icons/shared.png'])
-    expect(icons.iconSeries[0].grid).toEqual({ snapToGrid: true, rows: 2, columns: 2, pixelated: true })
-    expect(archive['.opencard/icons/shared.png']).toBeDefined()
-    expect(archive['.opencard/icons/unused.png']).toBeUndefined()
+    // Each icon ships its own file, rewritten to a flat package path.
+    expect(icons.iconSeries.map((series: { icons: { source: string }[] }) => series.icons.map(icon => icon.source)))
+      .toEqual([
+        ['.opencard/icons/ok.svg'],
+        ['.opencard/icons/play.svg', '.opencard/icons/pause.svg'],
+      ])
+    expect(icons.iconSeries[1].icons[1]).toMatchObject({ iconKey: 'pause', tint: 'original', pixelated: true })
+    expect(strFromU8(archive['.opencard/icons/ok.svg']!)).toBe('ok-icon')
+    expect(strFromU8(archive['.opencard/icons/pause.svg']!)).toBe('pause-icon')
+    expect(archive['.opencard/icons/idle.svg']).toBeUndefined()
   })
 
-  it('rejects unavailable series, invalid registries, and missing spritesheets', async () => {
+  it('rejects unavailable series, invalid registries, and missing icon files', async () => {
     await expect(buildResourcePackageFromProject({
       fs: createFileSystem(),
       projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
@@ -320,12 +346,58 @@ describe('buildResourcePackageFromProject icons', () => {
 
     const missing = createFileSystem()
     const registry = iconRegistry()
-    registry.iconSeries[0]!.source = 'support@icons/missing.png'
+    registry.iconSeries[0]!.icons[0]!.source = 'support@icons/missing.svg'
     missing.putText(`/project/${PROJECT_ICON_REGISTRY_FILE_NAME}`, registry)
     await expect(buildResourcePackageFromProject({
       fs: missing,
       projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
       iconSelection: { seriesKeys: ['status'] },
-    })).rejects.toThrow('Project icon spritesheet is missing: support@icons/missing.png')
+    })).rejects.toThrow('Project icon file is missing: support@icons/missing.svg')
+  })
+
+  it('packages every icon file of a set that spans project folders and reports its count', async () => {
+    const fs = createFileSystem()
+    fs.putText(`/project/${PROJECT_ICON_REGISTRY_FILE_NAME}`, {
+      iconSeries: [{
+        key: 'outline', name: 'Outline',
+        icons: [
+          { iconKey: 'warn', name: 'Warn', source: '.opencard/icons/warn.svg', tint: 'theme' },
+          { iconKey: 'logo', name: 'Logo', source: 'support@icons/logo.svg', tint: 'original' },
+        ],
+      }],
+    })
+    fs.putBinary('/project/.opencard/icons/warn.svg', 'warn-svg')
+    fs.putBinary('/project/.opencard/packages/support/icons/logo.svg', 'logo-svg')
+
+    const result = await buildResourcePackageFromProject({
+      fs,
+      projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+      iconSelection: { seriesKeys: ['outline'] },
+    })
+    const archive = unzipSync(result.archive)
+    const manifest = JSON.parse(strFromU8(archive[RESOURCE_PACKAGE_MANIFEST_FILE_NAME]!)) as ResourcePackageManifest
+    const icons = JSON.parse(strFromU8(archive[PROJECT_ICON_REGISTRY_FILE_NAME]!))
+
+    expect(manifest.public.iconSeries).toEqual([{ key: 'outline', title: 'Outline', count: 2 }])
+    expect(icons.iconSeries[0].key).toBe('outline')
+    expect(icons.iconSeries[0].icons.map((icon: { source: string }) => icon.source))
+      .toEqual(['.opencard/icons/warn.svg', '.opencard/icons/logo.svg'])
+    expect(strFromU8(archive['.opencard/icons/warn.svg']!)).toBe('warn-svg')
+    expect(strFromU8(archive['.opencard/icons/logo.svg']!)).toBe('logo-svg')
+  })
+
+  it('rejects a series whose icon file is missing', async () => {
+    const fs = createFileSystem()
+    fs.putText(`/project/${PROJECT_ICON_REGISTRY_FILE_NAME}`, {
+      iconSeries: [{
+        key: 'outline', name: 'Outline',
+        icons: [{ iconKey: 'warn', name: 'Warn', source: '.opencard/icons/warn.svg', tint: 'theme' }],
+      }],
+    })
+    await expect(buildResourcePackageFromProject({
+      fs,
+      projectRootPath: '/project', key: 'theme', name: 'Theme', version: '1.0.0',
+      iconSelection: { seriesKeys: ['outline'] },
+    })).rejects.toThrow('Project icon file is missing: .opencard/icons/warn.svg')
   })
 })

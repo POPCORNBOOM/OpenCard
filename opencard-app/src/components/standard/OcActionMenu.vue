@@ -38,7 +38,7 @@
           @keydown="handleActionKeydown($event, entry)"
         >
           <span v-if="entry.thumbnailStyle" class="oc-action-menu__thumbnail"
-            :class="{ 'oc-project-icon': entry.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
+            :class="{ 'oc-project-icon': isProjectIconStyle(entry.thumbnailStyle) }"
             :style="entry.thumbnailStyle" role="img"
             :aria-label="entry.thumbnailLabel ?? entry.title ?? entry.key" />
           <OcIcon
@@ -133,6 +133,7 @@ export function isActionMenuBranchEvent(event: Event, branchId: string): boolean
 import { nextTick, onBeforeUnmount, reactive, ref, type ComponentPublicInstance } from 'vue'
 import OcIcon from '../base/OcIcon.vue'
 import { inlineMarkupToText } from '../../shared/ui/inline-markup/inlineMarkup'
+import { isProjectIconStyle } from '../../shared/ui/visual/projectIconStyle'
 import OcFloatingLayer from './OcFloatingLayer.vue'
 import OcInlineMarkup from './OcInlineMarkup.vue'
 import OcShortcut from './OcShortcut.vue'

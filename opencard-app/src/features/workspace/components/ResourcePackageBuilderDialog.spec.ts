@@ -6,11 +6,13 @@ import type { OcNodeCollection } from '../../../shared/ui/node/node.types'
 import { isNodeTailAction, normalizeNodeTail } from '../../../shared/ui/node/node.types'
 import type { AppSettings, ProjectWorkspaceState } from '../../settings/model/appSettings'
 import type { ProjectCover } from '../model/projectCover'
+import { useShellProgressTasks } from '../../shell/composables/useShellProgressTasks'
 import ResourcePackageBuilderDialog from './ResourcePackageBuilderDialog.vue'
 
 const buildPackage = vi.hoisted(() => vi.fn(async () => ({ outputPath: '/output/theme.ocpack' })))
 const pickSavePath = vi.hoisted(() => vi.fn(async () => '/output/theme.ocpack'))
 const readProjectCover = vi.hoisted(() => vi.fn(async (): Promise<ProjectCover | null> => null))
+const notifications = vi.hoisted(() => ({ notifyError: vi.fn(), notifySuccess: vi.fn() }))
 
 const projectStore = vi.hoisted(() => ({
   projectFontFamilies: { value: [
@@ -44,6 +46,7 @@ vi.mock('../../settings/store/appSettingsStore', () => ({
 vi.mock('../services/buildResourcePackage', () => ({ buildResourcePackageFromProject: buildPackage }))
 vi.mock('../services/fileSystemService', () => ({ fileSystemService: { pickSavePath } }))
 vi.mock('../services/projectCoverService', () => ({ readProjectCover }))
+vi.mock('../../notifications/titlebarNotices', () => notifications)
 
 const imageEntries = [
   'images/card.png', 'images/nested/banner.svg', 'images/notes.txt',
@@ -61,6 +64,10 @@ function actionsOf(data: OcNodeCollection, key: string): readonly string[] | und
   return normalizeNodeTail(data.items.get(key)?.tail).filter(isNodeTailAction).map(action => action.key)
 }
 
+function buildTaskKeys(): readonly string[] {
+  return useShellProgressTasks().tasks.value.map(task => task.key)
+}
+
 beforeEach(() => {
   settings.value.projectCreation.workspaceStates = {}
   updateSetting.mockClear()
@@ -69,6 +76,8 @@ beforeEach(() => {
   buildPackage.mockClear()
   readProjectCover.mockClear()
   readProjectCover.mockResolvedValue(null)
+  notifications.notifySuccess.mockClear()
+  notifications.notifyError.mockClear()
 })
 
 describe('ResourcePackageBuilderDialog cover summary', () => {
@@ -172,6 +181,59 @@ describe('ResourcePackageBuilderDialog selection', () => {
       key: 'local-publisher-test-project-09d226',
       imageSelection: { paths: ['images/card.png'] },
     }))
+  })
+
+  it('hands the build to the global progress bar instead of freezing the dialog', async () => {
+    let finishBuild: (value: { outputPath: string }) => void = () => {}
+    buildPackage.mockReturnValueOnce(new Promise(resolve => { finishBuild = resolve }))
+    const wrapper = mountBuilder(imageEntries)
+    await flushPromises()
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    // The destination is settled, so the dialog closes and the packing keeps running in the background.
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(buildTaskKeys()).toContain('resource-package-build')
+
+    finishBuild({ outputPath: '/output/theme.ocpack' })
+    await flushPromises()
+
+    expect(notifications.notifySuccess).toHaveBeenCalledWith('resourcePackage.built')
+    expect(buildTaskKeys()).not.toContain('resource-package-build')
+  })
+
+  it('reports a failed build as an instant message and clears its progress task', async () => {
+    buildPackage.mockRejectedValueOnce(new Error('disk full'))
+    const wrapper = mountBuilder(imageEntries)
+    await flushPromises()
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(notifications.notifyError).toHaveBeenCalledWith('disk full')
+    expect(notifications.notifySuccess).not.toHaveBeenCalled()
+    expect(buildTaskKeys()).not.toContain('resource-package-build')
+  })
+
+  it('refuses to start a second build while one is still running', async () => {
+    let finishBuild: (value: { outputPath: string }) => void = () => {}
+    buildPackage.mockReturnValueOnce(new Promise(resolve => { finishBuild = resolve }))
+    const wrapper = mountBuilder(imageEntries)
+    await flushPromises()
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    buildPackage.mockClear()
+
+    // Submitting again must not reuse the key of the build that is still in flight.
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(buildPackage).not.toHaveBeenCalled()
+
+    finishBuild({ outputPath: '/output/theme.ocpack' })
+    await flushPromises()
+    expect(buildTaskKeys()).not.toContain('resource-package-build')
   })
 
   it('restores the previous build and falls back to every candidate when nothing was remembered', async () => {

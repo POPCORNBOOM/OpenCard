@@ -23,7 +23,6 @@ import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
 import type { CardFaceKey } from '../../../entities/card/model'
 import type { CardRenderResourceContext } from '../../card-rendering/cardRenderResources'
 import type { ProjectExportTask } from '../../workspace/model/projectMetadata'
-import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
 import { waitForProjectFonts } from '../../workspace/services/projectFontLoader'
 import { fileSystemService } from '../../workspace/services/fileSystemService'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
@@ -71,23 +70,42 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
-export async function inlineProjectIconAtlases(root: HTMLElement, iconCatalog: ProjectIconCatalog): Promise<() => void> {
+/** Paint properties a project icon can carry; a mask icon has no background image and vice versa. */
+const PROJECT_ICON_PAINT_PROPERTIES = ['--oc-project-icon-background-image', '--oc-project-icon-mask-image'] as const
+
+/**
+ * Collects every icon source the rendered DOM actually paints. Reading the DOM keeps export correct
+ * for both model shapes: one atlas per set, or one standalone SVG per icon.
+ */
+function projectIconPaintSources(root: HTMLElement): string[] {
+  const sources = new Set<string>()
+  for (const element of root.querySelectorAll<HTMLElement>('.oc-project-icon')) {
+    for (const property of PROJECT_ICON_PAINT_PROPERTIES) {
+      const source = extractCssUrl(element.style.getPropertyValue(property))
+      if (source) sources.add(source)
+    }
+  }
+  return [...sources]
+}
+
+export async function inlineProjectIconSources(root: HTMLElement): Promise<() => void> {
   const replacements = new Map<string, string>()
-  await Promise.all(iconCatalog.series.map(async series => {
-    const response = await fetch(series.src)
-    if (!response.ok) throw new Error(`Could not load project icon atlas: ${series.source}`)
-    replacements.set(series.src, await blobToDataUrl(await response.blob()))
+  await Promise.all(projectIconPaintSources(root).map(async source => {
+    const response = await fetch(source)
+    if (!response.ok) throw new Error(`Could not load project icon source: ${source}`)
+    replacements.set(source, await blobToDataUrl(await response.blob()))
   }))
 
   const restorations: Array<() => void> = []
   for (const element of root.querySelectorAll<HTMLElement>('.oc-project-icon')) {
-    const property = '--oc-project-icon-background-image'
-    const original = element.style.getPropertyValue(property)
-    const source = extractCssUrl(original)
-    const replacement = source ? replacements.get(source) : undefined
-    if (!replacement) continue
-    element.style.setProperty(property, `url(${JSON.stringify(replacement)})`)
-    restorations.push(() => element.style.setProperty(property, original))
+    for (const property of PROJECT_ICON_PAINT_PROPERTIES) {
+      const original = element.style.getPropertyValue(property)
+      const source = extractCssUrl(original)
+      const replacement = source ? replacements.get(source) : undefined
+      if (!replacement) continue
+      element.style.setProperty(property, `url(${JSON.stringify(replacement)})`)
+      restorations.push(() => element.style.setProperty(property, original))
+    }
   }
   return () => restorations.forEach(restore => restore())
 }
@@ -124,10 +142,10 @@ async function waitForImageSource(source: string): Promise<void> {
   await waitForImageElement(image)
 }
 
-async function waitForExportAssets(root: HTMLElement, iconCatalog: ProjectIconCatalog): Promise<void> {
+async function waitForExportAssets(root: HTMLElement): Promise<void> {
   await Promise.all([
     ...Array.from(root.querySelectorAll('img')).map(waitForImageElement),
-    ...iconCatalog.series.map(series => waitForImageSource(series.src)),
+    ...projectIconPaintSources(root).map(waitForImageSource),
   ])
   await waitForNextPaint()
 }
@@ -187,16 +205,13 @@ export function useProjectExport(options: UseProjectExportOptions) {
 
       const canvas = options.exportRendererRef.value?.getCanvasElement?.()
       if (!canvas) throw new Error('Export renderer is unavailable')
-      await waitForExportAssets(canvas, request.render.resources.projectIconCatalog)
+      await waitForExportAssets(canvas)
       await waitForProjectFonts()
       await waitForNextPaint()
       const runtimeIssues = options.exportRendererRef.value?.getRuntimeIssues?.() ?? []
       if (runtimeIssues.length > 0) throw new ExportRenderDiagnosticsError(runtimeIssues)
       if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError')
-      const restoreProjectIcons = await inlineProjectIconAtlases(
-        canvas,
-        request.render.resources.projectIconCatalog,
-      )
+      const restoreProjectIcons = await inlineProjectIconSources(canvas)
       try {
         return dataUrlToBytes(await exportCardAsImage(canvas, { scale: request.scale, format: 'png' }))
       } finally {

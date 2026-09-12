@@ -8,6 +8,7 @@ import { CARD_DOCUMENT_SUFFIX } from '../../workspace/model/fileTypes'
 import { parseProjectMetadataText, serializeProjectMetadata } from '../../workspace/model/projectMetadata'
 import { parseProjectFontRegistryText } from '../../workspace/model/projectFontRegistry'
 import { parseProjectIconRegistryText, serializeProjectIconRegistry } from '../../workspace/model/projectIconRegistry'
+import type { ProjectIcon } from '../../workspace/model/projectIcons'
 import { parseProjectDictionaryText } from '../../workspace/model/projectDictionary'
 import { initializeProjectStructure } from '../../workspace/services/projectStructureService'
 import {
@@ -18,10 +19,7 @@ import {
   PROJECT_PROFILE_FILE_NAME,
   resolveProjectInternalRelativePath,
 } from '../../workspace/model/projectStructure'
-import {
-  createProjectIconPackSpritesheetName,
-  readProjectIconPack,
-} from '../../workspace/services/projectIconPack'
+import { readProjectIconPack } from '../../workspace/services/projectIconPack'
 import {
   PROJECT_TEMPLATE_SCHEMA_VERSION,
   PROJECT_TEMPLATE_PACKAGE_EXTENSION,
@@ -458,11 +456,11 @@ export class ProjectTemplateService {
     if (!existing) throw new TemplateServiceError('icon-pack-failed', 'The project icon registry is invalid')
 
     const iconSeries = [...(existing.iconSeries ?? [])]
-    const iconDirectory = await this.paths.join(
+    const iconRoot = await this.paths.join(
       projectPath,
       ...pathSegments(resolveProjectInternalRelativePath(PROJECT_ICON_DIRECTORY)),
     )
-    await this.fs.createDirectory(iconDirectory)
+    await this.fs.createDirectory(iconRoot)
 
     for (const pack of packs) {
       try {
@@ -471,30 +469,26 @@ export class ProjectTemplateService {
           throw new Error(`Icon pack Key already exists: ${iconPack.manifest.key}`)
         }
 
-        const baseName = createProjectIconPackSpritesheetName(
-          iconPack.manifest.name,
-          iconPack.manifest.spritesheet,
-        )
-        let fileName = baseName
-        let sourcePath = await this.paths.join(PROJECT_ICON_DIRECTORY, fileName)
-        let absolutePath = await this.paths.join(iconDirectory, fileName)
-        let suffix = 2
-        while (await this.fs.fileExists(absolutePath)) {
-          const dotIndex = baseName.lastIndexOf('.')
-          const stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName
-          const extension = dotIndex > 0 ? baseName.slice(dotIndex) : ''
-          fileName = `${stem} (${suffix})${extension}`
-          sourcePath = await this.paths.join(PROJECT_ICON_DIRECTORY, fileName)
-          absolutePath = await this.paths.join(iconDirectory, fileName)
-          suffix += 1
+        // Each set owns its own folder, so one installed set never shares a directory with another.
+        const setDirectory = await this.resolveIconSetDirectory(iconRoot, iconPack.manifest.key)
+        await this.fs.createDirectory(setDirectory.absolute)
+        const icons: ProjectIcon[] = []
+        for (const icon of iconPack.manifest.icons) {
+          const bytes = iconPack.iconSources.get(icon.source)
+          if (!bytes) throw new Error(`Icon pack is missing '${icon.source}'`)
+          const extension = icon.source.slice(icon.source.lastIndexOf('.')).toLocaleLowerCase()
+          const source = await this.writeIconFile(
+            setDirectory.reference,
+            setDirectory.absolute,
+            `${icon.iconKey}${extension}`,
+            bytes,
+          )
+          icons.push({ ...icon, source })
         }
-        await this.fs.writeBinaryFile(absolutePath, iconPack.spritesheetBytes)
         iconSeries.push({
           name: iconPack.manifest.name,
           key: iconPack.manifest.key,
-          source: sourcePath,
-          ...(iconPack.manifest.grid ? { grid: iconPack.manifest.grid } : {}),
-          icons: [...iconPack.manifest.icons],
+          icons,
         })
       } catch (cause) {
         if (cause instanceof TemplateServiceError) throw cause
@@ -502,6 +496,69 @@ export class ProjectTemplateService {
       }
     }
     await this.fs.writeFile(registryPath, serializeProjectIconRegistry({ iconSeries }))
+  }
+
+  /**
+   * Picks the folder that will own an installed set, mirroring how the icon editor chooses one: a
+   * folder left behind by an earlier set must not absorb a new set's files, so the folder name is
+   * suffixed instead of the file names inside it. A folder that exists but is empty is reused.
+   */
+  private async resolveIconSetDirectory(
+    iconRoot: string,
+    seriesKey: string,
+  ): Promise<{ absolute: string; reference: string }> {
+    let folderName = seriesKey
+    let suffix = 2
+    while (await this.iconSetFolderIsOccupied(iconRoot, folderName)) {
+      folderName = `${seriesKey}-${suffix}`
+      suffix += 1
+    }
+    return {
+      absolute: await this.paths.join(iconRoot, folderName),
+      reference: await this.paths.join(
+        resolveProjectInternalRelativePath(PROJECT_ICON_DIRECTORY),
+        folderName,
+      ),
+    }
+  }
+
+  private async iconSetFolderIsOccupied(iconRoot: string, folderName: string): Promise<boolean> {
+    const absolute = await this.paths.join(iconRoot, folderName)
+    if (!await this.fs.fileExists(absolute)) return false
+    try {
+      return (await this.fs.readDirectory(absolute)).length > 0
+    } catch {
+      // An unreadable folder counts as occupied, so its contents are never mixed into a new set.
+      return true
+    }
+  }
+
+  /**
+   * Writes one project icon file into its set folder under an available name. The folder is chosen so
+   * that its files are already the set's own, so the fallback name only applies if something appears
+   * while the pack is being unpacked; keeping it means a race can never overwrite an existing file.
+   */
+  private async writeIconFile(
+    referenceDirectory: string,
+    iconDirectory: string,
+    baseName: string,
+    bytes: Uint8Array,
+  ): Promise<string> {
+    const dotIndex = baseName.lastIndexOf('.')
+    const stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName
+    const extension = dotIndex > 0 ? baseName.slice(dotIndex) : ''
+    let fileName = baseName
+    let sourcePath = await this.paths.join(referenceDirectory, fileName)
+    let absolutePath = await this.paths.join(iconDirectory, fileName)
+    let suffix = 2
+    while (await this.fs.fileExists(absolutePath)) {
+      fileName = `${stem} (${suffix})${extension}`
+      sourcePath = await this.paths.join(referenceDirectory, fileName)
+      absolutePath = await this.paths.join(iconDirectory, fileName)
+      suffix += 1
+    }
+    await this.fs.writeBinaryFile(absolutePath, bytes)
+    return sourcePath
   }
 
   private async readTemplateArchive(sourcePath: string): Promise<{

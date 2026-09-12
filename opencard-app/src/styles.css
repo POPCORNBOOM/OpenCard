@@ -237,7 +237,7 @@ body {
   color: var(--oc-fg-muted);
 }
 
-/* Shared visual contract for cropped project-icon atlas entries. */
+/* Shared visual contract for project-icon entries: one file per icon, painted by tint. */
 .oc-project-icon {
   position: relative;
   isolation: isolate;
@@ -251,10 +251,19 @@ body {
   left: 50%;
   width: var(--oc-project-icon-source-width);
   height: var(--oc-project-icon-source-height);
+  background-color: var(--oc-project-icon-background-color);
   background-image: var(--oc-project-icon-background-image);
   background-repeat: no-repeat;
   background-size: var(--oc-project-icon-background-size);
   background-position: var(--oc-project-icon-background-position);
+  -webkit-mask-image: var(--oc-project-icon-mask-image);
+  mask-image: var(--oc-project-icon-mask-image);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: var(--oc-project-icon-mask-size);
+  mask-size: var(--oc-project-icon-mask-size);
+  -webkit-mask-position: var(--oc-project-icon-mask-position);
+  mask-position: var(--oc-project-icon-mask-position);
   image-rendering: var(--oc-project-icon-image-rendering);
   pointer-events: none;
   transform: translate(-50%, -50%) var(--oc-project-icon-transform);

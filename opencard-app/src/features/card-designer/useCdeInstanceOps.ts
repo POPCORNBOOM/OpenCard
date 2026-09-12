@@ -57,7 +57,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
 
     items.set(options.blueprintCardId, {
       label: '蓝图',
-      icon: 'entity.card-blueprint',
+      visual: { type: 'icon', icon: 'entity.card-blueprint' },
     })
 
     for (const [index, instance] of (options.cardDoc.value?.instances ?? []).entries()) {
@@ -65,7 +65,7 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
       rootKeys.push(key)
       items.set(key, {
         label: instance.name?.trim() || key,
-        icon: 'entity.card-instance',
+        visual: { type: 'icon', icon: 'entity.card-instance' },
         renamable: true,
         draggable: true,
         tail: [actions.more],

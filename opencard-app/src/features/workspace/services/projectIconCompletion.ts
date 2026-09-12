@@ -5,6 +5,7 @@ import {
   projectIconIdentity,
   type ProjectIconCatalog,
 } from './projectIconCatalog'
+import { resolveProjectIconDimensions } from './projectIconDimensionResolver'
 
 export function createProjectIconCompletionProvider(
   seriesList: readonly ProjectIconSeries[] | null | undefined,
@@ -42,7 +43,7 @@ export function createProjectIconCompletionProvider(
         detail: icon.iconKey,
         insertText: `[[icon:${series.key}/${icon.iconKey}]]`,
         searchKeys: [icon.iconKey.toLocaleLowerCase(), icon.name.toLocaleLowerCase()],
-        ...(entry ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name } : {}),
+        ...(entry ? { thumbnailStyle: createProjectIconStyle(entry, resolveProjectIconDimensions), thumbnailLabel: icon.name } : {}),
       }
     })
     preparedIconsBySeries.set(series.searchKey, icons)

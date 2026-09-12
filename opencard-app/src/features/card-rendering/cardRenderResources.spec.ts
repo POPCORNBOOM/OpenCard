@@ -40,8 +40,9 @@ describe('cardRenderResources', () => {
 
   it('keeps assets, icons, and missing-resource behavior identical after scopes are derived', () => {
     const icon = {
-      seriesKey: 'status', iconKey: 'warning', name: 'Warning', source: 'icons.png', src: 'asset://icons.png',
-      x: 0, y: 0, width: 16, height: 16, imageWidth: 16, imageHeight: 16,
+      seriesKey: 'status', iconKey: 'warning', name: 'Warning',
+      source: 'icons/warning.svg', src: 'asset://icons/warning.svg',
+      tint: 'theme' as const, imageWidth: 16, imageHeight: 16,
     }
     const environment: ProjectResourceEnvironment = {
       kind: 'project', namespace: 'project-root', rootPath: '/project', fontDocument: {}, fonts: {},
@@ -73,8 +74,9 @@ describe('cardRenderResources', () => {
 
   it('resolves package-qualified icon references for image blocks', () => {
     const icon = {
-      seriesKey: 'status', iconKey: 'warning', name: 'Warning', source: 'icons.png', src: 'asset://icons.png',
-      x: 0, y: 0, width: 16, height: 16, imageWidth: 16, imageHeight: 16,
+      seriesKey: 'status', iconKey: 'warning', name: 'Warning',
+      source: 'icons/warning.svg', src: 'asset://icons/warning.svg',
+      tint: 'theme' as const, imageWidth: 16, imageHeight: 16,
     }
     const packageEnvironment: ProjectResourceEnvironment = {
       kind: 'package', namespace: 'package-theme', rootPath: '/project/.opencard/packages/theme',

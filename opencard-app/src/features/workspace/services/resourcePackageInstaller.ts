@@ -41,7 +41,13 @@ function validateProjection(native: NativeInspection, manifest: ResourcePackageM
   for (const item of manifest.public.fonts) if (!availableFonts.has(item.key.toLocaleLowerCase())) throw new Error(`Unknown public font: ${item.key}`)
   const icons = native.iconsJson ? parseProjectIconRegistryText(native.iconsJson) : {}
   if (native.iconsJson && !icons) throw new Error('Invalid icon registry in package')
-  for (const series of icons?.iconSeries ?? []) if (!paths.has(archivePathForReference('.opencard/icons/icons.json', series.source).toLocaleLowerCase())) throw new Error(`Missing packaged icon spritesheet: ${series.source}`)
+  for (const series of icons?.iconSeries ?? []) {
+    for (const icon of series.icons) {
+      if (!paths.has(archivePathForReference('.opencard/icons/icons.json', icon.source).toLocaleLowerCase())) {
+        throw new Error(`Missing packaged icon file: ${icon.source}`)
+      }
+    }
+  }
   for (const item of manifest.public.iconSeries) {
     const series = (icons?.iconSeries ?? []).find(candidate => candidate.key.toLocaleLowerCase() === item.key.toLocaleLowerCase())
     if (!series || series.icons.length !== item.count) throw new Error(`Invalid public icon series summary: ${item.key}`)

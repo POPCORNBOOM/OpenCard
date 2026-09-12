@@ -2,10 +2,10 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
 import ProjectIconView from '../../features/workspace/components/ProjectIconView.vue'
-import OcButton from '../base/OcButton.vue'
-import ProjectIconCropEditor from './ProjectIconCropEditor.vue'
-import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
+import type { ProjectIconCatalogEntry } from '../../features/workspace/services/projectIconCatalog'
 import OcViewportInspector from '../standard/OcViewportInspector.vue'
+import ProjectIconRegistryWorkbench from './ProjectIconRegistryWorkbench.vue'
+import ProjectIconSetSettingsDialog from './ProjectIconSetSettingsDialog.vue'
 import ProjectIconSetWorkspace from './ProjectIconSetWorkspace.vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -13,30 +13,31 @@ vi.mock('../../features/workspace/services/projectIconCatalog', async (importOri
   const actual = await importOriginal<typeof import('../../features/workspace/services/projectIconCatalog')>()
   return {
     ...actual,
-    buildProjectIconCatalog: vi.fn(async (series: readonly ProjectIconSeries[], resolve: (source: string) => string) => ({
-      series: series.map(candidate => ({
-        name: candidate.name,
-        key: candidate.key,
-        source: candidate.source,
-        src: resolve(candidate.source),
-        imageWidth: 64,
-        imageHeight: 32,
-      })),
-      entries: [],
-      errors: [],
-    })),
+    // Assembling the catalog is synchronous plain-data work; only the sizes arrive later.
+    buildProjectIconCatalog: vi.fn((series: readonly ProjectIconSeries[], resolve: (source: string) => string) => {
+      const entries: ProjectIconCatalogEntry[] = []
+      const runtimeSeries = series.map(candidate => {
+        for (const icon of candidate.icons) {
+          entries.push({
+            ...icon, seriesKey: candidate.key, src: resolve(icon.source), imageWidth: 24, imageHeight: 24,
+          })
+        }
+        return { name: candidate.name, key: candidate.key }
+      })
+      return { series: runtimeSeries, entries, errors: [] }
+    }),
   }
 })
 
 const series: ProjectIconSeries[] = [
   {
-    name: 'Status icons', key: 'status', source: 'assets/icons/status.png',
-    icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
+    name: 'Status icons', key: 'status',
+    icons: [{ iconKey: 'warning', name: 'Warning', source: '.opencard/icons/status/warning.svg', tint: 'theme' }],
   },
-  { name: 'Action icons', key: 'actions', source: 'assets/icons/actions.png', icons: [] },
+  { name: 'Action icons', key: 'actions', icons: [] },
 ]
 const projectIconCatalog = {
-  series: [{ name: 'Status icons', key: 'status', source: series[0]!.source, src: 'asset://ready', imageWidth: 64, imageHeight: 32 }],
+  series: [{ name: 'Status icons', key: 'status' }],
   entries: [],
   errors: [],
 }
@@ -46,7 +47,7 @@ const baseProps = {
 }
 
 describe('ProjectIconRegistryWorkbench', () => {
-  it('opens the first expander with a left inspector and split right preview', async () => {
+  it('opens the first expander with a left inspector and a right stage preview', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: { ...baseProps, projectIconCatalog },
     })
@@ -58,25 +59,11 @@ describe('ProjectIconRegistryWorkbench', () => {
       series: series[0],
       selectedIconIndexes: [0],
     })
-    expect(wrapper.getComponent(ProjectIconCropEditor).props('runtime')).toMatchObject({
-      key: 'status',
-      imageWidth: 64,
-      imageHeight: 32,
-    })
-    expect(wrapper.find('.project-icon-crop-editor__viewport-toolbar').exists()).toBe(true)
-    const focusButton = wrapper.findAllComponents(OcButton)
-      .find(button => button.props('icon') === 'tool.focus-selection')
-    expect(focusButton?.attributes('aria-label')).toBe('projectConfig.icons.autoFocusSelected')
-    expect(focusButton?.props('disabled')).toBe(false)
-    expect(focusButton?.attributes('aria-pressed')).toBe('true')
     expect(wrapper.getComponent(ProjectIconView).props('mode')).toBe('preview')
     const inspector = wrapper.getComponent(OcViewportInspector)
     expect(inspector.props()).toMatchObject({
       expanded: true, height: null, heading: 'projectConfig.icons.preview',
     })
-    inspector.vm.$emit('occlusion-change', 260)
-    await wrapper.vm.$nextTick()
-    expect(wrapper.getComponent(ProjectIconCropEditor).props('viewportInsets')).toEqual({ bottom: 260 })
   })
 
   it('keeps preview inspector layout while switching icon sets', async () => {
@@ -102,25 +89,27 @@ describe('ProjectIconRegistryWorkbench', () => {
     expect(wrapper.find('button[aria-label="projectConfig.icons.importPack"]').exists()).toBe(false)
   })
 
-  it('adds and selects one crop beside the even-grid action', async () => {
+  it('offers no crop or even-grid actions now that every icon is its own file', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: { ...baseProps, projectIconCatalog },
     })
     await wrapper.vm.$nextTick()
-    const addButton = wrapper.get('button[aria-label="projectConfig.icons.addSingleCrop"]')
-    expect(wrapper.get('button[aria-label="projectConfig.icons.generateIcons"]')).toBeTruthy()
-    await addButton.trigger('click')
 
-    const updates = wrapper.emitted('update:series') ?? []
-    const updated = updates[updates.length - 1]?.[0] as ProjectIconSeries[]
-    expect(updated[0]?.icons[1]).toMatchObject({
-      name: 'projectConfig.icons.defaultIconName', x: 0, y: 0, width: 32, height: 16,
-    })
-    await wrapper.setProps({ series: updated })
-    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndexes')).toEqual([1])
+    expect(wrapper.find('button[aria-label="projectConfig.icons.addSingleCrop"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="projectConfig.icons.generateIcons"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="projectConfig.icons.exportPack"]').exists()).toBe(true)
   })
 
-  it('replaces only the expanded series and selects the remaining set after deletion', async () => {
+  it('disables the export command while an icon-pack task owns the progress bar', async () => {
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: { ...baseProps, projectIconCatalog, packBusy: true },
+    })
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('button[aria-label="projectConfig.icons.exportPack"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('replaces only the expanded series when one set changes', async () => {
     const wrapper = mount(ProjectIconRegistryWorkbench, {
       props: baseProps,
     })
@@ -128,34 +117,40 @@ describe('ProjectIconRegistryWorkbench', () => {
     const updatedStatus = { ...series[0]!, icons: [{ ...series[0]!.icons[0]!, name: 'Alert' }] }
     wrapper.getComponent(ProjectIconSetWorkspace).vm.$emit('update:series', updatedStatus)
     await wrapper.vm.$nextTick()
-    let updates = wrapper.emitted('update:series') ?? []
+
+    const updates = wrapper.emitted('update:series') ?? []
     expect(updates[updates.length - 1]?.[0]).toEqual([updatedStatus, series[1]])
+  })
+
+  it('requests removal from the owner instead of dropping a set on its own', async () => {
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: baseProps,
+    })
+    await wrapper.vm.$nextTick()
 
     await wrapper.findAll('button[aria-label="projectConfig.icons.removeSeries"]')[0]!.trigger('click')
     await wrapper.vm.$nextTick()
-    updates = wrapper.emitted('update:series') ?? []
-    const remaining = updates[updates.length - 1]?.[0] as ProjectIconSeries[]
-    expect(remaining).toEqual([series[1]])
-    await wrapper.setProps({ series: remaining })
-    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('series')).toEqual(series[1])
+
+    // Removing files needs confirmation and staging, so the owner decides; the workbench only asks.
+    expect(wrapper.emitted('remove-series')).toEqual([[series[0]!.key]])
+    expect(wrapper.emitted('update:series')).toBeUndefined()
   })
 
-  it('keeps the next neighboring set selected after deleting a middle set', async () => {
-    const threeSeries = [
-      series[0]!,
-      series[1]!,
-      { name: 'Social icons', key: 'social', source: 'assets/icons/social.png', icons: [] },
-    ]
+  it('reports the selected set runtime and its icons to the workspace', async () => {
+    const twoIcons: ProjectIconSeries[] = [{
+      ...series[0]!,
+      icons: [
+        series[0]!.icons[0]!,
+        { iconKey: 'error', name: 'Error', source: '.opencard/icons/status/error.svg', tint: 'original' },
+      ],
+    }]
     const wrapper = mount(ProjectIconRegistryWorkbench, {
-      props: { ...baseProps, series: threeSeries },
+      props: { ...baseProps, series: twoIcons },
     })
-    await (wrapper.vm as unknown as { selectSeries(key: string): Promise<boolean> }).selectSeries('actions')
-    await wrapper.findAll('button[aria-label="projectConfig.icons.removeSeries"]')[1]!.trigger('click')
-    const updates = wrapper.emitted('update:series') ?? []
-    const remaining = updates[updates.length - 1]?.[0] as ProjectIconSeries[]
-    await wrapper.setProps({ series: remaining })
+    await wrapper.vm.$nextTick()
 
-    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('series')).toEqual(threeSeries[2])
+    expect(wrapper.getComponent(ProjectIconSetWorkspace).props('entries')).toHaveLength(2)
+    expect(wrapper.getComponent(ProjectIconView).props('entry')).toMatchObject({ iconKey: 'warning' })
   })
 
   it('selects the target set and icon for issue navigation', async () => {
@@ -169,5 +164,24 @@ describe('ProjectIconRegistryWorkbench', () => {
 
     expect(result).toBe(true)
     expect(wrapper.getComponent(ProjectIconSetWorkspace).props('selectedIconIndexes')).toEqual([0])
+  })
+
+  it('renames a set through its settings without touching icon files', async () => {
+    const wrapper = mount(ProjectIconRegistryWorkbench, {
+      props: baseProps,
+    })
+    await (wrapper.vm as unknown as { selectSeries(key: string): Promise<boolean> }).selectSeries('status')
+    await wrapper.findAll('button[aria-label="projectConfig.icons.configureIconSet"]')[0]!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    const dialog = wrapper.getComponent(ProjectIconSetSettingsDialog)
+    dialog.vm.$emit('submit', { name: 'Renamed', key: 'renamed' })
+    await wrapper.vm.$nextTick()
+
+    const updates = wrapper.emitted('update:series') ?? []
+    expect(updates[updates.length - 1]?.[0]).toEqual([
+      { ...series[0], name: 'Renamed', key: 'renamed' },
+      series[1],
+    ])
   })
 })

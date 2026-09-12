@@ -48,6 +48,7 @@ export function createRendererTestResources(projectIconCatalog: ProjectIconCatal
       return projectIconCatalog.entries.find(entry => entry.seriesKey.toLowerCase() === seriesKey?.toLowerCase()
         && entry.iconKey.toLowerCase() === iconKey?.toLowerCase()) ?? null
     },
+    resolveIconDimensions: () => undefined,
     withScopes: () => resolver,
   }
   return resolver

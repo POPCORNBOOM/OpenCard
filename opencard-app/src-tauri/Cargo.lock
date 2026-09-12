@@ -10,7 +10,6 @@ dependencies = [
  "futures-util",
  "git2",
  "image",
- "image-atlas",
  "notify",
  "reqwest",
  "serde",
@@ -2004,15 +2003,6 @@ dependencies = [
  "png 0.18.1",
  "zune-core",
  "zune-jpeg",
-]
-
-[[package]]
-name = "image-atlas"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c85dbdf467810445fdc83ab4979ce8c796638c0f005c271ba838784e04404f6"
-dependencies = [
- "image",
 ]
 
 [[package]]

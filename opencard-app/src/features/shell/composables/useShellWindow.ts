@@ -1,14 +1,12 @@
 import { readonly, ref } from 'vue'
-import { getCurrentWindow, type DragDropEvent } from '@tauri-apps/api/window'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isTauri } from '@tauri-apps/api/core'
-import type { Event as TauriEvent, UnlistenFn } from '@tauri-apps/api/event'
-import {
-  filterSupportedExternalOpenPaths,
-  listenForExternalOpenRequests,
-} from '../services/externalOpenService'
+import type { UnlistenFn } from '@tauri-apps/api/event'
+import { listenForExternalOpenRequests } from '../services/externalOpenService'
 
 type ShellWindowOptions = {
   requestApplicationClose: () => Promise<void> | void
+  /** Requests that arrive as application arguments, not as drags over this window. */
   handleExternalOpenPaths: (paths: readonly string[]) => Promise<void> | void
   notifyWindowControlError?: () => void
 }
@@ -18,7 +16,6 @@ export function useShellWindow(options: ShellWindowOptions) {
   const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth)
   const isFullscreen = ref(false)
   const isMaximized = ref(false)
-  const isFileDropActive = ref(false)
 
   let restoreMaximizedAfterFullscreen = false
   let isFullscreenTransitioning = false
@@ -28,7 +25,6 @@ export function useShellWindow(options: ShellWindowOptions) {
   let unlistenWindowResize: UnlistenFn | null = null
   let unlistenWindowClose: UnlistenFn | null = null
   let unlistenExternalOpen: UnlistenFn | null = null
-  let unlistenFileDrop: UnlistenFn | null = null
   let viewportResizeHandler: (() => void) | null = null
 
   function isActive(expectedGeneration: number): boolean {
@@ -113,25 +109,6 @@ export function useShellWindow(options: ShellWindowOptions) {
     viewportWidth.value = window.innerWidth
   }
 
-  function handleFileDropEvent(event: TauriEvent<DragDropEvent>, expectedGeneration: number): void {
-    if (!isActive(expectedGeneration)) return
-
-    const payload = event.payload
-    if (payload.type === 'enter') {
-      isFileDropActive.value = filterSupportedExternalOpenPaths(payload.paths).length > 0
-      return
-    }
-    if (payload.type === 'drop') {
-      isFileDropActive.value = false
-      const paths = filterSupportedExternalOpenPaths(payload.paths)
-      if (paths.length > 0) void options.handleExternalOpenPaths(paths)
-      return
-    }
-    if (payload.type === 'leave') {
-      isFileDropActive.value = false
-    }
-  }
-
   async function retainUnlisten(
     registration: Promise<UnlistenFn>,
     expectedGeneration: number,
@@ -184,11 +161,6 @@ export function useShellWindow(options: ShellWindowOptions) {
         expectedGeneration,
         unlisten => { unlistenExternalOpen = unlisten },
       ) : Promise.resolve(),
-      appWindow ? retainUnlisten(
-        appWindow.onDragDropEvent(event => handleFileDropEvent(event, expectedGeneration)),
-        expectedGeneration,
-        unlisten => { unlistenFileDrop = unlisten },
-      ) : Promise.resolve(),
     ]).then(() => undefined)
 
     startPromise = pendingStart.finally(() => {
@@ -211,16 +183,12 @@ export function useShellWindow(options: ShellWindowOptions) {
     unlistenWindowClose = null
     unlistenExternalOpen?.()
     unlistenExternalOpen = null
-    unlistenFileDrop?.()
-    unlistenFileDrop = null
-    isFileDropActive.value = false
   }
 
   return {
     viewportWidth: readonly(viewportWidth),
     isFullscreen: readonly(isFullscreen),
     isMaximized: readonly(isMaximized),
-    isFileDropActive: readonly(isFileDropActive),
     syncWindowState,
     toggleFullscreen,
     minimize,

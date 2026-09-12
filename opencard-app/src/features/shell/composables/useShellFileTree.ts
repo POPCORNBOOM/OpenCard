@@ -199,8 +199,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       renameSelection: !entry.isDirectory
         ? resolveFilenameRenameSelection(entry.label)
         : undefined,
-      icon: presentation.icon,
-      iconTone: presentation.tone,
+      visual: { type: 'icon', icon: presentation.icon, iconTone: presentation.tone },
       renamable: true,
       draggable: true,
       tail: [{
@@ -259,8 +258,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       items.set(key, {
         label: options.translate(entry.labelKey),
         tail: entry.path,
-        icon: presentation.icon,
-        iconTone: presentation.tone,
+        visual: { type: 'icon', icon: presentation.icon, iconTone: presentation.tone },
       })
       targetByNodeKey.set(key, key)
       nodeKeyByTargetPath.set(key, key)
@@ -271,8 +269,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
           const targetPath = resolveInstalledResourcePackageManifestPath(options.projectPath.value, packageKey)
           items.set(nodeKey, {
             label: packageKey,
-            icon: 'file.package',
-            iconTone: 'config',
+            visual: { type: 'icon', icon: 'file.package', iconTone: 'config' },
             tail: [
               {
                 key: PROJECT_PACKAGE_VERIFY_ACTION_KEY,
@@ -339,8 +336,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       rootKeys: options.openedEditorItems.value.map((item) => item.key),
       items: new Map(options.openedEditorItems.value.map((item) => [item.key, {
         label: item.label,
-        icon: item.icon,
-        iconTone: item.iconTone,
+        visual: { type: 'icon', icon: item.icon, iconTone: item.iconTone },
         tail: [closeAction],
         contextActions: [closeAction],
       }])),

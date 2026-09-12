@@ -40,13 +40,17 @@ describe('ProjectResourceEnvironment', () => {
     expect(projectResourceScopeIdentity('block', 'image')).not.toBe(projectResourceScopeIdentity('other', 'image'))
   })
 
-  it('loads an icon spritesheet through a child-package shorthand path', async () => {
+  it('assembles the project icon catalog from the registry without reading any icon file', async () => {
     const files = new Map<string, string>([[
       '/project/.opencard/icons/icons.json',
-      JSON.stringify({ iconSeries: [{ name: 'Theme', key: 'theme', source: 'assets@icons/theme.png', icons: [] }] }),
+      JSON.stringify({
+        iconSeries: [{
+          name: 'Outline', key: 'outline',
+          icons: [{ iconKey: 'warn', name: 'Warn', source: '.opencard/icons/outline/warn.svg', tint: 'theme' }],
+        }],
+      }),
     ]])
-    const loadDimensions = vi.fn(async () => ({ width: 16, height: 16 }))
-    await loadProjectResourceEnvironment({
+    const environment = await loadProjectResourceEnvironment({
       rootPath: '/project',
       kind: 'project',
       identity: 'project',
@@ -54,12 +58,50 @@ describe('ProjectResourceEnvironment', () => {
         fileExists: async path => files.has(path),
         readFile: async path => files.get(path) ?? '',
       },
-      loadDimensions,
     })
 
-    expect(loadDimensions).toHaveBeenCalledWith(
-      'asset:///project/.opencard/packages/assets/icons/theme.png',
-    )
+    expect(environment.iconCatalog.entries).toHaveLength(1)
+    expect(environment.iconCatalog.entries[0]).toMatchObject({
+      iconKey: 'warn', seriesKey: 'outline', src: expect.stringContaining('warn.svg'),
+    })
+    // No size: it belongs to the file, and is resolved when the icon is painted.
+    expect(environment.iconCatalog.entries[0]).not.toHaveProperty('imageWidth')
+  })
+
+  it('reuses a catalog the caller already assembled for the same root', async () => {
+    const files = new Map<string, string>([[
+      '/project/.opencard/icons/icons.json',
+      JSON.stringify({
+        iconSeries: [{
+          name: 'Outline', key: 'outline',
+          icons: [{ iconKey: 'warn', name: 'Warn', source: '.opencard/icons/outline/warn.svg', tint: 'theme' }],
+        }],
+      }),
+    ]])
+    const providedCatalog = {
+      series: [{ name: 'Outline', key: 'outline' }],
+      entries: [{
+        iconKey: 'warn', name: 'Warn', source: '.opencard/icons/outline/warn.svg',
+        tint: 'theme' as const, seriesKey: 'outline', src: 'asset:///warn.svg',
+        imageWidth: 8, imageHeight: 4,
+      }],
+      errors: [],
+    }
+
+    const environment = await loadProjectResourceEnvironment({
+      rootPath: '/project',
+      kind: 'project',
+      identity: 'project',
+      iconCatalog: providedCatalog,
+      fs: {
+        fileExists: async path => files.has(path),
+        readFile: async path => files.get(path) ?? '',
+      },
+    })
+
+    // The caller's catalog is the one carried, so its entries survive intact.
+    expect(environment.iconCatalog.entries).toEqual(providedCatalog.entries)
+    expect(environment.iconCatalog.entries[0]).toMatchObject({ imageWidth: 8, imageHeight: 4 })
   })
 
   it('resolves a package cover and stays silent when it is missing', async () => {

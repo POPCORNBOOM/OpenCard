@@ -7,118 +7,148 @@ import {
   createProjectIconStyle,
   EMPTY_PROJECT_ICON_CATALOG,
   findProjectIcon,
-  renderProjectIconsInRichText,
+  findProjectIconSeries,
 } from './projectIconCatalog'
 
+const vectorSeries = {
+  name: 'Outline icons',
+  key: 'outline',
+  icons: [
+    { iconKey: 'warn', name: 'Warn', source: 'icons/warn.svg', tint: 'theme' as const },
+    { iconKey: 'logo', name: 'Logo', source: 'icons/logo.svg', tint: 'original' as const },
+  ],
+}
+
+/** The same series with sizes, as they are once the icons have been painted. */
+const measuredSeries = {
+  ...vectorSeries,
+  icons: [
+    { ...vectorSeries.icons[0], imageWidth: 24, imageHeight: 24 },
+    { ...vectorSeries.icons[1], imageWidth: 24, imageHeight: 12 },
+  ],
+}
+
 describe('projectIconCatalog', () => {
-  it('loads natural dimensions without adding them to the profile model', async () => {
-    const loadDimensions = vi.fn().mockResolvedValue({ width: 64, height: 32 })
-    const catalog = await buildProjectIconCatalog([{
-      name: 'Status icons',
-      key: 'status',
-      source: 'assets/icons/status.png',
-      icons: [{ iconKey: 'warning', name: 'Warning', x: 16, y: 0, width: 16, height: 8 }],
-    }], source => `asset://${source}`, loadDimensions)
-    expect(loadDimensions).toHaveBeenCalledWith('asset://assets/icons/status.png')
-    expect(catalog.series).toEqual([expect.objectContaining({ key: 'status', imageWidth: 64, imageHeight: 32 })])
-    expect(findProjectIcon(catalog, 'STATUS', 'WARNING')).toMatchObject({ imageWidth: 64, imageHeight: 32 })
+  it('assembles the catalog as plain data, without touching any icon file', () => {
+    const resolveAssetSrc = vi.fn((source: string) => `asset://${source}`)
+    const catalog = buildProjectIconCatalog([vectorSeries], resolveAssetSrc)
+
+    expect(catalog.series).toEqual([{ name: 'Outline icons', key: 'outline' }])
+    expect(catalog.entries).toEqual([
+      { ...vectorSeries.icons[0], seriesKey: 'outline', src: 'asset://icons/warn.svg' },
+      { ...vectorSeries.icons[1], seriesKey: 'outline', src: 'asset://icons/logo.svg' },
+    ])
+    expect(catalog.entries[0]).not.toHaveProperty('imageWidth')
+    expect(findProjectIcon(catalog, 'OUTLINE', 'WARN')).toMatchObject({ iconKey: 'warn' })
+    expect(findProjectIconSeries(catalog, 'OUTLINE')).toEqual({ name: 'Outline icons', key: 'outline' })
   })
 
-  it('renders canonical rich-text icon elements', async () => {
-    const catalog = await buildProjectIconCatalog([{
-      name: 'Status icons', key: 'status', source: 'status.png',
-      icons: [{ iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 }],
-    }], source => source, async () => ({ width: 16, height: 16 }))
-    const html = renderProjectIconsInRichText('<p>A <span data-oc-icon-path="status/warning"></span> B</p>', catalog)
-    expect(html).toContain('project-inline-icon oc-project-icon')
-    expect(html).toContain('aria-label="Warning"')
-    expect(html).toContain('--oc-project-icon-background-image: url(&quot;status.png&quot;)')
+  it('reports an unmeasured icon to the caller instead of measuring it itself', () => {
+    const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
+    const requestDimensions = vi.fn()
+
+    createProjectIconStyle(catalog.entries[0]!, requestDimensions)
+
+    expect(requestDimensions).toHaveBeenCalledTimes(1)
+    expect(requestDimensions).toHaveBeenCalledWith(catalog.entries[0])
   })
 
-  it('renders missing rich-text icons as a stable placeholder instead of machine syntax', () => {
-    const html = renderProjectIconsInRichText(
-      '<p><span data-oc-icon-path="status/missing"></span></p>', EMPTY_PROJECT_ICON_CATALOG, { missingLabel: 'Unavailable icon' },
-    )
-    expect(html).toContain('project-inline-icon--missing')
-    expect(html).toContain('aria-label="Unavailable icon"')
-    expect(html).not.toContain('data-oc-icon-path="status/missing"></span>')
+  it('does not ask for a size it already has', () => {
+    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+    const requestDimensions = vi.fn()
+
+    createProjectIconStyle(catalog.entries[0]!, requestDimensions)
+    createProjectIconPreviewStyle(catalog.entries[1]!, requestDimensions)
+    createProjectIconBlockStyle(catalog.entries[0]!, 'contain', requestDimensions)
+
+    expect(requestDimensions).not.toHaveBeenCalled()
   })
 
-  it('reports failed images and out-of-bounds records without exposing them', async () => {
-    const catalog = await buildProjectIconCatalog([{
-      name: 'Status icons',
-      key: 'status',
-      source: 'assets/icons/status.png',
-      icons: [{ iconKey: 'bad', name: 'Bad', x: 60, y: 0, width: 8, height: 8 }],
-    }], source => source, async () => ({ width: 64, height: 32 }))
-    expect(catalog.entries).toEqual([])
-    expect(catalog.errors).toEqual([expect.objectContaining({ reason: 'icon-out-of-bounds', iconKey: 'bad' })])
+  it('paints an unmeasured icon as a square, which is what a square icon measures anyway', () => {
+    const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
 
-    const failed = await buildProjectIconCatalog([{
-      name: 'Missing icons', key: 'missing', source: 'assets/icons/missing.png', icons: [],
-    }], source => source, async () => { throw new Error('missing') })
-    expect(failed.errors).toEqual([expect.objectContaining({ reason: 'load-failed' })])
+    expect(createProjectIconStyle(catalog.entries[1]!)).toMatchObject({ width: '1em', height: '1em' })
+    expect(createProjectIconPreviewStyle(catalog.entries[1]!)).toMatchObject({ width: '1em', height: '1em' })
   })
 
-  it('creates 1em crop geometry while preserving aspect ratio', async () => {
-    const catalog = await buildProjectIconCatalog([{
-      name: 'Status icons', key: 'status', source: 'status.png',
-      icons: [{ iconKey: 'wide', name: 'Wide', x: 16, y: 8, width: 24, height: 8, pixelated: true }],
-    }], source => source, async () => ({ width: 64, height: 32 }))
-    expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
-      width: '3em',
+  it('paints a theme-tinted icon through a mask and an original icon through the background', () => {
+    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+
+    const masked = createProjectIconStyle(catalog.entries[0]!)
+    expect(masked).toMatchObject({
+      width: '1em',
       height: '1em',
-      backgroundImage: 'none',
-      backgroundSize: '8em 4em',
-      backgroundPosition: '-2em -1em',
-      imageRendering: 'pixelated',
-      '--oc-project-icon-background-image': 'url("status.png")',
-      '--oc-project-icon-source-width': '3em',
+      '--oc-project-icon-renderer': 'mask',
+      '--oc-project-icon-mask-image': 'url("asset://icons/warn.svg")',
+      '--oc-project-icon-mask-size': '100% 100%',
+      '--oc-project-icon-mask-position': 'center',
+      '--oc-project-icon-background-color': 'currentColor',
+      '--oc-project-icon-source-width': '1em',
       '--oc-project-icon-source-height': '1em',
       '--oc-project-icon-transform': 'rotate(0deg)',
     })
-    expect(createProjectIconPreviewStyle(catalog.entries[0]!)).toMatchObject({
-      width: '1em',
-      height: `${1 / 3}em`,
-      imageRendering: 'pixelated',
+    expect(masked).not.toHaveProperty('--oc-project-icon-background-image')
+
+    const painted = createProjectIconStyle(catalog.entries[1]!)
+    expect(painted).toMatchObject({
+      width: '2em',
+      '--oc-project-icon-renderer': 'image',
+      '--oc-project-icon-background-image': 'url("asset://icons/logo.svg")',
+      '--oc-project-icon-background-size': '100% 100%',
+      '--oc-project-icon-background-position': 'center',
     })
-    expect(createProjectIconCssProperties(catalog.entries[0]!)).toMatchObject({
-      width: '3em',
-      height: '1em',
-      'background-image': 'none',
-      'image-rendering': 'pixelated',
+    expect(painted).not.toHaveProperty('--oc-project-icon-mask-image')
+  })
+
+  it('sizes a preview by the longer edge and a block by the container', () => {
+    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+
+    // A 24×12 icon in a preview box one unit on its longer edge.
+    expect(createProjectIconPreviewStyle(catalog.entries[1]!)).toMatchObject({ width: '1em', height: '0.5em' })
+    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'contain')).toMatchObject({
+      '--oc-project-icon-renderer': 'image',
+      '--oc-project-icon-display-width': 'min(100cqw, 200cqh)',
+      '--oc-project-icon-display-height': 'min(50cqw, 100cqh)',
+      '--oc-project-icon-source-width': 'var(--oc-project-icon-display-width)',
+      '--oc-project-icon-source-height': 'var(--oc-project-icon-display-height)',
+    })
+    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'fill')).toMatchObject({
+      '--oc-project-icon-display-width': '100cqw',
+      '--oc-project-icon-display-height': '100cqh',
     })
   })
 
-  it('swaps displayed dimensions and rotates the crop for quarter turns', async () => {
-    const catalog = await buildProjectIconCatalog([{
-      name: 'Status icons', key: 'status', source: 'status.png',
-      icons: [{ iconKey: 'wide', name: 'Wide', x: 16, y: 8, width: 24, height: 8, rotation: 90 }],
-    }], source => source, async () => ({ width: 64, height: 32 }))
+  it('swaps the paint box of a rotated icon and pixelates a raster one', () => {
+    const catalog = buildProjectIconCatalog([{
+      name: 'Pixels', key: 'pixels',
+      icons: [{
+        iconKey: 'coin', name: 'Coin', source: 'icons/coin.png', tint: 'original' as const,
+        pixelated: true, rotation: 90 as const, imageWidth: 8, imageHeight: 24,
+      }],
+    }], src => `asset://${src}`)
+
+    // An 8×24 icon turned on its side paints three units wide for one unit of height.
     expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
-      width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
+      width: '3em', height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
     })
-    expect(createProjectIconPreviewStyle(catalog.entries[0]!)).toMatchObject({
-      width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
-    })
-    expect(createProjectIconBlockStyle(catalog.entries[0]!, 'fill')).toMatchObject({
-      '--oc-project-icon-display-width': '100cqw',
-      '--oc-project-icon-display-height': '100cqh',
+    expect(createProjectIconBlockStyle(catalog.entries[0]!, 'contain')).toMatchObject({
       '--oc-project-icon-source-width': 'var(--oc-project-icon-display-height)',
       '--oc-project-icon-source-height': 'var(--oc-project-icon-display-width)',
-      '--oc-project-icon-background-size': `${100 * 64 / 24}% ${100 * 32 / 8}%`,
       '--oc-project-icon-transform': 'rotate(90deg)',
     })
   })
 
-  it('composes atlas rotation with the user-facing display rotation', async () => {
-    const catalog = await buildProjectIconCatalog([{
-      name: 'Status icons', key: 'status', source: 'status.png',
-      icons: [{ iconKey: 'wide', name: 'Wide', x: 16, y: 8, width: 8, height: 24, atlasRotation: 90, rotation: 90 }],
-    }], source => source, async () => ({ width: 64, height: 32 }))
-    expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
-      width: `${8 / 24}em`, height: '1em', '--oc-project-icon-transform': 'rotate(0deg)',
-      '--oc-project-icon-source-width': `${8 / 24}em`, '--oc-project-icon-source-height': '1em',
+  it('emits css property names for an inline style attribute', () => {
+    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+
+    expect(createProjectIconCssProperties(catalog.entries[0]!)).toMatchObject({
+      '--oc-project-icon-mask-image': 'url("asset://icons/warn.svg")',
+      '--oc-project-icon-source-width': '1em',
     })
+  })
+
+  it('treats an empty or missing series list as an empty catalog', () => {
+    expect(buildProjectIconCatalog([], src => src)).toEqual(EMPTY_PROJECT_ICON_CATALOG)
+    expect(buildProjectIconCatalog(null, src => src)).toEqual(EMPTY_PROJECT_ICON_CATALOG)
   })
 })

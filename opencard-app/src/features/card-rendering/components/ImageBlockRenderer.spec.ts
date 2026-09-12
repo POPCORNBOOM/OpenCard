@@ -22,8 +22,9 @@ function createBlock(source: string, fit: 'cover' | 'contain' | 'fill' = 'contai
 describe('ImageBlockRenderer', () => {
   it.each(['cover', 'contain', 'fill'] as const)('renders icon sources through the real resolver with %s fit', async (fit) => {
     const entry = {
-      seriesKey: 'status', iconKey: 'warning', name: 'Warning', source: 'icons.png', src: 'asset:///icons.png',
-      x: 16, y: 0, width: 16, height: 32, imageWidth: 64, imageHeight: 64,
+      seriesKey: 'status', iconKey: 'warning', name: 'Warning',
+      source: 'icons/warning.svg', src: 'asset:///icons/warning.svg',
+      tint: 'theme' as const, imageWidth: 64, imageHeight: 64,
     }
     const resources = createCardResourceResolver(createCardRenderResourceContext({
       projectIconCatalog: { series: [], entries: [entry], errors: [] },
@@ -38,7 +39,7 @@ describe('ImageBlockRenderer', () => {
     })
     expect(wrapper.getComponent(ProjectIconGraphic).props('fit')).toBe(fit)
     expect(wrapper.get('.project-icon-graphic').attributes('aria-label')).toBe('Warning')
-    expect(wrapper.get('.oc-project-icon').attributes('style')).toContain('icons.png')
+    expect(wrapper.get('.oc-project-icon').attributes('style')).toContain('icons/warning.svg')
     expect(wrapper.find('.image-block__placeholder').exists()).toBe(false)
     expect(wrapper.find('img').exists()).toBe(false)
     await wrapper.setProps({ block: createBlock('icon:status/missing', fit) })

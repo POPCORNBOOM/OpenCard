@@ -159,8 +159,11 @@ export function useCdeTreeOps(options: UseCdeTreeOpsOptions) {
         : []
       items.set(block.id, {
         label: getBlockProperty<string>(block, 'name')?.trim() || block.id,
-        icon: packaged ? 'entity.block-package' : presentation.icon,
-        iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
+        visual: {
+          type: 'icon',
+          icon: packaged ? 'entity.block-package' : presentation.icon,
+          iconTone: visibility === 'hidden' ? 'muted' : presentation.iconTone,
+        },
         renamable: true,
         draggable: true,
         tail: [visibilityAction, moreAction],

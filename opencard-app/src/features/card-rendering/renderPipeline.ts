@@ -1,7 +1,7 @@
 import { applyInstance } from '../../entities/card/instance'
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
 import type { ProjectInformation, ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
-import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import type { ProjectIconCatalog, ProjectIconDimensionRequest } from '../workspace/services/projectIconCatalog'
 import type { ProjectResourceEnvironment, ProjectResourceScopeMap } from '../workspace/services/projectResourceEnvironment'
 import { createCardRenderResourceContext, type CardRenderResourceContext } from './cardRenderResources'
 import type { CardPipelineIssue } from './cardPipelineIssue'
@@ -28,6 +28,8 @@ export type CardRenderEnvironment = RenderPipelineContext & {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   resolveRemoteResource?: (url: string) => string | null
   projectIconCatalog: ProjectIconCatalog
+  /** Reports an unmeasured icon that is about to be painted, so its size gets resolved. */
+  resolveIconDimensions?: ProjectIconDimensionRequest
   resolveFontFamily?: (references: string) => string
 }
 
@@ -66,6 +68,7 @@ export function prepareCardRender(request: CardRenderRequest): PreparedCardRende
     remoteResourcePolicy: request.environment.remoteResourcePolicy,
     resolveRemoteResource: request.environment.resolveRemoteResource,
     projectIconCatalog: request.environment.projectIconCatalog,
+    resolveIconDimensions: request.environment.resolveIconDimensions,
     resourceScopes,
     richText: richText.catalog,
     resolveFontFamily: request.environment.resolveFontFamily,

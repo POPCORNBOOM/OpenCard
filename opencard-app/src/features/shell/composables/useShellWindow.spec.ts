@@ -13,15 +13,12 @@ const mocks = vi.hoisted(() => ({
   destroy: vi.fn(),
   onResized: vi.fn(),
   onCloseRequested: vi.fn(),
-  onDragDropEvent: vi.fn(),
   listenExternal: vi.fn(),
   unlistenResize: vi.fn(),
   unlistenClose: vi.fn(),
-  unlistenDrop: vi.fn(),
   unlistenExternal: vi.fn(),
   resizeHandler: null as ((event?: unknown) => void) | null,
   closeHandler: null as ((event: { preventDefault: () => void }) => void) | null,
-  dropHandler: null as ((event: { payload: unknown }) => void) | null,
   externalHandler: null as ((paths: readonly string[]) => Promise<void> | void) | null,
 }))
 
@@ -37,14 +34,10 @@ vi.mock('@tauri-apps/api/window', () => ({
     destroy: mocks.destroy,
     onResized: mocks.onResized,
     onCloseRequested: mocks.onCloseRequested,
-    onDragDropEvent: mocks.onDragDropEvent,
   }),
 }))
 
 vi.mock('../services/externalOpenService', () => ({
-  filterSupportedExternalOpenPaths: (paths: readonly string[]) => (
-    paths.filter(path => path.toLowerCase().endsWith('.ocdocument'))
-  ),
   listenForExternalOpenRequests: mocks.listenExternal,
 }))
 
@@ -52,9 +45,11 @@ import { useShellWindow } from './useShellWindow'
 
 function createShellWindow() {
   const requestApplicationClose = vi.fn(async () => undefined)
-  const handleExternalOpenPaths = vi.fn(async () => undefined)
-  const shellWindow = useShellWindow({ requestApplicationClose, handleExternalOpenPaths })
-  return { shellWindow, requestApplicationClose, handleExternalOpenPaths }
+  const shellWindow = useShellWindow({
+    requestApplicationClose,
+    handleExternalOpenPaths: async () => undefined,
+  })
+  return { shellWindow, requestApplicationClose }
 }
 
 describe('useShellWindow', () => {
@@ -69,7 +64,6 @@ describe('useShellWindow', () => {
     mocks.events = []
     mocks.resizeHandler = null
     mocks.closeHandler = null
-    mocks.dropHandler = null
     mocks.externalHandler = null
     mocks.isFullscreen.mockImplementation(async () => mocks.fullscreen)
     mocks.isMaximized.mockImplementation(async () => mocks.maximized)
@@ -92,10 +86,6 @@ describe('useShellWindow', () => {
     ) => {
       mocks.closeHandler = handler
       return mocks.unlistenClose
-    })
-    mocks.onDragDropEvent.mockImplementation(async (handler: (event: { payload: unknown }) => void) => {
-      mocks.dropHandler = handler
-      return mocks.unlistenDrop
     })
     mocks.listenExternal.mockImplementation(async (
       handler: (paths: readonly string[]) => Promise<void> | void,
@@ -166,42 +156,18 @@ describe('useShellWindow', () => {
     shellWindow.dispose()
   })
 
-  it('shows drop overlay only for supported paths and forwards only supported drops', async () => {
-    const { shellWindow, handleExternalOpenPaths } = createShellWindow()
-    await shellWindow.start()
-
-    mocks.dropHandler?.({
-      payload: { type: 'enter', paths: ['D:/cards/main.ocdocument', 'D:/cards/readme.txt'] },
-    })
-    expect(shellWindow.isFileDropActive.value).toBe(true)
-
-    mocks.dropHandler?.({
-      payload: { type: 'drop', paths: ['D:/cards/main.ocdocument', 'D:/cards/readme.txt'] },
-    })
-    expect(shellWindow.isFileDropActive.value).toBe(false)
-    expect(handleExternalOpenPaths).toHaveBeenCalledWith(['D:/cards/main.ocdocument'])
-
-    mocks.dropHandler?.({ payload: { type: 'enter', paths: ['D:/cards/readme.txt'] } })
-    expect(shellWindow.isFileDropActive.value).toBe(false)
-    shellWindow.dispose()
-  })
-
   it('pairs all registrations with disposal and ignores callbacks after dispose', async () => {
-    const { shellWindow, requestApplicationClose, handleExternalOpenPaths } = createShellWindow()
+    const { shellWindow, requestApplicationClose } = createShellWindow()
     await shellWindow.start()
     shellWindow.dispose()
 
     expect(mocks.unlistenResize).toHaveBeenCalledOnce()
     expect(mocks.unlistenClose).toHaveBeenCalledOnce()
-    expect(mocks.unlistenDrop).toHaveBeenCalledOnce()
     expect(mocks.unlistenExternal).toHaveBeenCalledOnce()
 
     mocks.closeHandler?.({ preventDefault: vi.fn() })
-    mocks.dropHandler?.({ payload: { type: 'drop', paths: ['D:/cards/main.ocdocument'] } })
     await mocks.externalHandler?.(['D:/cards/main.ocdocument'])
     expect(requestApplicationClose).not.toHaveBeenCalled()
-    expect(handleExternalOpenPaths).not.toHaveBeenCalled()
-    expect(shellWindow.isFileDropActive.value).toBe(false)
   })
 
   it('immediately releases a listener that finishes registering after dispose', async () => {

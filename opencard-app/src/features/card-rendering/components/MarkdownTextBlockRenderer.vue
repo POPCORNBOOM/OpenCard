@@ -23,6 +23,7 @@ const isTransformDisabled = computed(() => editorContext.transformDisabledBlockI
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
   resolveImageSrc: source => editorContext.resources.resolveAsset(source, props.block.id, 'content'),
   resolveIconReference: source => editorContext.resources.resolveIcon(source, props.block.id, 'content'),
+  resolveIconDimensions: editorContext.resources.resolveIconDimensions,
 }))
 const blockStyle = computed(() => getTextContentBlockStyle(
   props.block,

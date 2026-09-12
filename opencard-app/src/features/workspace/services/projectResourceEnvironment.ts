@@ -11,7 +11,7 @@ import type { ProjectFontRegistry, ProjectFontRegistryDocument } from '../model/
 import { buildProjectFontRegistry, parseProjectFontRegistryText } from '../model/projectFontRegistry'
 import type { ProjectIconRegistryDocument } from '../model/projectIconRegistry'
 import { parseProjectIconRegistryText } from '../model/projectIconRegistry'
-import type { ProjectIconCatalog, ProjectImageDimensionLoader } from './projectIconCatalog'
+import type { ProjectIconCatalog } from './projectIconCatalog'
 import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from './projectIconCatalog'
 import type { FileSystemService } from './fileSystemService'
 import { recoverResourcePackageTransactions } from './resourcePackageInstaller'
@@ -136,8 +136,12 @@ export async function loadProjectResourceEnvironment(options: {
   kind: ProjectResourceScopeKind
   identity: string
   generation?: number
-  loadDimensions?: ProjectImageDimensionLoader
   loadPackageEnvironments?: boolean
+  /**
+   * Catalog already assembled by the caller for this same root, so the environment reuses it instead
+   * of assembling an identical one.
+   */
+  iconCatalog?: ProjectIconCatalog
 }): Promise<ProjectResourceEnvironment> {
   const namespace = createProjectResourceNamespace(options.kind, options.identity)
   const issues: ProjectResourceEnvironmentIssue[] = []
@@ -175,20 +179,16 @@ export async function loadProjectResourceEnvironment(options: {
     }
   }
 
-  let iconCatalog = EMPTY_PROJECT_ICON_CATALOG
-  if (root && (iconDocument.iconSeries?.length ?? 0) > 0) {
+  let iconCatalog = options.iconCatalog ?? EMPTY_PROJECT_ICON_CATALOG
+  if (!options.iconCatalog && root && (iconDocument.iconSeries?.length ?? 0) > 0) {
     const iconRegistryPath = `${root}/.opencard/icons/icons.json`
-    iconCatalog = await buildProjectIconCatalog(
+    iconCatalog = buildProjectIconCatalog(
       iconDocument.iconSeries,
       source => {
         const path = projectRoot ? resolveResourcePath(projectRoot, iconRegistryPath, source) : null
         return path?.ok ? convertFileSrc(path.value) : ''
       },
-      options.loadDimensions,
     )
-    for (const error of iconCatalog.errors) {
-      issues.push({ resource: 'icons', path: error.source, message: error.reason })
-    }
   }
   let packageIndex: ProjectPackageManifest | undefined
   if (root) {
@@ -227,7 +227,6 @@ export async function loadProjectResourceEnvironment(options: {
         kind: 'package',
         identity: pkg.manifest.key,
         generation: options.generation,
-        loadDimensions: options.loadDimensions,
         loadPackageEnvironments: true,
       }))
     }

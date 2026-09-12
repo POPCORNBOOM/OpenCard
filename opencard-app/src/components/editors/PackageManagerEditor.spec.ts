@@ -1,7 +1,11 @@
 import { Fragment, computed, nextTick, ref } from 'vue'
 import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ShellAction } from '../../features/shell/shell.types'
+import { useShellProgressTasks } from '../../features/shell/composables/useShellProgressTasks'
 import PackageManagerEditor from './PackageManagerEditor.vue'
+import OcEmpty from '../base/OcEmpty.vue'
+import OcOptionGroup from '../standard/OcOptionGroup.vue'
 import OcTree from '../standard/OcTree.vue'
 import OcAlbum from '../standard/OcAlbum.vue'
 
@@ -10,11 +14,12 @@ const storeState = vi.hoisted(() => ({
   addRequiredPackages: vi.fn().mockResolvedValue(undefined),
   installResourcePackageFile: vi.fn().mockResolvedValue(undefined),
 }))
+const fileSystem = vi.hoisted(() => ({ pickFile: vi.fn() }))
+const notifications = vi.hoisted(() => ({ notifyError: vi.fn(), notifySuccess: vi.fn() }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('../../features/workspace/services/fileSystemService', () => ({
-  fileSystemService: { pickFile: vi.fn() },
-}))
+vi.mock('../../features/workspace/services/fileSystemService', () => ({ fileSystemService: fileSystem }))
+vi.mock('../../features/notifications/titlebarNotices', () => notifications)
 vi.mock('../../features/workspace/store/projectStore', () => ({
   useProjectStore: () => ({
     projectPath: ref('D:/project'),
@@ -45,6 +50,9 @@ describe('PackageManagerEditor', () => {
     storeState.packageManifests.clear()
     storeState.addRequiredPackages.mockClear()
     storeState.installResourcePackageFile.mockClear()
+    fileSystem.pickFile.mockReset()
+    notifications.notifySuccess.mockClear()
+    notifications.notifyError.mockClear()
   })
 
   it('renders one root node so the workspace transition can animate it', () => {
@@ -58,6 +66,7 @@ describe('PackageManagerEditor', () => {
     expect(wrapper.vm.workspaceActions.map(action => (
       typeof action === 'string' ? action : action.hoverTip
     ))).toEqual([
+      'packageManager.switchView',
       'packageManager.sync',
       'packageManager.add',
     ])
@@ -77,6 +86,10 @@ describe('PackageManagerEditor', () => {
   function findButton(label: string): HTMLButtonElement {
     const buttons = [...document.body.querySelectorAll('button')].filter(button => button.textContent?.trim() === label) as HTMLButtonElement[]
     return buttons[buttons.length - 1]!
+  }
+
+  function shellTaskKeys(): readonly string[] {
+    return useShellProgressTasks().tasks.value.map(task => task.key)
   }
 
   async function typeRemoteSource(value: string): Promise<HTMLButtonElement> {
@@ -135,23 +148,104 @@ describe('PackageManagerEditor', () => {
     closeDialog(wrapper)
   })
 
-  it('shows the same packages as a tree or as an album and remembers the choice', async () => {
+  it('closes the Add dialog and finishes a local install on the global progress bar', async () => {
+    let finishInstall: () => void = () => {}
+    storeState.installResourcePackageFile.mockReturnValueOnce(new Promise<void>(resolve => { finishInstall = resolve }))
+    fileSystem.pickFile.mockResolvedValue('D:/packages/theme.ocpack')
+    const wrapper = mount(PackageManagerEditor, {
+      props: { filePath: 'D:/project/.opencard/packages/packages.json' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    await wrapper.vm.runWorkspaceAction('project-package-manager.add')
+    await nextTick()
+    findButton('packageManager.choosePackages').click()
+    await flushPromises()
+
+    findButton('packageManager.add').click()
+    await nextTick()
+
+    // The install owns the global progress bar, so the workspace is not frozen behind the dialog.
+    expect(document.body.textContent).not.toContain('packageManager.choosePackages')
+    expect(shellTaskKeys()).toContain('package-manager-add')
+
+    finishInstall()
+    await flushPromises()
+
+    expect(notifications.notifySuccess).toHaveBeenCalledWith('packageManager.added')
+    expect(shellTaskKeys()).not.toContain('package-manager-add')
+    closeDialog(wrapper)
+  })
+
+  it('keeps the chosen package files when an add fails, so it can be retried', async () => {
+    storeState.installResourcePackageFile.mockRejectedValueOnce(new Error('broken archive'))
+    fileSystem.pickFile.mockResolvedValue('D:/packages/theme.ocpack')
+    const wrapper = mount(PackageManagerEditor, {
+      props: { filePath: 'D:/project/.opencard/packages/packages.json' },
+      attachTo: document.body,
+    })
+    await nextTick()
+    await wrapper.vm.runWorkspaceAction('project-package-manager.add')
+    await nextTick()
+    findButton('packageManager.choosePackages').click()
+    await flushPromises()
+
+    findButton('packageManager.add').click()
+    await flushPromises()
+
+    expect(notifications.notifyError).toHaveBeenCalledWith('packageManager.addFailed')
+    expect(shellTaskKeys()).not.toContain('package-manager-add')
+
+    // Reopening still shows the same files, so the user does not have to pick them again.
+    await wrapper.vm.runWorkspaceAction('project-package-manager.add')
+    await nextTick()
+    expect(document.body.textContent).toContain('packageManager.selectedFiles')
+    closeDialog(wrapper)
+  })
+
+  it('switches between the tree and the album through the exposed workspace action', async () => {
     storeState.packageManifests.set('theme', { version: '1.0.0' })
     const wrapper = mount(PackageManagerEditor, {
       props: { filePath: 'D:/project/.opencard/packages/packages.json' },
     })
     await nextTick()
 
+    const viewAction = () => wrapper.vm.workspaceActions.find(action => (
+      typeof action !== 'string' && action.key === 'project-package-manager.toggle-view'
+    )) as ShellAction | undefined
+    // The icon and tip point at the view the action switches to, and nothing else renders a view switch.
+    expect(viewAction()).toMatchObject({ icon: 'layout.columns', disabled: false })
+
     expect(wrapper.findComponent(OcTree).exists()).toBe(true)
     expect(wrapper.findComponent(OcAlbum).exists()).toBe(false)
+    expect(wrapper.findComponent(OcOptionGroup).exists()).toBe(false)
 
-    await wrapper.get('button[aria-label="packageManager.viewAlbum"]').trigger('click')
+    await wrapper.vm.runWorkspaceAction('project-package-manager.toggle-view')
     await nextTick()
 
     expect(wrapper.findComponent(OcTree).exists()).toBe(false)
+    expect(viewAction()).toMatchObject({ icon: 'data.list-tree' })
     const album = wrapper.getComponent(OcAlbum)
     expect(album.props('data').rootKeys).toEqual(['theme'])
     expect(album.props('data').items.get('theme')?.label).toBe('theme@1.0.0')
+
+    await wrapper.vm.runWorkspaceAction('project-package-manager.toggle-view')
+    await nextTick()
+    expect(wrapper.findComponent(OcTree).exists()).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('disables the view action while the project declares no packages', async () => {
+    const wrapper = mount(PackageManagerEditor, {
+      props: { filePath: 'D:/project/.opencard/packages/packages.json' },
+    })
+    await nextTick()
+
+    expect(wrapper.findComponent(OcEmpty).exists()).toBe(true)
+    expect(wrapper.vm.workspaceActions.find(action => (
+      typeof action !== 'string' && action.key === 'project-package-manager.toggle-view'
+    ))).toMatchObject({ disabled: true })
 
     wrapper.unmount()
   })

@@ -6,7 +6,7 @@ import ProjectFontRegistrationDialog from './ProjectFontRegistrationDialog.vue'
 import OcButton from '../base/OcButton.vue'
 
 const mocks = vi.hoisted(() => ({
-  stageProjectFontFiles: vi.fn(),
+  stageProjectAssetFiles: vi.fn(),
   historyResource: { undo: vi.fn(), redo: vi.fn(), release: vi.fn() },
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -16,8 +16,8 @@ vi.mock('../../features/workspace/services/fileSystemService', () => ({
     readBinaryFile: vi.fn(),
   },
 }))
-vi.mock('../../features/workspace/services/projectFontFileHistory', () => ({
-  stageProjectFontFiles: mocks.stageProjectFontFiles,
+vi.mock('../../features/workspace/services/projectAssetFileHistory', () => ({
+  stageProjectAssetFiles: mocks.stageProjectAssetFiles,
 }))
 
 const fontFiles = (source: string) => ({ files: { normal: { upright: source } } })
@@ -136,7 +136,7 @@ describe('ProjectFontRegistryFileEditor', () => {
   })
 
   it('confirms family removal and binds orphaned files to the history entry', async () => {
-    mocks.stageProjectFontFiles.mockResolvedValue(mocks.historyResource)
+    mocks.stageProjectAssetFiles.mockResolvedValue(mocks.historyResource)
     const wrapper = mount(ProjectFontRegistryFileEditor, {
       props: {
         filePath: 'D:/Demo/.opencard/fonts/fonts.json',
@@ -156,7 +156,9 @@ describe('ProjectFontRegistryFileEditor', () => {
     await confirm!.trigger('click')
     await flushPromises()
 
-    expect(mocks.stageProjectFontFiles).toHaveBeenCalledWith(['D:/Demo/.opencard/fonts/A.woff2'])
+    expect(mocks.stageProjectAssetFiles).toHaveBeenCalledWith(
+      ['D:/Demo/.opencard/fonts/A.woff2'], undefined, undefined, 'font',
+    )
     const updates = wrapper.emitted('update:modelValue') ?? []
     expect(JSON.parse(updates[updates.length - 1]?.[0] as string).families.map((family: { key: string }) => family.key))
       .toEqual(['b'])

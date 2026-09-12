@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import type { ProjectIconSeries } from '../../features/workspace/model/projectIcons'
+import type { ProjectIconCatalogEntry } from '../../features/workspace/services/projectIconCatalog'
 import type { OcNodeAction } from '../../shared/ui/node/node.types'
 import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
@@ -12,31 +13,33 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 const series: ProjectIconSeries = {
   name: 'Status icons',
   key: 'status',
-  source: 'assets/icons/status.png',
-  grid: { snapToGrid: false, rows: 2, columns: 3, pixelated: false },
   icons: [
-    { iconKey: 'warning', name: 'Warning', x: 0, y: 0, width: 16, height: 16 },
-    { iconKey: 'success', name: 'Success', x: 16, y: 0, width: 16, height: 16 },
+    { iconKey: 'warning', name: 'Warning', source: '.opencard/icons/status/warning.svg', tint: 'theme' },
+    { iconKey: 'success', name: 'Success', source: '.opencard/icons/status/success.svg', tint: 'original' },
   ],
 }
-const runtime = {
-  name: 'Status icons', key: 'status', source: series.source, src: 'asset://status', imageWidth: 64, imageHeight: 32,
-}
+const entries: ProjectIconCatalogEntry[] = series.icons.map(icon => ({
+  ...icon,
+  seriesKey: series.key,
+  src: `asset://${icon.source}`,
+  imageWidth: 64,
+  imageHeight: 32,
+}))
 
 describe('ProjectIconSetWorkspace', () => {
-  it('shows a dashed crop placeholder instead of empty inspector panes', () => {
+  it('shows an empty placeholder instead of inspector panes', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series: { ...series, icons: [] }, runtime, selectedIconIndexes: [] },
+      props: { series: { ...series, icons: [] }, entries, selectedIconIndexes: [] },
     })
     expect(wrapper.get('.project-icon-set-workspace').classes()).toContain('is-empty')
-    expect(wrapper.get('.project-icon-set-workspace__empty').text()).toContain('projectConfig.icons.noCropRecords')
+    expect(wrapper.get('.project-icon-set-workspace__empty').text()).toContain('projectConfig.icons.emptyIconList')
     expect(wrapper.find('.project-icon-set-workspace__tree-pane').exists()).toBe(false)
     expect(wrapper.find('.project-icon-set-workspace__property-pane').exists()).toBe(false)
   })
 
   it('keeps the icon tree and property editor side by side inside an expanded set', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series, runtime, selectedIconIndexes: [0] },
+      props: { series, entries, selectedIconIndexes: [0] },
     })
     const nodeActions = (key: string): readonly OcNodeAction[] => {
       const actions = normalizeNodeTail(wrapper.getComponent(OcTree).props('data').items.get(key)?.tail)
@@ -69,7 +72,7 @@ describe('ProjectIconSetWorkspace', () => {
 
   it('filters by icon name or key while preserving original icon indexes', async () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series, runtime, selectedIconIndexes: [0] },
+      props: { series, entries, selectedIconIndexes: [0] },
     })
     const input = wrapper.get('input[placeholder="projectConfig.icons.filterPlaceholder"]')
 
@@ -89,14 +92,12 @@ describe('ProjectIconSetWorkspace', () => {
       icons: Array.from({ length: 992 }, (_, index) => ({
         iconKey: `icon-${index}`,
         name: `Icon ${index}`,
-        x: 0,
-        y: 0,
-        width: 16,
-        height: 16,
+        source: `.opencard/icons/status/icon-${index}.svg`,
+        tint: 'theme' as const,
       })),
     }
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series: largeSeries, runtime, selectedIconIndexes: [0] },
+      props: { series: largeSeries, entries, selectedIconIndexes: [0] },
     })
 
     expect(wrapper.getComponent(OcTree).props('data').rootKeys).toHaveLength(992)
@@ -105,7 +106,7 @@ describe('ProjectIconSetWorkspace', () => {
 
   it('emits controlled selection and immutable series updates', async () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series, runtime, selectedIconIndexes: [0] },
+      props: { series, entries, selectedIconIndexes: [0] },
     })
     wrapper.getComponent(OcTree).vm.$emit('selection-change', {
       triggerKey: 'icon:1', selectedKeys: ['icon:1'],
@@ -135,11 +136,11 @@ describe('ProjectIconSetWorkspace', () => {
       ...series,
       icons: [
         ...series.icons,
-        { iconKey: 'info', name: 'Info', x: 32, y: 0, width: 16, height: 16 },
+        { iconKey: 'info', name: 'Info', source: '.opencard/icons/status/info.svg', tint: 'theme' as const },
       ],
     }
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series: multiSeries, runtime, selectedIconIndexes: [0, 2] },
+      props: { series: multiSeries, entries, selectedIconIndexes: [0, 2] },
     })
 
     expect(wrapper.getComponent(OcTree).props('selectedKeys')).toEqual(['icon:0', 'icon:2'])
@@ -165,7 +166,7 @@ describe('ProjectIconSetWorkspace', () => {
 
   it('moves an icon directly to the top or bottom', async () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series, runtime, selectedIconIndexes: [0] },
+      props: { series, entries, selectedIconIndexes: [0] },
     })
     wrapper.getComponent(OcTree).vm.$emit('action', {
       key: 'icon:0', actionKey: 'move-bottom', source: 'inline',
@@ -185,7 +186,7 @@ describe('ProjectIconSetWorkspace', () => {
 
   it('duplicates an icon after its source and selects the copy', () => {
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series, runtime, selectedIconIndexes: [0] },
+      props: { series, entries, selectedIconIndexes: [0] },
     })
     wrapper.getComponent(OcTree).vm.$emit('action', {
       key: 'icon:0', actionKey: 'duplicate', source: 'inline',
@@ -201,10 +202,10 @@ describe('ProjectIconSetWorkspace', () => {
     const icons = [
       series.icons[0]!,
       series.icons[1]!,
-      { iconKey: 'info', name: 'Info', x: 32, y: 0, width: 16, height: 16 },
+      { iconKey: 'info', name: 'Info', source: '.opencard/icons/status/info.svg', tint: 'theme' as const },
     ]
     const wrapper = mount(ProjectIconSetWorkspace, {
-      props: { series: { ...series, icons }, runtime, selectedIconIndexes: [1] },
+      props: { series: { ...series, icons }, entries, selectedIconIndexes: [1] },
     })
     wrapper.getComponent(OcTree).vm.$emit('action', {
       key: 'icon:1', actionKey: 'delete', source: 'inline',
@@ -217,4 +218,43 @@ describe('ProjectIconSetWorkspace', () => {
     expect(wrapper.getComponent(PropertyEditor).props('inputs')[0]?.record.name).toBe('Info')
   })
 
+  it('exposes tint and pixelated instead of crop geometry', async () => {
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: { series, entries, selectedIconIndexes: [0] },
+    })
+
+    const fields = wrapper.getComponent(PropertyEditor).props('inputs')[0]?.fields
+    expect(fields).toHaveProperty('tint')
+    expect(fields).toHaveProperty('pixelated')
+    expect(fields).not.toHaveProperty('x')
+
+    wrapper.getComponent(PropertyEditor).vm.$emit('update-property', {
+      key: 'icon:0', fieldKey: 'tint', value: 'original',
+    })
+    await wrapper.vm.$nextTick()
+    const updates = wrapper.emitted('update:series') ?? []
+    expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).icons[0]).toMatchObject({ tint: 'original' })
+  })
+
+  it('marks a raster icon pixelated through its own property', async () => {
+    const pixelSeries: ProjectIconSeries = {
+      name: 'Pixels', key: 'pixels',
+      icons: [{ iconKey: 'coin', name: 'Coin', source: '.opencard/icons/pixels/coin.png', tint: 'original' }],
+    }
+    const wrapper = mount(ProjectIconSetWorkspace, {
+      props: {
+        series: pixelSeries,
+        entries: [{
+          ...pixelSeries.icons[0]!, seriesKey: 'pixels', src: 'asset://coin.png', imageWidth: 16, imageHeight: 16,
+        }],
+        selectedIconIndexes: [0],
+      },
+    })
+    wrapper.getComponent(PropertyEditor).vm.$emit('update-property', {
+      key: 'icon:0', fieldKey: 'pixelated', value: 'true',
+    })
+    await wrapper.vm.$nextTick()
+    const updates = wrapper.emitted('update:series') ?? []
+    expect((updates[updates.length - 1]?.[0] as ProjectIconSeries).icons[0]).toMatchObject({ pixelated: true })
+  })
 })

@@ -61,7 +61,7 @@
     </div>
     <template #footer>
       <OcButton type="button" :disabled="busy" @click="close">{{ t('resourcePackage.cancel') }}</OcButton>
-      <OcButton type="submit" variant="solid" icon="file.package" :disabled="busy || !canBuild">
+      <OcButton type="submit" variant="solid" icon="file.package" :disabled="busy || buildTaskBusy || !canBuild">
         {{ busy ? t('resourcePackage.building') : t('resourcePackage.build') }}
       </OcButton>
     </template>
@@ -96,9 +96,11 @@ import { fileSystemService } from '../services/fileSystemService'
 import { readProjectCover } from '../services/projectCoverService'
 import type { ProjectCover } from '../model/projectCover'
 import { useProjectStore } from '../store/projectStore'
+import { notifyError, notifySuccess } from '../../notifications/titlebarNotices'
+import { useShellProgressTasks } from '../../shell/composables/useShellProgressTasks'
 
 const props = defineProps<{ open: boolean, projectRootPath: string, projectName: string, entries: readonly string[] }>()
-const emit = defineEmits<{ close: [], built: [path: string] }>()
+const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
 const projectStore = useProjectStore()
 const appSettingsStore = useAppSettingsStore()
@@ -112,6 +114,26 @@ const selectedImageIds = ref<Set<string>>(new Set())
 const busy = ref(false)
 const errorText = ref('')
 const projectCover = ref<ProjectCover | null>(null)
+
+const { tasks, setTask, removeTask } = useShellProgressTasks()
+const PACKAGE_BUILD_TASK_KEY = 'resource-package-build'
+/**
+ * A running build owns the global progress bar. Reopening the builder while one is in flight must not
+ * let a second build reuse that key, so the submit is held until the first one settles.
+ */
+const buildTaskBusy = computed(() => tasks.value.some(task => task.key === PACKAGE_BUILD_TASK_KEY))
+
+/** Everything the background build needs, captured before the dialog closes. */
+type PackageBuildRequest = {
+  outputPath: string
+  packageKey: string
+  name: string
+  version: string
+  imagePaths: readonly string[]
+  familyKeys: readonly string[]
+  compositionKeys: readonly string[]
+  iconSeriesKeys: readonly string[]
+}
 
 type PackageCandidate = {
   id: string
@@ -196,20 +218,21 @@ const treeData = computed<OcNodeCollection>(() => {
     const compositionGroupKey = 'font-group:compositions'
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
-      label: t('resourcePackage.fonts'), icon: 'file.font', iconTone: 'config',
+      label: t('resourcePackage.fonts'), visual: { type: 'icon', icon: 'file.font', iconTone: 'config' },
     })
     items.set(familyGroupKey, {
-      label: t('resourcePackage.projectFonts'), icon: 'file.font',
+      label: t('resourcePackage.projectFonts'), visual: { type: 'icon', icon: 'file.font' },
     })
     items.set(compositionGroupKey, {
-      label: t('resourcePackage.fontCompositions'), icon: 'data.layers',
+      label: t('resourcePackage.fontCompositions'), visual: { type: 'icon', icon: 'data.layers' },
     })
     children.set(categoryKey, [familyGroupKey, compositionGroupKey])
     children.set(familyGroupKey, families.map(family => {
       const key = `font-family:${family.key}`
       const selected = selectedFamilyKeys.value.has(family.key)
       items.set(key, {
-        label: family.name, tail: [family.key, ...toggleSelection(selected)], icon: 'file.font', iconTone: selected ? 'active' : 'muted',
+        label: family.name, tail: [family.key, ...toggleSelection(selected)],
+        visual: { type: 'icon', icon: 'file.font', iconTone: selected ? 'active' : 'muted' },
         contextActions: toggleSelection(selected),
       })
       return key
@@ -218,7 +241,8 @@ const treeData = computed<OcNodeCollection>(() => {
       const key = `font-composition:${composition.key}`
       const selected = selectedCompositionKeys.value.has(composition.key)
       items.set(key, {
-        label: composition.name, tail: [composition.key, ...toggleSelection(selected)], icon: 'data.layers', iconTone: selected ? 'active' : 'muted',
+        label: composition.name, tail: [composition.key, ...toggleSelection(selected)],
+        visual: { type: 'icon', icon: 'data.layers', iconTone: selected ? 'active' : 'muted' },
         contextActions: toggleSelection(selected),
       })
       return key
@@ -229,13 +253,14 @@ const treeData = computed<OcNodeCollection>(() => {
     const categoryKey = 'category:icons'
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
-      label: t('resourcePackage.icons'), icon: 'file.project-icon', iconTone: 'config',
+      label: t('resourcePackage.icons'), visual: { type: 'icon', icon: 'file.project-icon', iconTone: 'config' },
     })
     children.set(categoryKey, iconSeries.map(series => {
       const key = `icon-series:${series.key}`
       const selected = selectedIconSeriesKeys.value.has(series.key)
       items.set(key, {
-        label: series.name, tail: [series.key, ...toggleSelection(selected)], icon: 'file.project-icon', iconTone: selected ? 'active' : 'muted',
+        label: series.name, tail: [series.key, ...toggleSelection(selected)],
+        visual: { type: 'icon', icon: 'file.project-icon', iconTone: selected ? 'active' : 'muted' },
         contextActions: toggleSelection(selected),
       })
       return key
@@ -245,7 +270,7 @@ const treeData = computed<OcNodeCollection>(() => {
     const categoryKey = 'category:images'
     rootKeys.push(categoryKey)
     items.set(categoryKey, {
-      label: t('resourcePackage.images'), icon: 'file.image', iconTone: 'config',
+      label: t('resourcePackage.images'), visual: { type: 'icon', icon: 'file.image', iconTone: 'config' },
     })
     for (const entry of imageCandidates.value) {
       const segments = (entry.detail ?? entry.label).split('/')
@@ -255,7 +280,7 @@ const treeData = computed<OcNodeCollection>(() => {
         folderPath = folderPath ? `${folderPath}/${segment}` : segment
         const folderKey = `folder:images:${folderPath}`
         if (!items.has(folderKey)) {
-          items.set(folderKey, { label: segment, icon: 'folder.generic', iconTone: 'muted' })
+          items.set(folderKey, { label: segment, visual: { type: 'icon', icon: 'folder.generic', iconTone: 'muted' } })
         }
         addChild(parentKey, folderKey)
         parentKey = folderKey
@@ -263,7 +288,7 @@ const treeData = computed<OcNodeCollection>(() => {
       const selected = selectedImageIds.value.has(entry.id)
       items.set(entry.id, {
         label: segments[segments.length - 1] ?? entry.label,
-        icon: 'file.image', iconTone: selected ? 'active' : 'muted',
+        visual: { type: 'icon', icon: 'file.image', iconTone: selected ? 'active' : 'muted' },
         tail: toggleSelection(selected), contextActions: toggleSelection(selected),
       })
       addChild(parentKey, entry.id)
@@ -357,10 +382,16 @@ function handleTreeAction(event: OcNodeActionEvent): void {
   selectedImageIds.value = nextImages
 }
 
+/**
+ * Settles the build inputs and asks for the destination. Only the destination picker runs before the
+ * handoff, so cancelling it returns the user to their selection; once a path is chosen the dialog
+ * closes and the packing itself continues on the global progress bar.
+ */
 async function build(): Promise<void> {
-  if (!canBuild.value) return
+  if (!canBuild.value || busy.value || buildTaskBusy.value) return
   busy.value = true
   errorText.value = ''
+  let request: PackageBuildRequest | null = null
   try {
     appSettingsStore.updateSetting('identity.publisherKey', toKeySlug(author.value.trim(), 'publisher'))
     const selected = imageCandidates.value.filter(candidate => selectedImageIds.value.has(candidate.id))
@@ -371,23 +402,57 @@ async function build(): Promise<void> {
     })
     rememberBuildInputs(imagePaths)
     if (!outputPath) return
-    const result = await buildResourcePackageFromProject({
-      fs: fileSystemService, projectRootPath: props.projectRootPath, key: packageKey.value,
-      name: name.value.trim(), version: version.value.trim(),
-      imageSelection: { paths: imagePaths },
-      fontSelection: {
-        familyKeys: [...selectedFamilyKeys.value],
-        compositionKeys: [...selectedCompositionKeys.value],
-      },
-      iconSelection: { seriesKeys: [...selectedIconSeriesKeys.value] },
+    request = {
       outputPath,
-    })
-    emit('built', result.outputPath ?? '')
-    emit('close')
+      packageKey: packageKey.value,
+      name: name.value.trim(),
+      version: version.value.trim(),
+      imagePaths,
+      familyKeys: [...selectedFamilyKeys.value],
+      compositionKeys: [...selectedCompositionKeys.value],
+      iconSeriesKeys: [...selectedIconSeriesKeys.value],
+    }
   } catch (cause) {
     errorText.value = cause instanceof Error ? cause.message : String(cause)
+    return
   } finally {
     busy.value = false
+  }
+  if (!request) return
+  emit('close')
+  await runPackageBuild(request)
+}
+
+/**
+ * Packs on the shell's global progress bar instead of freezing this dialog, so the workspace stays
+ * usable and the outcome arrives as an instant message. The destination is already chosen, so the
+ * dialog has nothing left to collect and can stay closed for the whole build.
+ */
+async function runPackageBuild(request: PackageBuildRequest): Promise<void> {
+  setTask({
+    key: PACKAGE_BUILD_TASK_KEY,
+    title: t('resourcePackage.building'),
+    progress: 0,
+    cancellable: false,
+  })
+  try {
+    const result = await buildResourcePackageFromProject({
+      fs: fileSystemService, projectRootPath: props.projectRootPath, key: request.packageKey,
+      name: request.name, version: request.version,
+      imageSelection: { paths: request.imagePaths },
+      fontSelection: {
+        familyKeys: request.familyKeys,
+        compositionKeys: request.compositionKeys,
+      },
+      iconSelection: { seriesKeys: request.iconSeriesKeys },
+      outputPath: request.outputPath,
+    })
+    const builtPath = result.outputPath ?? request.outputPath
+    notifySuccess(t('resourcePackage.built', { name: builtPath.split(/[\\/]/).pop() ?? builtPath }))
+  } catch (cause) {
+    notifyError(cause instanceof Error ? cause.message : String(cause))
+  } finally {
+    removeTask(PACKAGE_BUILD_TASK_KEY)
   }
 }
 

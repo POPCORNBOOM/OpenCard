@@ -51,12 +51,12 @@ function issueLabel(issue: EditorIssue): string {
 
 function issueTreeItem(issue: EditorIssue, copyAction: OcNodeAction): OcNode {
   if (issue.severity === 'error') {
-    return { label: issueLabel(issue), icon: 'status.error', iconTone: 'danger', tail: [copyAction] }
+    return { label: issueLabel(issue), visual: { type: 'icon', icon: 'status.error', iconTone: 'danger' }, tail: [copyAction] }
   }
   if (issue.severity === 'warning') {
-    return { label: issueLabel(issue), icon: 'status.warning', iconTone: 'warning', tail: [copyAction] }
+    return { label: issueLabel(issue), visual: { type: 'icon', icon: 'status.warning', iconTone: 'warning' }, tail: [copyAction] }
   }
-  return { label: issueLabel(issue), icon: 'status.unknown', iconTone: 'muted', tail: [copyAction] }
+  return { label: issueLabel(issue), visual: { type: 'icon', icon: 'status.unknown', iconTone: 'muted' }, tail: [copyAction] }
 }
 
 function dedupeIssues(issues: readonly EditorIssue[]): readonly EditorIssue[] {
@@ -135,8 +135,7 @@ export function buildWorkspaceIssueProjection(
     rootKeys.push(rootKey)
     items.set(rootKey, {
       label: `${session.name} (${sessionIssues.length})`,
-      icon: fileType.icon,
-      iconTone: fileType.iconTone,
+      visual: { type: 'icon', icon: fileType.icon, iconTone: fileType.iconTone },
     })
     children.set(rootKey, issueKeys)
   }

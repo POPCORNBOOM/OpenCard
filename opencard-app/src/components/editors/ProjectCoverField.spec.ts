@@ -102,6 +102,16 @@ describe('ProjectCoverField', () => {
     expect(mocks.writeFile).not.toHaveBeenCalled()
   })
 
+  it('accepts a typed vector cover path', async () => {
+    const wrapper = mountField('')
+
+    const input = await type(wrapper, 'assets/hero.svg')
+    await input.trigger('change')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([['assets/hero.svg']])
+    expect(mocks.notifyError).not.toHaveBeenCalled()
+  })
+
   it('reports an unusable typed path through the title bar and restores the stored value', async () => {
     const wrapper = mountField('assets/cover.png')
 
@@ -122,7 +132,7 @@ describe('ProjectCoverField', () => {
 
     expect(mocks.pickFile).toHaveBeenCalledWith(expect.objectContaining({
       defaultPath: 'D:/Project',
-      extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif'],
+      extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'svg'],
     }))
     expect(wrapper.emitted('update:modelValue')).toEqual([['assets/cover.png']])
     expect(mocks.notifyError).not.toHaveBeenCalled()

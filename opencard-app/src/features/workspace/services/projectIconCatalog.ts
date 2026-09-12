@@ -1,30 +1,33 @@
+/**
+ * 模块说明：
+ * - 组装项目图标目录，并按需产出项目图标的绘制样式
+ * 职责边界：
+ * - 只做纯数据组装与样式计算 不访问文件系统、不测量图标尺寸
+ */
 import type { ProjectIcon, ProjectIconSeries } from '../model/projectIcons'
-import {
-  PROJECT_ICON_ELEMENT_SELECTOR,
-  readProjectIconElement,
-} from '../../../shared/rich-text/projectIconReference'
+import type { ProjectIconRenderer } from '../../../shared/ui/visual/projectIconStyle'
 
+/**
+ * The catalog is plain data, and carries no sizes. An icon's natural size belongs to its file: a
+ * style function that is about to paint one icon asks for it through `requestDimensions` and falls
+ * back to a square box until the answer arrives. Building the catalog therefore never touches the
+ * file system, and opening a project costs nothing per icon.
+ */
 export type ProjectIconCatalogEntry = ProjectIcon & {
   seriesKey: string
-  source: string
   src: string
-  imageWidth: number
-  imageHeight: number
 }
 
+/** A set has no image of its own: every icon owns exactly one file. */
 export type ProjectIconSeriesRuntime = {
   name: string
   key: string
-  source: string
-  src: string
-  imageWidth: number
-  imageHeight: number
 }
 
 export type ProjectIconLoadError = {
   seriesKey: string
   source: string
-  reason: 'load-failed' | 'icon-out-of-bounds'
+  reason: 'load-failed'
   iconKey?: string
 }
 
@@ -37,8 +40,15 @@ export type ProjectIconCatalog = {
   entriesByIdentity?: ReadonlyMap<string, ProjectIconCatalogEntry>
 }
 
-export type ProjectImageDimensions = { width: number; height: number }
-export type ProjectImageDimensionLoader = (src: string) => Promise<ProjectImageDimensions>
+/**
+ * Reads an entry's natural size, or `undefined` while it is still unknown.
+ *
+ * The catalog cannot hold the size: a catalog published through `ref` is deeply reactive and its
+ * entries are readonly, and the size is a fact about the file rather than about the authored set. So
+ * the size lives beside the catalog, and this is how a style function reaches it. Reading it is also
+ * what makes the requesting consumer re-run once the size arrives.
+ */
+export type ProjectIconDimensionReader = (entry: ProjectIconCatalogEntry) => { width: number, height: number } | undefined
 
 export const EMPTY_PROJECT_ICON_CATALOG: ProjectIconCatalog = {
   series: [],
@@ -52,74 +62,25 @@ export function projectIconIdentity(seriesKey: string, iconKey: string): string 
   return `${seriesKey.toLowerCase()}\u0000${iconKey.toLowerCase()}`
 }
 
-export async function loadProjectImageDimensions(src: string): Promise<ProjectImageDimensions> {
-  return await new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => {
-      const complete = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
-      if (typeof image.decode === 'function') void image.decode().then(complete, reject)
-      else complete()
-    }
-    image.onerror = () => reject(new Error('Unable to load project icon image'))
-    image.src = src
-  })
-}
-
-export async function buildProjectIconCatalog(
+export function buildProjectIconCatalog(
   seriesList: readonly ProjectIconSeries[] | null | undefined,
   resolveAssetSrc: (source: string) => string,
-  loadDimensions: ProjectImageDimensionLoader = loadProjectImageDimensions,
-): Promise<ProjectIconCatalog> {
+): ProjectIconCatalog {
+  const series = seriesList ?? []
+  const runtimeSeries: ProjectIconSeriesRuntime[] = series.map(item => ({ name: item.name, key: item.key }))
   const entries: ProjectIconCatalogEntry[] = []
-  const runtimeSeries: ProjectIconSeriesRuntime[] = []
-  const errors: ProjectIconLoadError[] = []
 
-  for (const series of seriesList ?? []) {
-    const src = resolveAssetSrc(series.source)
-    let dimensions: ProjectImageDimensions
-    try {
-      dimensions = await loadDimensions(src)
-      if (!Number.isInteger(dimensions.width) || dimensions.width <= 0
-        || !Number.isInteger(dimensions.height) || dimensions.height <= 0) throw new Error('Invalid dimensions')
-    } catch {
-      errors.push({ seriesKey: series.key, source: series.source, reason: 'load-failed' })
-      continue
-    }
-
-    runtimeSeries.push({
-      name: series.name,
-      key: series.key,
-      source: series.source,
-      src,
-      imageWidth: dimensions.width,
-      imageHeight: dimensions.height,
-    })
-
-    for (const icon of series.icons) {
-      if (icon.x + icon.width > dimensions.width || icon.y + icon.height > dimensions.height) {
-        errors.push({
-          seriesKey: series.key,
-          source: series.source,
-          reason: 'icon-out-of-bounds',
-          iconKey: icon.iconKey,
-        })
-        continue
-      }
-      entries.push({
-        ...icon,
-        seriesKey: series.key,
-        source: series.source,
-        src,
-        imageWidth: dimensions.width,
-        imageHeight: dimensions.height,
-      })
+  for (const item of series) {
+    for (const icon of item.icons) {
+      entries.push({ ...icon, seriesKey: item.key, src: resolveAssetSrc(icon.source) })
     }
   }
+
   return {
     series: runtimeSeries,
     entries,
-    errors,
-    seriesByKey: new Map(runtimeSeries.map(series => [series.key.toLowerCase(), series])),
+    errors: [],
+    seriesByKey: new Map(runtimeSeries.map(item => [item.key.toLowerCase(), item])),
     entriesByIdentity: new Map(entries.map(entry => [projectIconIdentity(entry.seriesKey, entry.iconKey), entry])),
   }
 }
@@ -148,36 +109,62 @@ function isQuarterTurn(rotation: number | undefined): boolean {
   return rotation === 90 || rotation === 270
 }
 
-function displayDimensions(entry: ProjectIconCatalogEntry): { width: number; height: number } {
-  const atlasDimensions = isQuarterTurn(entry.atlasRotation)
-    ? { width: entry.height, height: entry.width }
-    : { width: entry.width, height: entry.height }
-  return isQuarterTurn(entry.rotation)
-    ? { width: atlasDimensions.height, height: atlasDimensions.width }
-    : atlasDimensions
+/**
+ * The size to paint with: whatever the reader knows, or a square box for an icon nobody has measured
+ * yet. A square is also what a square icon resolves to, so an unmeasured square icon is already right.
+ */
+function displayDimensions(
+  entry: ProjectIconCatalogEntry,
+  readDimensions?: ProjectIconDimensionReader,
+): { width: number, height: number } {
+  const measured = readDimensions?.(entry)
+  const known = measured !== undefined
+    && Number.isInteger(measured.width) && Number.isInteger(measured.height)
+    && measured.width > 0 && measured.height > 0
+  const width = known ? measured!.width : 1
+  const height = known ? measured!.height : 1
+  return isQuarterTurn(entry.rotation) ? { width: height, height: width } : { width, height }
 }
 
-function effectiveRotation(entry: ProjectIconCatalogEntry): number {
-  return ((entry.rotation ?? 0) - (entry.atlasRotation ?? 0) + 360) % 360
+function createProjectIconPaint(entry: ProjectIconCatalogEntry): Record<string, string> {
+  const image = `url(${JSON.stringify(entry.src)})`
+  return entry.tint === 'theme'
+    ? {
+        '--oc-project-icon-mask-image': image,
+        '--oc-project-icon-mask-size': '100% 100%',
+        '--oc-project-icon-mask-position': 'center',
+        '--oc-project-icon-background-color': 'currentColor',
+      }
+    : {
+        '--oc-project-icon-background-image': image,
+        '--oc-project-icon-background-size': '100% 100%',
+        '--oc-project-icon-background-position': 'center',
+      }
 }
 
+function rendererOf(entry: ProjectIconCatalogEntry): ProjectIconRenderer {
+  return entry.tint === 'theme' ? 'mask' : 'image'
+}
+
+/**
+ * Emits the shared contract every project icon paints through: the box the paint maps onto, the
+ * rotation, and the paint itself. A theme-tinted icon paints `currentColor` through its own alpha;
+ * an original icon keeps its own colors.
+ */
 function createProjectIconRenderStyle(
   entry: ProjectIconCatalogEntry,
   unit: number,
+  dimensions: { width: number, height: number },
 ): Record<string, string> {
   return {
     backgroundImage: 'none',
-    backgroundSize: `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
-    backgroundPosition: `${-entry.x / unit}em ${-entry.y / unit}em`,
     imageRendering: entry.pixelated === true ? 'pixelated' : 'auto',
-    '--oc-project-icon-renderer': 'atlas-crop',
-    '--oc-project-icon-background-image': `url(${JSON.stringify(entry.src)})`,
-    '--oc-project-icon-background-size': `${entry.imageWidth / unit}em ${entry.imageHeight / unit}em`,
-    '--oc-project-icon-background-position': `${-entry.x / unit}em ${-entry.y / unit}em`,
-    '--oc-project-icon-source-width': `${entry.width / unit}em`,
-    '--oc-project-icon-source-height': `${entry.height / unit}em`,
+    '--oc-project-icon-renderer': rendererOf(entry),
+    '--oc-project-icon-source-width': `${dimensions.width / unit}em`,
+    '--oc-project-icon-source-height': `${dimensions.height / unit}em`,
     '--oc-project-icon-image-rendering': entry.pixelated === true ? 'pixelated' : 'auto',
-    '--oc-project-icon-transform': `rotate(${effectiveRotation(entry)}deg)`,
+    '--oc-project-icon-transform': `rotate(${entry.rotation ?? 0}deg)`,
+    ...createProjectIconPaint(entry),
   }
 }
 
@@ -187,34 +174,39 @@ function toCssPropertyName(property: string): string {
     : property.replace(/[A-Z]/g, character => `-${character.toLowerCase()}`)
 }
 
-export function createProjectIconStyle(entry: ProjectIconCatalogEntry): Record<string, string> {
-  const dimensions = displayDimensions(entry)
+export function createProjectIconStyle(
+  entry: ProjectIconCatalogEntry,
+  readDimensions?: ProjectIconDimensionReader,
+): Record<string, string> {
+  const dimensions = displayDimensions(entry, readDimensions)
   const unit = dimensions.height
   return {
     width: `${dimensions.width / unit}em`,
     height: '1em',
-    ...createProjectIconRenderStyle(entry, unit),
+    ...createProjectIconRenderStyle(entry, unit, dimensions),
   }
 }
 
-export function createProjectIconPreviewStyle(entry: ProjectIconCatalogEntry): Record<string, string> {
-  const dimensions = displayDimensions(entry)
+export function createProjectIconPreviewStyle(
+  entry: ProjectIconCatalogEntry,
+  readDimensions?: ProjectIconDimensionReader,
+): Record<string, string> {
+  const dimensions = displayDimensions(entry, readDimensions)
   const unit = Math.max(dimensions.width, dimensions.height)
   return {
     width: `${dimensions.width / unit}em`,
     height: `${dimensions.height / unit}em`,
-    ...createProjectIconRenderStyle(entry, unit),
+    ...createProjectIconRenderStyle(entry, unit, dimensions),
   }
 }
 
 export type ProjectIconBlockFit = 'contain' | 'cover' | 'fill'
 
 function projectIconBlockDimensions(
-  entry: ProjectIconCatalogEntry,
+  dimensions: { width: number, height: number },
   fit: ProjectIconBlockFit,
-): { width: string; height: string } {
+): { width: string, height: string } {
   if (fit === 'fill') return { width: '100cqw', height: '100cqh' }
-  const dimensions = displayDimensions(entry)
   const operation = fit === 'cover' ? 'max' : 'min'
   return {
     width: `${operation}(100cqw, ${100 * dimensions.width / dimensions.height}cqh)`,
@@ -222,27 +214,19 @@ function projectIconBlockDimensions(
   }
 }
 
-function projectIconCropPosition(offset: number, imageSize: number, cropSize: number): string {
-  const available = imageSize - cropSize
-  return available > 0 ? `${100 * offset / available}%` : '0%'
-}
-
 export function createProjectIconBlockStyle(
   entry: ProjectIconCatalogEntry,
   fit: ProjectIconBlockFit,
+  readDimensions?: ProjectIconDimensionReader,
 ): Record<string, string> {
-  const dimensions = projectIconBlockDimensions(entry, fit)
-  const rotation = effectiveRotation(entry)
-  const quarterTurn = isQuarterTurn(rotation)
+  const dimensions = projectIconBlockDimensions(displayDimensions(entry, readDimensions), fit)
+  const quarterTurn = isQuarterTurn(entry.rotation)
   return {
     backgroundImage: 'none',
     imageRendering: entry.pixelated === true ? 'pixelated' : 'auto',
-    '--oc-project-icon-renderer': 'atlas-crop',
+    '--oc-project-icon-renderer': rendererOf(entry),
     '--oc-project-icon-display-width': dimensions.width,
     '--oc-project-icon-display-height': dimensions.height,
-    '--oc-project-icon-background-image': `url(${JSON.stringify(entry.src)})`,
-    '--oc-project-icon-background-size': `${100 * entry.imageWidth / entry.width}% ${100 * entry.imageHeight / entry.height}%`,
-    '--oc-project-icon-background-position': `${projectIconCropPosition(entry.x, entry.imageWidth, entry.width)} ${projectIconCropPosition(entry.y, entry.imageHeight, entry.height)}`,
     '--oc-project-icon-source-width': quarterTurn
       ? 'var(--oc-project-icon-display-height)'
       : 'var(--oc-project-icon-display-width)',
@@ -250,58 +234,17 @@ export function createProjectIconBlockStyle(
       ? 'var(--oc-project-icon-display-width)'
       : 'var(--oc-project-icon-display-height)',
     '--oc-project-icon-image-rendering': entry.pixelated === true ? 'pixelated' : 'auto',
-    '--oc-project-icon-transform': `rotate(${rotation}deg)`,
+    '--oc-project-icon-transform': `rotate(${entry.rotation ?? 0}deg)`,
+    ...createProjectIconPaint(entry),
   }
 }
 
-export function createProjectIconCssProperties(entry: ProjectIconCatalogEntry): Record<string, string> {
+export function createProjectIconCssProperties(
+  entry: ProjectIconCatalogEntry,
+  readDimensions?: ProjectIconDimensionReader,
+): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(createProjectIconStyle(entry)).map(([property, value]) => [toCssPropertyName(property), value]),
+    Object.entries(createProjectIconStyle(entry, readDimensions))
+      .map(([property, value]) => [toCssPropertyName(property), value]),
   )
-}
-
-export function applyProjectIconStyle(element: HTMLElement, entry: ProjectIconCatalogEntry): void {
-  for (const [property, value] of Object.entries(createProjectIconCssProperties(entry))) {
-    element.style.setProperty(property, value)
-  }
-}
-
-export function renderProjectIconsInRichText(
-  source: string,
-  catalog: ProjectIconCatalog,
-  options: { missingLabel?: string } = {},
-): string {
-  const documentNode = new DOMParser().parseFromString(source, 'text/html')
-
-  const applyMissingIcon = (element: HTMLElement, seriesKey: string, iconKey: string): void => {
-    element.textContent = ''
-    element.className = 'project-inline-icon project-inline-icon--missing'
-    element.setAttribute('data-oc-icon-path', `${seriesKey}/${iconKey}`)
-    element.setAttribute('data-oc-icon-missing', 'true')
-    element.setAttribute('role', 'img')
-    element.setAttribute('aria-label', options.missingLabel ?? 'Project icon unavailable')
-  }
-
-  const applyIcon = (element: HTMLElement, seriesKey: string, iconKey: string): void => {
-    const entry = findProjectIcon(catalog, seriesKey, iconKey)
-    if (!entry) return
-    element.textContent = ''
-    element.className = 'project-inline-icon oc-project-icon'
-    element.setAttribute('role', 'img')
-    element.setAttribute('aria-label', entry.name)
-    applyProjectIconStyle(element, entry)
-  }
-
-  for (const element of Array.from(documentNode.body.querySelectorAll<HTMLElement>(PROJECT_ICON_ELEMENT_SELECTOR))) {
-    const reference = readProjectIconElement(element)
-    if (!reference) continue
-    const { seriesKey, iconKey } = reference
-    if (!findProjectIcon(catalog, seriesKey, iconKey)) {
-      applyMissingIcon(element, seriesKey, iconKey)
-      continue
-    }
-    applyIcon(element, seriesKey, iconKey)
-  }
-
-  return documentNode.body.innerHTML
 }

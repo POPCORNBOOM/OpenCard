@@ -6,8 +6,9 @@
     :class="{
       'is-fill': props.fill,
       'is-empty': visibleEntries.length === 0,
-      'is-dragging': draggedKey,
-      'is-root-drop': draggedKey && dropTargetKey === null && dropPosition === 'inside',
+      'is-dragging': Boolean(draggedKey) || isExternalDropActive,
+      'is-root-drop': (Boolean(draggedKey) || isExternalDropActive)
+        && dropTargetKey === null && dropPosition === 'inside',
       'are-actions-always-visible': props.actionVisibility === 'always',
     }"
     :role="props.role"
@@ -72,13 +73,16 @@
           @mousedown="handleIconMouseDown($event, entry.key)"
           @click="handleIconClick($event, entry.key)"
         >
-          <span v-if="entry.item.thumbnailStyle" class="oc-tree__thumbnail"
-            :class="{ 'oc-project-icon': entry.item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
-            :style="entry.item.thumbnailStyle" role="img"
-            :aria-label="entry.item.thumbnailLabel ?? entry.item.label" />
+          <OcVisual
+            v-if="entry.item.visual"
+            class="oc-tree__node-visual"
+            :class="{ 'is-expanded': entry.item.visual.type === 'icon' && isExpandable(entry.key) && isExpanded(entry.key) }"
+            :visual="entry.item.visual"
+            :label="entry.item.label"
+            size="md"
+          />
           <OcIcon v-else
-            :name="entry.item.icon ?? 'tree.chevron-right'"
-            :tone="entry.item.iconTone"
+            :name="'tree.chevron-right'"
             size="md"
             class="oc-tree__node-icon"
             :class="{ 'is-expanded': isExpandable(entry.key) && isExpanded(entry.key) }"
@@ -154,6 +158,7 @@ import OcActionButton from './OcActionButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import OcVisual from '../base/OcVisual.vue'
 import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import { useFloatingMenu, type FloatingMenuItem } from '../../composables/useFloatingMenu'
 import type {
@@ -164,6 +169,7 @@ import type {
   OcNodeDropPosition,
   OcNodeExpansionEvent,
   OcNodeExpansionSyncEvent,
+  OcNodeExternalDropEvent,
   OcNodeKey,
   OcNodeMoveEvent,
   OcNodeRenameCommitEvent,
@@ -171,6 +177,10 @@ import type {
   OcNodeTailPart,
 } from '../../shared/ui/node/node.types'
 import { resolveOcPixelToken } from '../../shared/ui/foundation'
+import {
+  useExternalFileDrop,
+  type ExternalDropZone,
+} from '../../shared/ui/drop/externalFileDrop'
 
 type OcTreeSelectionMode = 'none' | 'single' | 'multiple'
 type OcTreeActivationMode = 'none' | 'single-click' | 'double-click'
@@ -192,6 +202,8 @@ interface OcTreeProps {
   actionVisibility?: 'on-interaction' | 'always'
   tabNavigation?: 'roving' | 'none'
   placeholder?: string
+  /** Accepts file drops coming from outside the application and reports them as node intents. */
+  externalDrop?: boolean
 }
 
 type VisibleEntry = {
@@ -219,6 +231,7 @@ const props = withDefaults(defineProps<OcTreeProps>(), {
   actionVisibility: 'on-interaction',
   tabNavigation: 'roving',
   placeholder: '',
+  externalDrop: false,
 })
 
 const emit = defineEmits<{
@@ -229,6 +242,7 @@ const emit = defineEmits<{
   action: [event: OcNodeActionEvent]
   'rename-commit': [event: OcNodeRenameCommitEvent]
   move: [event: OcNodeMoveEvent]
+  'external-drop': [event: OcNodeExternalDropEvent]
 }>()
 const { openContextMenu } = useFloatingMenu()
 
@@ -244,6 +258,8 @@ const draggedKey = ref<OcNodeKey | null>(null)
 const dropTargetKey = ref<OcNodeKey | null>(null)
 const dropPosition = ref<OcNodeDropPosition | null>(null)
 const suppressClick = ref(false)
+const isExternalDropActive = ref(false)
+let externalDropZoneDispose: (() => void) | null = null
 const warnedMessages = new Set<string>()
 const virtualScrollTop = ref(0)
 const virtualViewportHeight = ref(0)
@@ -857,26 +873,39 @@ function handleGlobalMouseMove(event: MouseEvent): void {
     draggedKey.value = pending.key
   }
 
-  const targetElement = document.elementFromPoint(event.clientX, event.clientY)
+  const location = resolveDropLocation(event.clientX, event.clientY)
+  dropTargetKey.value = location.targetKey
+  dropPosition.value = location.position
+}
+
+/**
+ * Single source of truth for "which row is the pointer over, and where inside it": both the internal
+ * mouse drag and external file drops resolve their highlight through this.
+ */
+function resolveDropLocation(clientX: number, clientY: number): {
+  targetKey: OcNodeKey | null
+  position: OcNodeDropPosition | null
+} {
+  const targetElement = document.elementFromPoint(clientX, clientY)
   const rowElement = targetElement instanceof Element
     ? targetElement.closest<HTMLElement>('[data-oc-tree-key]')
     : null
   if (rowElement) {
     const rect = rowElement.getBoundingClientRect()
-    const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5
-    dropTargetKey.value = rowElement.dataset.ocTreeKey ?? null
-    dropPosition.value = ratio < 0.25 ? 'before' : ratio > 0.75 ? 'after' : 'inside'
-    return
+    const ratio = rect.height > 0 ? (clientY - rect.top) / rect.height : 0.5
+    return {
+      targetKey: rowElement.dataset.ocTreeKey ?? null,
+      position: ratio < 0.25 ? 'before' : ratio > 0.75 ? 'after' : 'inside',
+    }
   }
 
   const rootRect = treeRootElement.value?.getBoundingClientRect()
   const insideRoot = rootRect
-    && event.clientX >= rootRect.left
-    && event.clientX <= rootRect.right
-    && event.clientY >= rootRect.top
-    && event.clientY <= rootRect.bottom
-  dropTargetKey.value = null
-  dropPosition.value = insideRoot ? 'inside' : null
+    && clientX >= rootRect.left
+    && clientX <= rootRect.right
+    && clientY >= rootRect.top
+    && clientY <= rootRect.bottom
+  return { targetKey: null, position: insideRoot ? 'inside' : null }
 }
 
 function handleGlobalMouseUp(): void {
@@ -889,6 +918,41 @@ function handleGlobalMouseUp(): void {
     window.setTimeout(() => { suppressClick.value = false }, 0)
   }
   clearDragState()
+}
+
+/**
+ * External drops reuse the internal drag highlight, so both paths show the same before/inside/after
+ * affordance; the tree only reports the landing node and never interprets the dropped payload.
+ */
+const externalDropZone: ExternalDropZone = {
+  contains: element => treeRootElement.value?.contains(element) ?? false,
+  onHover: (point) => {
+    const location = resolveDropLocation(point.x, point.y)
+    isExternalDropActive.value = location.position !== null
+    dropTargetKey.value = location.position ? location.targetKey : null
+    dropPosition.value = location.position
+  },
+  onExit: () => {
+    isExternalDropActive.value = false
+    dropTargetKey.value = null
+    dropPosition.value = null
+  },
+  onDrop: (paths, point) => {
+    const location = resolveDropLocation(point.x, point.y)
+    if (!location.position) return false
+    emit('external-drop', { targetKey: location.targetKey, position: location.position, payload: paths })
+    return true
+  },
+}
+
+function syncExternalDropZone(): void {
+  if (props.externalDrop === Boolean(externalDropZoneDispose)) return
+  if (props.externalDrop) {
+    externalDropZoneDispose = useExternalFileDrop().registerZone(externalDropZone)
+    return
+  }
+  externalDropZoneDispose?.()
+  externalDropZoneDispose = null
 }
 
 function resolveNodeClass(key: OcNodeKey): Record<string, boolean> {
@@ -920,14 +984,19 @@ onMounted(() => {
   window.addEventListener('mousemove', handleGlobalMouseMove)
   window.addEventListener('mouseup', handleGlobalMouseUp)
   syncTreeMetrics()
+  syncExternalDropZone()
   if (typeof ResizeObserver !== 'undefined' && treeRootElement.value) {
     treeResizeObserver = new ResizeObserver(syncTreeMetrics)
     treeResizeObserver.observe(treeRootElement.value)
   }
 })
 
+watch(() => props.externalDrop, syncExternalDropZone)
+
 onBeforeUnmount(() => {
   treeResizeObserver?.disconnect()
+  externalDropZoneDispose?.()
+  externalDropZoneDispose = null
   window.removeEventListener('mousemove', handleGlobalMouseMove)
   window.removeEventListener('mouseup', handleGlobalMouseUp)
 })
@@ -971,12 +1040,12 @@ onBeforeUnmount(() => {
   left: 0;
 }
 
-.oc-tree__thumbnail {
-  display: inline-block;
+.oc-tree__node-visual {
   flex: none;
+  /* 精灵图裁剪按 em 计量，字号决定实际尺寸。 */
   font-size: var(--oc-size-sm);
-  background-repeat: no-repeat;
-  vertical-align: text-bottom;
+  transform-origin: center;
+  transition: transform var(--oc-duration-fast) var(--oc-ease);
 }
 
 .oc-tree.is-fill {

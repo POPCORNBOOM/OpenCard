@@ -4,6 +4,7 @@ import type {
   OcNodeCollection,
   OcNodeExpansionEvent,
   OcNodeExpansionSyncEvent,
+  OcNodeExternalDropEvent,
   OcNodeKey,
   OcNodeMoveEvent,
   OcNodeRenameCommitEvent,
@@ -48,6 +49,7 @@ export interface ShellTreeContent {
   virtualized?: boolean;
   actionVisibility?: 'on-interaction' | 'always';
   tabNavigation?: 'roving' | 'none';
+  externalDrop?: boolean;
   onSelectionChange?: (event: OcNodeSelectionEvent) => void;
   onExpansionChange?: (event: OcNodeExpansionEvent) => void;
   onExpansionSync?: (event: OcNodeExpansionSyncEvent) => void;
@@ -55,6 +57,7 @@ export interface ShellTreeContent {
   onAction?: (event: OcNodeActionEvent) => void;
   onRenameCommit?: (event: OcNodeRenameCommitEvent) => void;
   onMove?: (event: OcNodeMoveEvent) => void;
+  onExternalDrop?: (event: OcNodeExternalDropEvent) => void;
   onAuxclick?: (event: MouseEvent) => void;
   captureInstance?: (instance: unknown) => void;
 }

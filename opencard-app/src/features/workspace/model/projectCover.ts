@@ -5,7 +5,7 @@
  * - 只做路径判定与字符串归一化 不访问文件系统 不复制或改写任何文件
  */
 
-export const COVER_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif'] as const
+export const COVER_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'svg'] as const
 
 export type ProjectCover = {
   readonly relativePath: string

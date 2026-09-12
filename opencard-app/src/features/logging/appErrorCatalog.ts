@@ -55,6 +55,11 @@ export const APP_ERROR_CATALOG = {
     meaning: { 'zh-CN': '无法移动文件或目录', 'en-US': 'Could not move the file or directory' },
     solution: '确认目标目录可写、没有同名项，并检查源文件是否被其他程序占用。',
   },
+  'OC-E2009': {
+    area: '工作区与文件',
+    meaning: { 'zh-CN': '无法把外部文件复制到项目', 'en-US': 'Could not copy the external files into the project' },
+    solution: '确认外部文件仍存在、目标文件夹可写且磁盘空间充足，然后重新拖入。',
+  },
   'OC-E3001': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法激活项目', 'en-US': 'Could not activate the project' },
@@ -103,12 +108,12 @@ export const APP_ERROR_CATALOG = {
   'OC-E3010': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法加载项目图标', 'en-US': 'Could not load the project icon registry' },
-    solution: '检查 icons.json 的语法、图标 Key、裁剪范围与项目相对路径，然后重新打开项目。',
+    solution: '检查 icons.json 的语法、图标 Key 与项目相对路径，然后重新打开项目。',
   },
   'OC-E3011': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法导入项目图标', 'en-US': 'Could not import the project icon' },
-    solution: '确认所选图片是受支持且未损坏的项目图标，并检查项目目录写入权限。',
+    solution: '确认所选图标文件受支持且未损坏，并检查项目目录写入权限。',
   },
   'OC-E3012': {
     area: '项目与资源',
@@ -118,12 +123,12 @@ export const APP_ERROR_CATALOG = {
   'OC-E3013': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法导入图标包', 'en-US': 'Could not import the icon pack' },
-    solution: '确认 .ociconpack 文件包含有效的 JSON 和 spritesheet，并检查项目目录写入权限。',
+    solution: '确认 .ociconpack 文件包含有效的 JSON 与所声明的图标文件，并检查项目目录写入权限。',
   },
   'OC-E3014': {
     area: '项目与资源',
     meaning: { 'zh-CN': '无法导出图标包', 'en-US': 'Could not export the icon pack' },
-    solution: '确认项目图标的 spritesheet 可读取，并检查目标路径和磁盘写入权限。',
+    solution: '确认项目图标文件可读取，并检查目标路径和磁盘写入权限。',
   },
   'OC-E3015': {
     area: '项目与资源',

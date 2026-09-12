@@ -68,4 +68,35 @@ describe('resourcePackageInstaller', () => {
     })
     await expect(checkInstalledResourcePackage({ projectRootPath: 'D:/project', packageKey: 'theme', requiredVersion: '1.0.0' })).resolves.toMatchObject({ status: 'ok' })
   })
+
+  it('accepts an icon package that ships every declared icon file', async () => {
+    invoke.mockResolvedValueOnce(native({
+      entryPaths: ['.opencard/manifest.json', '.opencard/icons/warn.svg', '.opencard/icons/logo.png'],
+      iconsJson: JSON.stringify({
+        iconSeries: [{
+          key: 'outline', name: 'Outline',
+          icons: [
+            { iconKey: 'warn', name: 'Warn', source: '.opencard/icons/warn.svg', tint: 'theme' },
+            { iconKey: 'logo', name: 'Logo', source: '.opencard/icons/logo.png', tint: 'original' },
+          ],
+        }],
+      }),
+    }))
+    await expect(previewResourcePackage({ projectRootPath: 'D:/project', sourcePath: 'D:/theme.ocpack' }))
+      .resolves.toMatchObject({ manifest: expect.objectContaining({ key: 'theme' }) })
+  })
+
+  it('rejects an icon package that omits a declared icon file', async () => {
+    invoke.mockResolvedValueOnce(native({
+      entryPaths: ['.opencard/manifest.json', '.opencard/icons/warn.svg'],
+      iconsJson: JSON.stringify({
+        iconSeries: [{
+          key: 'outline', name: 'Outline',
+          icons: [{ iconKey: 'logo', name: 'Logo', source: '.opencard/icons/logo.png', tint: 'original' }],
+        }],
+      }),
+    }))
+    await expect(previewResourcePackage({ projectRootPath: 'D:/project', sourcePath: 'D:/theme.ocpack' }))
+      .rejects.toThrow('Missing packaged icon file: .opencard/icons/logo.png')
+  })
 })

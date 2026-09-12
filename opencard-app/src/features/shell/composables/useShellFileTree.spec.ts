@@ -153,7 +153,7 @@ describe('useShellFileTree opened editors', () => {
       '.opencard/packages/packages.json',
     ])
     expect(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`))
-      .toMatchObject({ icon: 'file.font', iconTone: 'config' })
+      .toMatchObject({ visual: { type: 'icon', icon: 'file.font', iconTone: 'config' } })
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/fonts/fonts.json`)).toBe(false)
     expect(result.projectManagementTreeData.value.children.has(`${projectPath}/.opencard/icons/icons.json`)).toBe(false)
     expect(normalizeNodeTail(result.projectManagementTreeData.value.items.get(`${projectPath}/.opencard/fonts/fonts.json`)?.tail))
@@ -313,12 +313,10 @@ describe('useShellFileTree opened editors', () => {
     })
 
     expect(result.projectTreeData.value.items.get(`${projectPath}/assets/fonts/Brand.otf`)).toMatchObject({
-      icon: 'file.font',
-      iconTone: 'active',
+      visual: { type: 'icon', icon: 'file.font', iconTone: 'active' },
     })
     expect(result.projectTreeData.value.items.get(`${projectPath}/assets/fonts/Other.otf`)).toMatchObject({
-      icon: 'file.font',
-      iconTone: 'muted',
+      visual: { type: 'icon', icon: 'file.font', iconTone: 'muted' },
     })
   })
 })

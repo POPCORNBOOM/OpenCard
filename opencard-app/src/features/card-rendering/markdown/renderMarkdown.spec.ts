@@ -3,8 +3,8 @@ import type { ProjectIconCatalog } from '../../workspace/services/projectIconCat
 import { renderMarkdown } from './renderMarkdown'
 
 const catalog: ProjectIconCatalog = {
-  series: [{ name: 'Status icons', key: 'status', source: 'status.png', src: 'asset://status', imageWidth: 16, imageHeight: 8 }],
-  entries: [{ seriesKey: 'status', iconKey: 'wide', name: 'Wide', source: 'status.png', src: 'asset://status', x: 0, y: 0, width: 8, height: 4, imageWidth: 16, imageHeight: 8 }],
+  series: [{ name: 'Status icons', key: 'status' }],
+  entries: [{ iconKey: 'wide', name: 'Wide', source: 'icons/wide.svg', tint: 'theme', seriesKey: 'status', src: 'asset://status', imageWidth: 16, imageHeight: 8 }],
   errors: [],
 }
 

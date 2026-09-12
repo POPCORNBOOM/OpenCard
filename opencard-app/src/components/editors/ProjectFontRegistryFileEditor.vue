@@ -73,7 +73,7 @@ import { DEFAULT_PROJECT_FONT_DIRECTORY } from '../../features/workspace/model/p
 import { PROJECT_INTERNAL_DIRECTORY_NAME } from '../../features/workspace/model/projectStructure'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
-import { stageProjectFontFiles } from '../../features/workspace/services/projectFontFileHistory'
+import { stageProjectAssetFiles } from '../../features/workspace/services/projectAssetFileHistory'
 import { resolveResourcePath } from '../../features/workspace/model/scopedResourcePath'
 import ProjectFontRegistrationDialog, {
   type ProjectFontFamilyRegistrationRequest,
@@ -330,7 +330,7 @@ async function confirmFamilyRemoval(): Promise<void> {
   if (!family || cleanupBusy.value || !document.value) return
   cleanupBusy.value = true
   cleanupError.value = ''
-  let stagedFiles: Awaited<ReturnType<typeof stageProjectFontFiles>> | undefined
+  let stagedFiles: Awaited<ReturnType<typeof stageProjectAssetFiles>> | undefined
   try {
     if (cleanupOrphanedFiles.value && orphanedRemovalSources.value.length) {
       const paths = orphanedRemovalSources.value.map(source => {
@@ -338,7 +338,7 @@ async function confirmFamilyRemoval(): Promise<void> {
         if (!resolved.ok) throw new Error(resolved.message)
         return resolved.value
       })
-      stagedFiles = await stageProjectFontFiles(paths)
+      stagedFiles = await stageProjectAssetFiles(paths, undefined, undefined, 'font')
     }
     const nextFamilies = (document.value.families ?? []).filter(candidate => candidate.key !== family.key)
     const committed = commit({

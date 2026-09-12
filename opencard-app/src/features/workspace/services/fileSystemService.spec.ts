@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   open: vi.fn(),
+  readDir: vi.fn(),
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }))
@@ -12,7 +13,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   writeTextFile: vi.fn(),
   readFile: vi.fn(),
   writeFile: vi.fn(),
-  readDir: vi.fn(),
+  readDir: mocks.readDir,
   mkdir: vi.fn(),
   remove: vi.fn(),
   rename: vi.fn(),
@@ -62,5 +63,61 @@ describe('fileSystemService native file actions', () => {
       defaultPath: 'D:/Project',
     })
     expect(mocks.open).toHaveBeenCalledWith(expect.objectContaining({ defaultPath: 'D:/Project' }))
+  })
+})
+
+describe('fileSystemService recursive listing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.invoke.mockResolvedValue(undefined)
+  })
+
+  const tree: Record<string, { name: string, isDirectory: boolean }[]> = {
+    'D:/Project': [
+      { name: 'cards', isDirectory: true },
+      { name: '.opencard', isDirectory: true },
+    ],
+    'D:/Project/cards': [{ name: 'main.ocdocument', isDirectory: false }],
+    'D:/Project/.opencard': [{ name: 'icons', isDirectory: true }],
+    'D:/Project/.opencard/icons': [
+      { name: 'outline', isDirectory: true },
+      { name: 'icons.json', isDirectory: false },
+    ],
+    'D:/Project/.opencard/icons/outline': [
+      { name: 'warn.svg', isDirectory: false },
+      { name: 'coin.svg', isDirectory: false },
+    ],
+  }
+
+  it('lists a skipped directory without reading what is inside it', async () => {
+    const readPaths: string[] = []
+    mocks.readDir.mockImplementation(async (path: string) => {
+      readPaths.push(path)
+      return (tree[path] ?? []).map(entry => ({ ...entry, isFile: !entry.isDirectory, isSymlink: false }))
+    })
+
+    const entries = await fileSystemService.readDirectoryEntries('D:/Project', Number.POSITIVE_INFINITY, '', {
+      skipDirectory: relativePath => relativePath === '.opencard/icons',
+    })
+
+    // The skipped directory stays visible, but its own children are never enumerated.
+    expect(entries.map(entry => entry.name)).toEqual([
+      'cards',
+      'cards/main.ocdocument',
+      '.opencard',
+      '.opencard/icons',
+    ])
+    expect(readPaths).not.toContain('D:/Project/.opencard/icons')
+    expect(readPaths).not.toContain('D:/Project/.opencard/icons/outline')
+  })
+
+  it('reads every directory when no recursion policy is given', async () => {
+    mocks.readDir.mockImplementation(async (path: string) => (
+      (tree[path] ?? []).map(entry => ({ ...entry, isFile: !entry.isDirectory, isSymlink: false }))
+    ))
+
+    const entries = await fileSystemService.readDirectoryEntries('D:/Project', Number.POSITIVE_INFINITY)
+
+    expect(entries.map(entry => entry.name)).toContain('.opencard/icons/outline/warn.svg')
   })
 })

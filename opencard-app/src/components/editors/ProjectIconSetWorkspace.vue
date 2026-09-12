@@ -1,15 +1,8 @@
 <template>
   <div class="project-icon-set-workspace" :class="{ 'is-empty': series.icons.length === 0 }">
     <div v-if="series.icons.length === 0" class="project-icon-set-workspace__empty">
-      <OcIcon name="tool.box-cutter" size="lg" tone="muted" />
-      <OcText as="strong">{{ t('projectConfig.icons.noCropRecords') }}</OcText>
-      <OcText class="project-icon-set-workspace__empty-hint" tone="muted" size="sm">
-        <span>{{ t('projectConfig.icons.createCropHintStart') }}</span>
-        <OcIcon name="action.image-plus" size="sm" />
-        <span>{{ t('projectConfig.icons.createCropHintOr') }}</span>
-        <OcIcon name="tool.grid" size="sm" />
-        <span>{{ t('projectConfig.icons.createCropHintEnd') }}</span>
-      </OcText>
+      <OcIcon name="file.image" size="lg" tone="muted" />
+      <OcText as="strong">{{ t('projectConfig.icons.emptyIconList') }}</OcText>
     </div>
     <template v-else>
     <div class="project-icon-set-workspace__tree-pane">
@@ -30,9 +23,7 @@
           :action-overflow-title="t('projectConfig.icons.iconActions')"
           :selected-keys="selectedTreeKeys" selection-mode="multiple"
           @selection-change="handleSelectionChange" @action="handleNodeAction" @move="handleNodeMove" />
-        <OcEmpty v-else tone="muted">
-          {{ series.icons.length ? t('projectConfig.icons.noMatchingIcons') : t('projectConfig.icons.emptyIconList') }}
-        </OcEmpty>
+        <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noMatchingIcons') }}</OcEmpty>
       </div>
     </div>
     <div class="project-icon-set-workspace__property-pane">
@@ -51,15 +42,17 @@ import {
   duplicateProjectIcon,
   moveProjectIcon,
   PROJECT_ICON_ROTATIONS,
+  PROJECT_ICON_TINTS,
   type ProjectIcon,
   type ProjectIconRotation,
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
 import {
   createProjectIconStyle,
+  projectIconIdentity,
   type ProjectIconCatalogEntry,
-  type ProjectIconSeriesRuntime,
 } from '../../features/workspace/services/projectIconCatalog'
+import { resolveProjectIconDimensions } from '../../features/workspace/services/projectIconDimensionResolver'
 import type {
   PropertyEditorCategoryDefinition,
   PropertyEditorInput,
@@ -85,7 +78,7 @@ import OcTree from '../standard/OcTree.vue'
 
 const props = defineProps<{
   series: ProjectIconSeries
-  runtime: ProjectIconSeriesRuntime | null
+  entries: readonly ProjectIconCatalogEntry[]
   selectedIconIndexes: readonly number[]
 }>()
 const emit = defineEmits<{
@@ -100,12 +93,12 @@ const selectedIconIndexes = computed(() => props.selectedIconIndexes.filter(inde
   Number.isInteger(index) && index >= 0 && index < props.series.icons.length
 )))
 const selectedIconIndex = computed(() => selectedIconIndexes.value[0] ?? null)
-const selectedIcon = computed(() => selectedIconIndex.value === null
-  ? null
-  : props.series.icons[selectedIconIndex.value] ?? null)
+const selectedIcon = computed<ProjectIcon | null>(() => {
+  const index = selectedIconIndex.value
+  return index === null ? null : props.series.icons[index] ?? null
+})
 const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
   ['identity', { title: t('projectConfig.icons.identity'), icon: 'data.symbol-class' }],
-  ['crop', { title: t('projectConfig.icons.crop'), icon: 'tool.box-cutter' }],
   ['appearance', { title: t('projectConfig.icons.appearance'), icon: 'file.image' }],
 ]))
 /** Boundary moves are disabled on the node that cannot move further, with the reason the action button surfaces. */
@@ -153,19 +146,15 @@ function iconNodeActions(index: number): {
   }
 }
 
+const entriesByIdentity = computed(() => new Map(props.entries.map(entry => (
+  [projectIconIdentity(entry.seriesKey, entry.iconKey), entry]
+))))
+
+/** The catalog already reports every icon whose file failed to load. */
 function catalogEntry(index: number): ProjectIconCatalogEntry | null {
   const icon = props.series.icons[index]
-  const runtime = props.runtime
-  if (!icon || !runtime || icon.x + icon.width > runtime.imageWidth
-    || icon.y + icon.height > runtime.imageHeight) return null
-  return {
-    ...icon,
-    seriesKey: props.series.key,
-    source: runtime.source,
-    src: runtime.src,
-    imageWidth: runtime.imageWidth,
-    imageHeight: runtime.imageHeight,
-  }
+  if (!icon) return null
+  return entriesByIdentity.value.get(projectIconIdentity(props.series.key, icon.iconKey)) ?? null
 }
 
 const filteredIconIndexes = computed(() => {
@@ -188,9 +177,9 @@ const iconTreeData = computed<OcNodeCollection>(() => {
       const actions = iconNodeActions(index)
       return [key, {
         label: icon.name,
-        ...(entry
-          ? { thumbnailStyle: createProjectIconStyle(entry), thumbnailLabel: icon.name }
-          : { icon: 'file.image' as const }),
+        visual: entry
+          ? { type: 'style' as const, style: createProjectIconStyle(entry, resolveProjectIconDimensions), label: icon.name }
+          : { type: 'icon' as const, icon: 'file.image' },
         draggable: true,
         tail: actions.inline,
         contextActions: actions.context,
@@ -201,31 +190,34 @@ const iconTreeData = computed<OcNodeCollection>(() => {
 })
 const selectedTreeKeys = computed(() => selectedIconIndexes.value.map(index => `icon:${index}`))
 const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
+  const index = selectedIconIndex.value
   const icon = selectedIcon.value
-  if (!icon || selectedIconIndex.value === null) return []
+  if (index === null || !icon) return []
   return [{
-    key: `icon:${selectedIconIndex.value}`,
+    key: `icon:${index}`,
     title: icon.name,
     record: {
       iconKey: icon.iconKey,
       name: icon.name,
-      x: String(icon.x),
-      y: String(icon.y),
-      width: String(icon.width),
-      height: String(icon.height),
+      tint: icon.tint,
       pixelated: String(icon.pixelated ?? false),
       rotation: `${icon.rotation ?? 0}°`,
     },
     fields: {
       iconKey: { title: t('projectConfig.icons.referenceName'), fieldType: 'string', category: 'identity', order: 1, required: true, commitMode: 'blur' },
       name: { title: t('projectConfig.icons.iconName'), fieldType: 'string', category: 'identity', order: 2, commitMode: 'blur' },
-      x: { title: 'X', fieldType: 'number', category: 'crop', order: 1, min: 0 },
-      y: { title: 'Y', fieldType: 'number', category: 'crop', order: 2, min: 0 },
-      width: { title: t('projectConfig.icons.width'), fieldType: 'number', category: 'crop', order: 3, min: 1 },
-      height: { title: t('projectConfig.icons.height'), fieldType: 'number', category: 'crop', order: 4, min: 1 },
-      pixelated: { title: t('projectConfig.icons.pixelated'), fieldType: 'boolean', category: 'appearance', order: 1 },
+      tint: {
+        title: t('projectConfig.icons.tint'), fieldType: 'string', category: 'appearance', order: 1,
+        options: [...PROJECT_ICON_TINTS],
+        optionLabels: {
+          theme: t('projectConfig.icons.tintTheme'),
+          original: t('projectConfig.icons.tintOriginal'),
+        },
+        presentation: 'select',
+      },
+      pixelated: { title: t('projectConfig.icons.pixelated'), fieldType: 'boolean', category: 'appearance', order: 2 },
       rotation: {
-        title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 2,
+        title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 3,
         options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), presentation: 'select',
       },
     },
@@ -296,8 +288,10 @@ function updateIcon(index: number, patch: Partial<ProjectIcon>): void {
 function updateIconProperty(mutation: PropertyEditorMutation): void {
   const index = selectedIconIndex.value
   if (index === null) return
-  if (mutation.fieldKey === 'iconKey' || mutation.fieldKey === 'name') {
-    updateIcon(index, { [mutation.fieldKey]: String(mutation.value) })
+  if (mutation.fieldKey === 'iconKey') updateIcon(index, { iconKey: String(mutation.value) })
+  else if (mutation.fieldKey === 'name') updateIcon(index, { name: String(mutation.value) })
+  else if (mutation.fieldKey === 'tint') {
+    updateIcon(index, { tint: mutation.value === 'original' ? 'original' : 'theme' })
   } else if (mutation.fieldKey === 'pixelated') {
     updateIcon(index, { pixelated: mutation.value === true || mutation.value === 'true' })
   } else if (mutation.fieldKey === 'rotation') {
@@ -305,8 +299,6 @@ function updateIconProperty(mutation: PropertyEditorMutation): void {
     if ((PROJECT_ICON_ROTATIONS as readonly number[]).includes(value)) {
       updateIcon(index, { rotation: value as ProjectIconRotation })
     }
-  } else if (['x', 'y', 'width', 'height'].includes(mutation.fieldKey)) {
-    updateIcon(index, { [mutation.fieldKey]: Number(mutation.value) })
   }
 }
 
@@ -404,14 +396,6 @@ defineExpose({ activateIconKey })
   gap: var(--oc-space-2);
   padding: var(--oc-space-4);
   text-align: center;
-}
-
-.project-icon-set-workspace__empty-hint {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--oc-space-1);
 }
 
 .project-icon-set-workspace__tree-pane,

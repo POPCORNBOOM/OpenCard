@@ -15,6 +15,7 @@ import { NodeSelection } from '@tiptap/pm/state'
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import { computed } from 'vue'
 import { createProjectIconStyle, findProjectIcon } from '../../../features/workspace/services/projectIconCatalog'
+import { resolveProjectIconDimensions } from '../../../features/workspace/services/projectIconDimensionResolver'
 import { parseProjectIconPath } from '../../rich-text/projectIconReference'
 import type { ProjectIconNodeOptions } from './projectIconNode'
 
@@ -25,7 +26,13 @@ const options = computed(() => props.extension.options as ProjectIconNodeOptions
 const entry = computed(() => reference.value
   ? findProjectIcon(options.value.catalog?.(), reference.value.seriesKey, reference.value.iconKey)
   : null)
-const iconStyle = computed(() => entry.value ? createProjectIconStyle(entry.value) : undefined)
+const iconStyle = computed(() => {
+  const current = entry.value
+  if (!current) return undefined
+  void current.imageWidth
+  void current.imageHeight
+  return createProjectIconStyle(current, resolveProjectIconDimensions)
+})
 
 function selectIconNode(): void {
   const position = props.getPos()

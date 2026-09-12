@@ -4,12 +4,14 @@ import type { ProjectIconCatalog } from './projectIconCatalog'
 import { createProjectIconCompletionProvider } from './projectIconCompletion'
 
 const series: ProjectIconSeries = {
-  name: 'Status icons', key: 'status', source: 'assets/icons/status.png',
-  icons: [{ iconKey: 'warning', name: 'Warning badge', x: 0, y: 0, width: 8, height: 4 }],
+  name: 'Status icons', key: 'status',
+  icons: [{ iconKey: 'warning', name: 'Warning badge', source: 'assets/icons/warning.svg', tint: 'theme' }],
 }
 const catalog: ProjectIconCatalog = {
-  series: [{ name: series.name, key: 'status', source: series.source, src: 'asset://status', imageWidth: 16, imageHeight: 8 }],
-  entries: [{ ...series.icons[0]!, seriesKey: 'status', source: series.source, src: 'asset://status', imageWidth: 16, imageHeight: 8 }],
+  series: [{ name: series.name, key: 'status' }],
+  entries: [{
+    ...series.icons[0]!, seriesKey: 'status', src: 'asset://status', imageWidth: 16, imageHeight: 8,
+  }],
   errors: [],
 }
 

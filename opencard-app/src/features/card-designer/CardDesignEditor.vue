@@ -840,7 +840,10 @@ const diffAfterProjectedDocument = computed(() => {
 const diffInstanceTreeData = computed<OcNodeCollection>(() => {
   const items = new Map<string, OcNode>()
   const rootKeys = ['__blueprint__']
-  items.set('__blueprint__', { label: t('cardDesigner.dataTable.blueprint'), icon: 'file.opencard' })
+  items.set('__blueprint__', {
+    label: t('cardDesigner.dataTable.blueprint'),
+    visual: { type: 'icon', icon: 'file.opencard' },
+  })
   const ids = new Set([
     ...(diffModel.value?.beforeDocument.instances ?? []).map(instance => instance.id),
     ...(diffModel.value?.afterDocument.instances ?? []).map(instance => instance.id),
@@ -851,7 +854,7 @@ const diffInstanceTreeData = computed<OcNodeCollection>(() => {
     const changed = Boolean(before && after && JSON.stringify(before) !== JSON.stringify(after))
     items.set(id, {
       label: after?.name || before?.name || id,
-      icon: 'file.opencard',
+      visual: { type: 'icon', icon: 'file.opencard' },
       tone: after && !before ? 'success' : before && !after ? 'danger' : changed ? 'warning' : undefined,
       tail: after && !before
         ? { type: 'badge', icon: 'action.add', tone: 'success', label: t('sidebar.diffViewer.added') }
@@ -910,8 +913,11 @@ const diffBlockTreeData = computed<OcNodeCollection>(() => {
     if (kind) statusById.set(id, kind)
     items.set(id, {
       label: getBlockProperty<string>(block, 'name') || id,
-      icon: getBlockPresentation(block.type).icon,
-      iconTone: getBlockPresentation(block.type).iconTone,
+      visual: {
+        type: 'icon',
+        icon: getBlockPresentation(block.type).icon,
+        iconTone: getBlockPresentation(block.type).iconTone,
+      },
       tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : kind === 'changed' ? 'warning' : undefined,
       tail: kind ? {
         type: 'badge',

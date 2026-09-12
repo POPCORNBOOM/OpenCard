@@ -162,13 +162,13 @@ const treeData = computed<OcNodeCollection>(() => {
   const familyKeys = props.families.map(entry => treeKey('families', entry.key))
   const compositionKeys = props.compositions.map(entry => treeKey('compositions', entry.key))
   const items = new Map<string, OcNode>([
-    ['families', { label: t('projectConfig.fonts.projectFonts'), icon: 'file.font' }],
-    ['compositions', { label: t('projectConfig.fonts.compositions'), icon: 'data.layers' }],
+    ['families', { label: t('projectConfig.fonts.projectFonts'), visual: { type: 'icon', icon: 'file.font' } }],
+    ['compositions', { label: t('projectConfig.fonts.compositions'), visual: { type: 'icon', icon: 'data.layers' } }],
     ...props.families.map((entry): [string, OcNode] => {
       const referenced = referencedFamilyKeys.value.has(entry.key.toLocaleLowerCase())
       return [treeKey('families', entry.key), {
         label: entry.name,
-        icon: 'file.font',
+        visual: { type: 'icon', icon: 'file.font' },
         tail: referenced ? [configureFamilyAction] : [configureFamilyAction, removeFamilyAction],
         contextActions: referenced ? [configureFamilyAction] : [
           configureFamilyAction,
@@ -179,7 +179,7 @@ const treeData = computed<OcNodeCollection>(() => {
     }),
     ...props.compositions.map((entry): [string, OcNode] => [treeKey('compositions', entry.key), {
       label: entry.name,
-      icon: 'data.layers',
+      visual: { type: 'icon', icon: 'data.layers' },
       tail: [configureCompositionAction, removeCompositionAction],
       contextActions: [
         configureCompositionAction,

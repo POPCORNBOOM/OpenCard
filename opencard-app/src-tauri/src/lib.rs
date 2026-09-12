@@ -8,11 +8,12 @@ use tauri::{Emitter, State};
 #[cfg(target_os = "windows")]
 use std::os::windows::ffi::OsStrExt;
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
 
 mod external_open;
 mod git_service;
-mod icon_spritesheet;
 mod network_resource;
 mod resource_package;
 
@@ -126,7 +127,10 @@ fn create_windows_reveal_command(target: &Path, is_directory: bool) -> Command {
     if is_directory {
         command.arg(windows_path);
     } else {
-        command.arg(format!("/select,{}", windows_path));
+        // explorer.exe parses its own command line: when the whole `/select,<path>` argument
+        // arrives wrapped in quotes, it drops the switch and opens the default folder instead.
+        // Only the path may be quoted, so the argument is appended verbatim.
+        command.raw_arg(format!("/select,\"{}\"", windows_path));
     }
     command
 }
@@ -229,12 +233,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explorer_select_switch_and_path_are_one_argument() {
+    fn explorer_select_switch_stays_outside_the_quoted_path() {
         let target = Path::new("D:/My Cards/main.ocdocument");
         let command = create_windows_reveal_command(target, false);
 
+        // explorer.exe keeps `/select,` working only while the quotes wrap the path alone.
         let arguments: Vec<_> = command.get_args().collect();
-        assert_eq!(arguments, [r"/select,D:\My Cards\main.ocdocument"]);
+        assert_eq!(arguments, [r#"/select,"D:\My Cards\main.ocdocument""#]);
+
+        // Guard the exact process command line: a fully quoted argument loses the switch and
+        // makes explorer open its default folder instead of the requested file.
+        let command_line = format!("{:?}", command);
+        assert!(
+            command_line.ends_with(r#"/select,"D:\My Cards\main.ocdocument""#),
+            "unexpected command line: {command_line}"
+        );
     }
 }
 
@@ -316,7 +329,6 @@ pub fn run() {
             git_service::git_rebase_continue,
             git_service::git_abort_operation,
             external_open::take_external_open_requests,
-            icon_spritesheet::compose_project_icon_spritesheet,
             resource_package::recover_resource_package_transactions,
             resource_package::inspect_resource_package,
             resource_package::inspect_installed_resource_package,

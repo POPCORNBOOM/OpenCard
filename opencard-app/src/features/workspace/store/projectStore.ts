@@ -8,7 +8,8 @@ import { computed, readonly, ref, shallowRef } from 'vue'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { listen, type Event, type UnlistenFn } from '@tauri-apps/api/event'
 import type { DirEntry } from '@tauri-apps/plugin-fs'
-import { fileSystemService } from '../services/fileSystemService'
+import { fileSystemService, takeDirectoryWalkMetrics } from '../services/fileSystemService'
+import { createProjectOpenTimer } from '../services/projectOpenTiming'
 import { initializeProjectStructure } from '../services/projectStructureService'
 import {
   isProjectInternalRelativePath,
@@ -68,13 +69,21 @@ import {
   type ProjectIconCatalog,
   type ProjectIconLoadError,
 } from '../services/projectIconCatalog'
+import { readProjectIconDimensions } from '../services/projectIconDimensions'
+import {
+  clearProjectIconDimensions,
+  forgetProjectIconDimensions,
+  loadProjectImageDimensions,
+  resolveProjectIconDimensions,
+  resolvedProjectIconDimensionCount,
+  setProjectIconDimensionLoader,
+} from '../services/projectIconDimensionResolver'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
 import { isRemoteResourceAllowed } from '../../editor-runtime/services/editorResource'
 import { networkResourceManager } from '../../network-resources/store/networkResourceManager'
 import {
   DEFAULT_PROJECT_ICON_DIRECTORY,
   findProjectIconKeyConflicts,
-  normalizeProjectIconDirectory,
   type ProjectIconSeries,
 } from '../model/projectIcons'
 import {
@@ -114,8 +123,18 @@ import {
 const PROJECT_METADATA_SAVE_DELAY_MS = 1200
 const PROJECT_METADATA_SAVE_KEY = 'project-metadata'
 const PROJECT_TREE_LOOKAHEAD_DEPTH = 2
+
+/**
+ * Bulk operations (importing an icon set, installing a package, unpacking a template) write many
+ * files in a row, and every write raises its own watcher event. Coalescing the reactions behind one
+ * short quiet window turns "one full project re-index per written file" into a single refresh, which
+ * is what keeps a large import from getting slower the more files the project already holds.
+ */
+const FILE_CHANGE_REFRESH_DELAY_MS = 150
+const FILE_CHANGE_INDEX_REFRESH_KEY = 'project-index-refresh'
+const FILE_CHANGE_RESOURCE_ENVIRONMENT_REFRESH_KEY = 'project-resource-environment-refresh'
 const PROJECT_FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf', 'ttc', 'otc'])
-const PROJECT_ICON_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp'])
+const PROJECT_ICON_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'svg'])
 
 export type ImportedProjectFontFile = {
   source: string
@@ -125,7 +144,6 @@ export type ImportedProjectFontFiles = {
   sources: readonly string[]
   copied: boolean
 }
-export type ImportedProjectIconFile = ImportedProjectFontFile
 export type ImportedResourcePackage = ResourcePackageInstallResult
 export type ProjectAssetImportConflict = {
   existingSource: string
@@ -151,6 +169,17 @@ export type WorkspaceEntryMoveRequest = {
   targetKey: string | null
   position: OcNodeDropPosition
 }
+
+/** Files dragged in from outside the application, addressed to one place in the project tree. */
+export type WorkspaceExternalDropRequest = {
+  paths: readonly string[]
+  targetKey: string | null
+  position: OcNodeDropPosition
+}
+
+type CopyExternalEntriesResult =
+  | { ok: true; copied: number; skipped: number; failed: number }
+  | { ok: false; reason: 'project-not-open' | 'invalid-target' }
 
 const projectPath = ref('')
 const indexedEntries = ref<DirEntry[]>([])
@@ -199,6 +228,11 @@ const projectResourceEnvironment = computed<ProjectResourceEnvironment>(() => ({
   packageEnvironments: projectResourceEnvironments.value,
   issues: projectResourceEnvironmentIssues.value,
 }))
+/**
+ * One icon's paint asks for its size here. The catalog entry is the shared record every render path
+ * reads, so the answer is written onto it: the surfaces that already hold this entry re-render, and a
+ * later reader sees a measured icon without asking again.
+ */
 const renderEnvironment = computed<CardRenderEnvironment>(() => ({
   project: resolvedProject.value,
   dictionary: resolvedDictionary.value,
@@ -213,12 +247,16 @@ const renderEnvironment = computed<CardRenderEnvironment>(() => ({
     return resource ? convertFileSrc(resource.path) : null
   },
   projectIconCatalog: projectIconCatalog.value,
+  resolveIconDimensions: resolveProjectIconDimensions,
   projectResourceEnvironment: projectResourceEnvironment.value,
 }) as CardRenderEnvironment)
 
 let unlistenFn: UnlistenFn | null = null
 let projectIconLoadVersion = 0
 let projectManagementStructurePromise: Promise<void> | null = null
+
+/** Sizes are read from the project files, once per icon, only when an icon is painted. */
+setProjectIconDimensionLoader(loadProjectIconDimensions)
 
 function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -376,6 +414,8 @@ function clearProjectFontRegistry() {
 
 function clearProjectIconRegistry() {
   projectIconLoadVersion += 1
+  // Sizes belong to the project that is closing.
+  clearProjectIconDimensions()
   projectIconSeries.value = []
   iconRegistryError.value = null
   projectIconCatalog.value = EMPTY_PROJECT_ICON_CATALOG
@@ -398,9 +438,39 @@ async function syncRegisteredProjectFonts(
   if (result.current) projectFontLoadErrors.value = result.errors
 }
 
-async function syncRegisteredProjectIcons(iconSeries: readonly ProjectIconSeries[]): Promise<void> {
+/** Whether a project-relative path is a file one icon set owns, whatever the registry currently says. */
+function isManagedProjectIconFile(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, '/').toLocaleLowerCase()
+  const iconRoot = `${PROJECT_INTERNAL_DIRECTORY_NAME}/${DEFAULT_PROJECT_ICON_DIRECTORY}/`.toLocaleLowerCase()
+  return normalized.startsWith(iconRoot)
+    && PROJECT_ICON_EXTENSIONS.has(normalized.slice(normalized.lastIndexOf('.') + 1))
+}
+
+/**
+ * Resolves one icon's natural size when its first paint asks for it.
+ *
+ * A vector states its size in its own markup, so reading that text is much cheaper than decoding the
+ * image and is tried first; everything else is handed to the decoder.
+ */
+async function loadProjectIconDimensions(
+  src: string,
+  source: string,
+): Promise<{ width: number; height: number }> {
+  try {
+    const content = await fileSystemService.readFile(
+      resolveResourcePathFromFile(PROJECT_ICON_REGISTRY_FILE_NAME, source),
+    )
+    const dimensions = readProjectIconDimensions(source, content)
+    if (dimensions) return dimensions
+  } catch {
+    // Fall through to the decoder: an unreadable or unusual file still deserves a real measurement.
+  }
+  return await loadProjectImageDimensions(src)
+}
+
+function syncRegisteredProjectIcons(iconSeries: readonly ProjectIconSeries[]): void {
   const version = ++projectIconLoadVersion
-  const catalog = await buildProjectIconCatalog(
+  const catalog = buildProjectIconCatalog(
     iconSeries,
     source => resolveResourceAssetSrcFromFile(PROJECT_ICON_REGISTRY_FILE_NAME, source),
   )
@@ -433,6 +503,7 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
       kind: 'project',
       identity: expectedProjectPath,
       generation: fileChangeRevision.value,
+      iconCatalog: projectIconCatalog.value,
     })
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
     const packageIndex = environment.packageIndex ?? {
@@ -595,6 +666,24 @@ function isMetadataPath(path: string): boolean {
     .some(fileName => pathIdentity(resolveProjectPath(fileName)) === pathIdentity(path))
 }
 
+/**
+ * The managed asset directories (`.opencard/fonts`, `.opencard/icons`, `.opencard/packages`) store one
+ * file per asset, so walking them puts thousands of files into the index that no index consumer ever
+ * reads: the tree hides dot paths by default, the package builder excludes `.opencard/`, and assets
+ * themselves are rendered through their registries.
+ *
+ * Recursion stops at these directories rather than at every dot path, so the index stays independent
+ * of the "hide dot files" display setting. Each directory keeps its own registered depth, so a set
+ * folder or an installed package stays listed while its contents are not enumerated.
+ */
+function isManagedAssetDirectory(relativePath: string): boolean {
+  const identity = relativePath.replace(/\\/g, '/').replace(/\/+$/, '').toLocaleLowerCase()
+  return PROJECT_INTERNAL_DIRECTORIES.some((directory) => {
+    const managed = directory.toLocaleLowerCase()
+    return identity === managed || identity.startsWith(`${managed}/`)
+  })
+}
+
 async function refreshIndexedEntries(options?: { persist?: boolean }) {
   if (!projectPath.value) return
 
@@ -608,7 +697,9 @@ async function refreshIndexedEntries(options?: { persist?: boolean }) {
       const directoryPath = relativePath ? resolveProjectPath(relativePath) : ensureProjectOpen()
       let entries: DirEntry[]
       try {
-        entries = await fileSystemService.readDirectoryEntries(directoryPath, depth, relativePath)
+        entries = await fileSystemService.readDirectoryEntries(directoryPath, depth, relativePath, {
+          skipDirectory: isManagedAssetDirectory,
+        })
       } catch (error) {
         if (!relativePath || await fileSystemService.fileExists(directoryPath)) throw error
         unavailableDirectories.add(relativePath)
@@ -709,7 +800,15 @@ async function startWatching() {
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME)))) {
         void reloadProjectIconRegistry()
       }
-      void reloadProjectResourceEnvironment()
+      // Both of these scan far more than the changed path, so they wait for a quiet window instead of
+      // running once per written file.
+      taskScheduler.schedule(
+        FILE_CHANGE_RESOURCE_ENVIRONMENT_REFRESH_KEY,
+        FILE_CHANGE_REFRESH_DELAY_MS,
+        async () => {
+          await reloadProjectResourceEnvironment()
+        },
+      )
       if (changedPaths.some(path => pathIdentity(path) === pathIdentity(resolveProjectPath(PROJECT_DICTIONARY_FILE_NAME)))) {
         void reloadProjectDictionary()
       }
@@ -719,13 +818,21 @@ async function startWatching() {
       if (changedPaths.some(path => fontSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectFonts(projectFontFamilies.value)
       }
-      const iconSources = projectIconSeries.value.map(series => (
-        resolveResourcePathFromFile(PROJECT_ICON_REGISTRY_FILE_NAME, series.source)
-      ))
+      // Any managed icon file that changed may have changed size. This is keyed by path rather than
+      // by current registration, because a set being created writes its files before its registry
+      // entry exists, and a re-created set reuses the same paths for new content.
+      for (const path of changedPaths) {
+        const relative = toRelativeProjectPath(path)
+        // Any measured size for a managed icon file that changed is stale.
+        if (isManagedProjectIconFile(relative)) forgetProjectIconDimensions(relative)
+      }
+      const iconSources = projectIconSeries.value.flatMap(series => series.icons.map(icon => (
+        resolveResourcePathFromFile(PROJECT_ICON_REGISTRY_FILE_NAME, icon.source)
+      )))
       if (changedPaths.some(path => iconSources.some(source => pathIdentity(path) === pathIdentity(source)))) {
         void syncRegisteredProjectIcons(projectIconSeries.value)
       }
-      void refreshIndexedEntries()
+      taskScheduler.schedule(FILE_CHANGE_INDEX_REFRESH_KEY, FILE_CHANGE_REFRESH_DELAY_MS, refreshIndexedEntries)
     })
 
     await fileSystemService.startWatching(projectPath.value)
@@ -737,6 +844,9 @@ async function startWatching() {
 
 async function stopWatching() {
   taskScheduler.cancel(PROJECT_METADATA_SAVE_KEY)
+  // A pending coalesced refresh belongs to the project that just stopped being watched.
+  taskScheduler.cancel(FILE_CHANGE_INDEX_REFRESH_KEY)
+  taskScheduler.cancel(FILE_CHANGE_RESOURCE_ENVIRONMENT_REFRESH_KEY)
 
   if (unlistenFn) {
     unlistenFn()
@@ -772,20 +882,38 @@ async function setProjectPath(path: string) {
     return
   }
 
+  const openTimer = createProjectOpenTimer(normalizedPath)
+  openTimer.step('reset')
+  const walkStartedAt = performance.now()
   loadProjectWorkspaceState()
   await refreshIndexedEntries({ persist: false })
+  const walk = takeDirectoryWalkMetrics()
+  openTimer.mark(`index tree (${walk.reads} dir reads)`, performance.now() - walkStartedAt)
+  // Each registry records its own duration so one slow branch cannot be hidden by its siblings.
+  const registriesStartedAt = performance.now()
+  const timed = <T>(label: string, work: Promise<T>): Promise<T> => work.then((result) => {
+    openTimer.mark(label, performance.now() - registriesStartedAt)
+    return result
+  })
   await Promise.all([
-    reloadProjectProfile(),
-    reloadProjectFontRegistry(),
-    reloadProjectIconRegistry(),
-    reloadProjectDictionary(),
-    reloadProjectResourceEnvironment(),
+    timed('profile', reloadProjectProfile()),
+    timed('fonts', reloadProjectFontRegistry()),
+    timed('icons', reloadProjectIconRegistry()),
+    timed('dictionary', reloadProjectDictionary()),
   ])
+  openTimer.step(`registries (${projectIconSeries.value.reduce((total, series) => total + series.icons.length, 0)} icons/${Object.keys(projectFonts.value).length} fonts)`)
+  // After the registries: the environment carries the project icon catalog, so it must not start
+  // before that catalog exists.
+  await reloadProjectResourceEnvironment()
+  openTimer.step('resource environment')
   await startWatching()
+  openTimer.step('watcher')
   if (await fileSystemService.fileExists(resolveProjectPath(PROJECT_INTERNAL_DIRECTORY_NAME))) {
     void ensureProjectManagementStructure()
   }
   scheduleProjectMetadataSave()
+  openTimer.step('tail')
+  openTimer.done(`entries ${walk.entries}, worst dir read ${walk.worstMs.toFixed(1)}ms, ${resolvedProjectIconDimensionCount()} icons measured on demand`)
 }
 
 async function chooseProjectDirectory(): Promise<string | null> {
@@ -835,49 +963,6 @@ async function createFile(relativePath: string, content: string = '') {
   }
   await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
   await refreshIndexedEntries()
-}
-
-async function importProjectAssetFile(
-  sourcePath: string,
-  targetDirectoryPath: string,
-  registryFilePath: string,
-  supportedExtensions: ReadonlySet<string>,
-  unsupportedMessage: string,
-  conflictResolution?: ProjectAssetImportResolution,
-): Promise<ImportedProjectFontFile> {
-  const normalizedSourcePath = normalizePath(sourcePath)
-  ensureProjectOpen()
-  const fileName = getPathBasename(normalizedSourcePath)
-  const extension = fileName.includes('.') ? fileName.split('.').pop()!.toLocaleLowerCase() : ''
-  if (!supportedExtensions.has(extension)) throw new Error(unsupportedMessage)
-
-  const sourceIdentity = pathIdentity(normalizedSourcePath)
-  const targetDirectory = resolveProjectInternalPath(targetDirectoryPath)
-  const targetIdentity = pathIdentity(targetDirectory)
-  if (sourceIdentity.startsWith(`${targetIdentity}/`)) {
-    return {
-      source: createResourceReferenceFromFile(registryFilePath, normalizedSourcePath),
-      copied: false,
-    }
-  }
-
-  let candidateName = fileName
-  const targetExists = await fileSystemService.fileExists(`${targetDirectory}/${fileName}`)
-  if (targetExists && conflictResolution === 'use-existing') {
-    return { source: createResourceReferenceFromFile(registryFilePath, `${targetDirectory}/${fileName}`), copied: false }
-  }
-  if (!targetExists && conflictResolution === 'use-existing') {
-    throw new Error('The selected existing project asset is no longer available')
-  }
-  if (targetExists) candidateName = await findAvailableProjectAssetName(targetDirectory, fileName)
-
-  await fileSystemService.createDirectory(targetDirectory)
-  await fileSystemService.copyFile(normalizedSourcePath, `${targetDirectory}/${candidateName}`)
-  await refreshIndexedEntries()
-  return {
-    source: createResourceReferenceFromFile(registryFilePath, `${targetDirectory}/${candidateName}`),
-    copied: true,
-  }
 }
 
 async function findAvailableProjectAssetName(targetDirectory: string, fileName: string): Promise<string> {
@@ -1052,23 +1137,6 @@ async function getProjectFontImportConflict(
   )
 }
 
-async function importProjectIconFile(
-  sourcePath: string,
-  targetDirectoryPath = DEFAULT_PROJECT_ICON_DIRECTORY,
-  conflictResolution?: ProjectAssetImportResolution,
-): Promise<ImportedProjectIconFile> {
-  const targetDirectory = normalizeProjectIconDirectory(targetDirectoryPath)
-  if (!targetDirectory) throw new Error('Invalid project icon directory')
-  return await importProjectAssetFile(
-    sourcePath,
-    targetDirectory,
-    PROJECT_ICON_REGISTRY_FILE_NAME,
-    PROJECT_ICON_EXTENSIONS,
-    'Unsupported project icon image',
-    conflictResolution,
-  )
-}
-
 type ResourcePackageInstallOptions = {
   confirmReplacement?: (next: ResourcePackageInstallResult['manifest'], previous: ResourcePackageInstallResult['manifest']) => boolean | Promise<boolean>
   /** 安装到指定 Key 而不是归档内的 Key，用于远程包或解决 Key 冲突。 */
@@ -1225,21 +1293,6 @@ async function checkResourcePackage(packageKey: string): Promise<ResourcePackage
     packageKey: storedKey,
     requiredVersion: required.version,
   })
-}
-
-async function getProjectIconImportConflict(
-  sourcePath: string,
-  targetDirectoryPath = DEFAULT_PROJECT_ICON_DIRECTORY,
-): Promise<ProjectAssetImportConflict | null> {
-  const targetDirectory = normalizeProjectIconDirectory(targetDirectoryPath)
-  if (!targetDirectory) throw new Error('Invalid project icon directory')
-  return await getProjectAssetImportConflict(
-    sourcePath,
-    targetDirectory,
-    PROJECT_ICON_REGISTRY_FILE_NAME,
-    PROJECT_ICON_EXTENSIONS,
-    'Unsupported project icon image',
-  )
 }
 
 async function createEntryWithAvailableName(
@@ -1607,6 +1660,85 @@ async function moveEntryByDrop(payload: WorkspaceEntryMoveRequest): Promise<Move
   }
 }
 
+/**
+ * Where an external drop lands: a directory row receives into itself, a file row (or the drop
+ * indicator above/below it) receives into the directory that holds it, and the empty area of the
+ * tree receives into the project root. Managed `.opencard` content is never an external target.
+ */
+function resolveExternalDropDirectory({ targetKey, position }: WorkspaceExternalDropRequest): string | null {
+  const projectRoot = normalizePath(projectPath.value)
+  if (!projectRoot) return null
+  if (!targetKey) return position === 'inside' ? projectRoot : null
+
+  const targetPath = normalizePath(targetKey)
+  // Compared by identity so a differently-cased key can never fall through to the parent directory.
+  if (pathIdentity(targetPath) === pathIdentity(projectRoot)) return null
+  if (!isSameOrDescendantPath(targetPath, projectRoot)) return null
+  if (isProjectInternalRelativePath(toRelativeProjectPath(targetPath))) return null
+
+  const targetIsDirectory = indexedEntries.value.some(entry =>
+    Boolean(entry.isDirectory) && normalizePath(resolveProjectPath(entry.name)) === targetPath)
+  if (position === 'inside' && targetIsDirectory) return targetPath
+  return getPathDirname(targetPath) || projectRoot
+}
+
+async function copyDirectoryIntoProject(sourceDirectory: string, targetDirectory: string): Promise<void> {
+  await fileSystemService.createDirectory(targetDirectory)
+  for (const entry of await fileSystemService.readDirectory(sourceDirectory)) {
+    // Symlinks are left out: copying one either duplicates a foreign subtree or loops back into it.
+    if (entry.isSymlink) continue
+    const sourcePath = `${sourceDirectory}/${entry.name}`
+    const targetPath = `${targetDirectory}/${entry.name}`
+    if (entry.isDirectory) await copyDirectoryIntoProject(sourcePath, targetPath)
+    else await fileSystemService.copyFile(sourcePath, targetPath)
+  }
+}
+
+/** Copies one external entry in without overwriting: a taken name gets the next free numbered name. */
+async function copyExternalEntryIntoDirectory(sourcePath: string, destinationDirectory: string): Promise<'copied' | 'skipped'> {
+  const sourceName = getPathBasename(sourcePath)
+  if (!isValidEntryName(sourceName)) return 'skipped'
+  if (isSameOrDescendantPath(destinationDirectory, sourcePath)) return 'skipped'
+
+  const info = await fileSystemService.getFileInfo(sourcePath)
+  const targetName = await fileSystemService.fileExists(`${destinationDirectory}/${sourceName}`)
+    ? await findAvailableProjectAssetName(destinationDirectory, sourceName)
+    : sourceName
+  const targetPath = `${destinationDirectory}/${targetName}`
+  if (info.isDirectory) await copyDirectoryIntoProject(sourcePath, targetPath)
+  else await fileSystemService.copyFile(sourcePath, targetPath)
+  return 'copied'
+}
+
+async function copyExternalEntriesIntoProject(
+  payload: WorkspaceExternalDropRequest,
+): Promise<CopyExternalEntriesResult> {
+  if (!projectPath.value) return { ok: false, reason: 'project-not-open' }
+  const destinationDirectory = resolveExternalDropDirectory(payload)
+  if (!destinationDirectory) return { ok: false, reason: 'invalid-target' }
+
+  let copied = 0
+  let skipped = 0
+  let failed = 0
+  for (const path of payload.paths) {
+    const sourcePath = normalizePath(path)
+    if (!sourcePath) {
+      skipped += 1
+      continue
+    }
+    try {
+      if (await copyExternalEntryIntoDirectory(sourcePath, destinationDirectory) === 'copied') copied += 1
+      else skipped += 1
+    } catch (error) {
+      failed += 1
+      reportAppError('OC-E2009', { path: sourcePath, error })
+    }
+  }
+
+  if (copied > 0) await refreshIndexedEntries()
+  return { ok: true, copied, skipped, failed }
+}
+
 export function useProjectStore() {
   return {
     projectPath: readonly(projectPath),
@@ -1674,8 +1806,6 @@ export function useProjectStore() {
     createFile,
     importProjectFontFiles,
     getProjectFontImportConflict,
-    importProjectIconFile,
-    getProjectIconImportConflict,
     installResourcePackageFile,
     addRequiredPackage,
     addRequiredPackages,
@@ -1693,6 +1823,7 @@ export function useProjectStore() {
     canMoveEntryByDrop,
     moveEntry,
     moveEntryByDrop,
+    copyExternalEntriesIntoProject,
     renameEntry,
     startWatching,
     stopWatching,

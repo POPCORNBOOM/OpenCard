@@ -201,7 +201,6 @@
       :project-name="projectName"
       :entries="resourcePackageBuilderEntries"
       @close="resourcePackageBuilderOpen = false"
-      @built="handleResourcePackageBuilt"
     />
     <CommitVersionDialog
       :open="commitVersionDialogOpen"
@@ -218,7 +217,12 @@
       @submit="initializeProjectRepository"
     />
 
-    <div v-if="isShellFileDropActive" class="shell-file-drop-overlay" role="status" aria-live="polite">
+    <div
+      v-if="isExternalFileDragActive && !isExternalFileDragOverZone"
+      class="shell-file-drop-overlay"
+      role="status"
+      aria-live="polite"
+    >
       <OcIcon name="file.generic" size="lg" tone="opencard" />
       <span>{{ t('app.shell.dropFilesToOpen') }}</span>
     </div>
@@ -315,6 +319,7 @@ import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
 import { normalizeNodeTail } from '../../shared/ui/node/node.types'
+import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import type {
   OcNode,
   OcNodeAction,
@@ -323,10 +328,15 @@ import type {
   OcNodeCollection,
   OcNodeExpansionEvent,
   OcNodeExpansionSyncEvent,
+  OcNodeExternalDropEvent,
   OcNodeMoveEvent,
   OcNodeRenameCommitEvent,
   OcNodeSelectionEvent,
 } from '../../shared/ui/node/node.types'
+import {
+  registerUnhandledExternalDrop,
+  useExternalFileDrop,
+} from '../../shared/ui/drop/externalFileDrop'
 import {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
@@ -520,6 +530,7 @@ const {
   revealEntryInFileManager,
   getRelativeProjectPath,
   moveEntryByDrop,
+  copyExternalEntriesIntoProject,
   renameEntry,
 } = projectStore
 
@@ -613,7 +624,6 @@ const {
   viewportWidth,
   isFullscreen: isWindowFullscreen,
   isMaximized: isWindowMaximized,
-  isFileDropActive: isShellFileDropActive,
   toggleFullscreen: toggleWindowFullscreen,
   minimize: minimizeWindow,
   toggleMaximize: toggleWindowMaximize,
@@ -626,6 +636,11 @@ const {
   handleExternalOpenPaths,
   notifyWindowControlError: () => notifyError(t('app.notifications.windowControlFailed')),
 })
+const {
+  isOpenableDragActive: isExternalFileDragActive,
+  isOverZone: isExternalFileDragOverZone,
+} = useExternalFileDrop()
+let disposeUnhandledExternalDrop: (() => void) | null = null
 const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value
@@ -1178,13 +1193,16 @@ const {
 function createTemplateItems(templates: readonly ProjectTemplate[]): Map<string, OcNode> {
   const items = new Map<string, OcNode>()
   for (const template of templates) {
-    items.set(template.key, { label: resolveProjectTemplateName(template, locale.value), icon: 'file.opencard' })
+    items.set(template.key, {
+      label: resolveProjectTemplateName(template, locale.value),
+      visual: { type: 'icon', icon: 'file.opencard' },
+    })
   }
   return items
 }
 
 function createEmptyCatalogItem(key: string, label: string): [string, OcNode] {
-  return [key, { label, icon: 'file.generic', disabled: true }]
+  return [key, { label, visual: { type: 'icon', icon: 'file.generic' }, disabled: true }]
 }
 
 function createRecentProjectTreeData(
@@ -1224,8 +1242,11 @@ function createRecentProjectTreeData(
     items.set(key, {
       label: path.split(/[/\\]/).filter(Boolean).pop() || path,
       tail: [path, ...actions],
-      icon: isMissing ? 'status.folder-alert' : 'status.folder-open',
-      iconTone: isMissing ? 'warning' : undefined,
+      visual: {
+        type: 'icon',
+        icon: isMissing ? 'status.folder-alert' : 'status.folder-open',
+        iconTone: isMissing ? 'warning' : undefined,
+      },
     })
     return key
   })
@@ -1239,7 +1260,7 @@ const templateTreeData = computed<OcNodeCollection>(() => {
   const items = new Map<string, OcNode>([
     [USER_TEMPLATES_GROUP_KEY, {
       label: t('projectTemplates.sections.user'),
-      icon: 'file.package',
+      visual: { type: 'icon', icon: 'file.package' },
       tail: [{
         key: IMPORT_TEMPLATE_ACTION_KEY,
         title: t('projectTemplates.actions.import'),
@@ -1395,7 +1416,9 @@ const exportTemplateTreeData = computed<OcNodeCollection>(() => {
 
     items.set(key, {
       ...item,
-      iconTone: isExcluded ? 'muted' : item.iconTone,
+      visual: isExcluded && item.visual?.type === 'icon'
+        ? { ...item.visual, iconTone: 'muted' }
+        : item.visual,
       disabled: isRuntimeCache,
       disabledReason: isRuntimeCache ? t('templateExport.tree.runtimeCache') : undefined,
       tail: [...normalizeNodeTail(item.tail), ...actions],
@@ -1413,7 +1436,7 @@ const exportTemplateExpandedKeys = computed(() => [...projectTreeData.value.chil
 function createExportSelectionTreeData(
   paths: readonly string[],
   prefix: string,
-  icon: OcNode['icon'],
+  icon: IconToken,
   removeAction: OcNodeAction,
   labels: Readonly<Record<string, string>> = {},
 ): OcNodeCollection {
@@ -1422,7 +1445,7 @@ function createExportSelectionTreeData(
     rootKeys,
     items: new Map(paths.map((path) => [`${prefix}${path}`, {
       label: labels[path] ?? path,
-      icon,
+      visual: { type: 'icon', icon },
       tail: [removeAction],
     }])),
     children: new Map(),
@@ -1799,6 +1822,8 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         onExpansionChange: handleProjectExpansionChange,
         onRenameCommit: handleProjectRenameCommit,
         onMove: handleProjectMove,
+        onExternalDrop: handleProjectExternalDrop,
+        externalDrop: projectOpen.value,
         onAction: handleProjectAction,
         onNodeActivate: handleProjectNodeActivate,
         captureInstance: captureProjectTreeInstance,
@@ -2632,6 +2657,25 @@ async function handleProjectMove(event: OcNodeMoveEvent): Promise<void> {
   else notifyWarning(t('app.notifications.moveRejected'))
 }
 
+/**
+ * A drop inside the file tree means "copy here", while a drop anywhere else in the window keeps the
+ * existing "open/import this file" behavior; the tree only claims drops it can actually deliver.
+ */
+async function handleProjectExternalDrop(event: OcNodeExternalDropEvent): Promise<void> {
+  const result = await copyExternalEntriesIntoProject({
+    paths: event.payload,
+    targetKey: event.targetKey,
+    position: event.position,
+  })
+  if (!result.ok) {
+    notifyWarning(t('app.notifications.externalDropRejected'))
+    return
+  }
+  if (result.copied > 0) notifySuccess(t('app.notifications.externalDropCopied', { count: result.copied }))
+  if (result.failed > 0) notifyWarning(t('app.notifications.externalDropFailed', { count: result.failed }))
+  if (result.copied === 0 && result.failed === 0) notifyWarning(t('app.notifications.externalDropSkipped'))
+}
+
 async function handleProjectAction(event: OcNodeActionEvent): Promise<void> {
   const entry = findProjectEntryByKey(event.key)
   if (!entry) return
@@ -3149,7 +3193,7 @@ function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): 
     const isRegistered = selectedIconPackKeys.value.includes(pack.key)
     items.set(pack.key, {
       label: resolveProjectIconPackName(pack, locale.value),
-      icon: 'file.project-icon',
+      visual: { type: 'icon', icon: 'file.project-icon' },
       tail: [isRegistered
         ? {
             key: REGISTERED_ICON_PACK_ACTION_KEY,
@@ -3492,6 +3536,7 @@ async function loadSystemFontFamilies(): Promise<void> {
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('focus', handleWindowFocus)
+  disposeUnhandledExternalDrop = registerUnhandledExternalDrop((paths) => { void handleExternalOpenPaths(paths) })
   void startShellWindow()
   void startAppUpdater()
   void startFeedbackInbox()
@@ -3508,6 +3553,8 @@ onUnmounted(() => {
   disposeEditorHost()
   window.removeEventListener('keydown', handleGlobalKeydown)
   window.removeEventListener('focus', handleWindowFocus)
+  disposeUnhandledExternalDrop?.()
+  disposeUnhandledExternalDrop = null
   disposeShellWindow()
   disposeAppUpdater()
   disposeFeedbackInbox()
@@ -3516,17 +3563,7 @@ async function openResourcePackageBuilder(): Promise<void> {
   if (!projectPath.value) return
   await ensureProjectTreeLoaded()
   resourcePackageBuilderOpen.value = true
-}
-
-async function handleResourcePackageBuilt(path: string): Promise<void> {
-  if (!path) return
-  addTitleBarNotice({
-    message: t('resourcePackage.built', { name: path.split(/[\\/]/).pop() ?? path }),
-    tone: 'success',
-    icon: 'action.check',
-  })
-}
-</script>
+}</script>
 
 <style scoped>
 
@@ -3589,6 +3626,7 @@ async function handleResourcePackageBuilt(path: string): Promise<void> {
   align-items: center;
   justify-content: center;
   gap: var(--oc-space-3, 8px);
+  /* 文件拖放的落点判定依赖 elementFromPoint，遮罩必须不参与命中测试，否则会挡住整棵文件树。 */
   pointer-events: none;
   border: 2px solid var(--oc-border-accent);
   border-radius: var(--oc-radius-lg, 8px);

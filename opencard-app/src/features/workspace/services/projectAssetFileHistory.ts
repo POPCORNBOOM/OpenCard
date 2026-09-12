@@ -2,25 +2,31 @@ import { resolveAppStoragePath } from '../../../shared/storage/appStoragePaths'
 import type { HistoryResourceLifecycle } from '../../editor-runtime/history/contentHistory'
 import { fileSystemService, type FileSystemService } from './fileSystemService'
 
-export const PROJECT_FONT_HISTORY_DIRECTORY = 'history/fonts'
+export const PROJECT_ASSET_HISTORY_DIRECTORY = 'history/assets'
 
-type StagedFontFile = {
+type StagedFile = {
   originalPath: string
   stagedPath: string
 }
 
-export async function stageProjectFontFiles(
+/**
+ * Moves project asset files out of the project into app storage, so removing a registry entry can be
+ * undone. The bytes are copied before the originals are dropped and the staged copies are released
+ * once the history entry falls out of the undo stack; a failure at any point restores what it moved.
+ */
+export async function stageProjectAssetFiles(
   originalPaths: readonly string[],
   operationId: string = crypto.randomUUID(),
   fs: FileSystemService = fileSystemService,
+  label = 'asset',
 ): Promise<HistoryResourceLifecycle> {
   const uniquePaths = [...new Set(originalPaths.map(normalizePath))]
-  if (uniquePaths.length === 0) throw new Error('No project font files were provided for staging.')
+  if (uniquePaths.length === 0) throw new Error(`No project ${label} files were provided for staging.`)
 
-  const operationDirectory = await resolveAppStoragePath(...PROJECT_FONT_HISTORY_DIRECTORY.split('/'), operationId)
-  const files = uniquePaths.map((originalPath, index): StagedFontFile => ({
+  const operationDirectory = await resolveAppStoragePath(...PROJECT_ASSET_HISTORY_DIRECTORY.split('/'), operationId)
+  const files = uniquePaths.map((originalPath, index): StagedFile => ({
     originalPath,
-    stagedPath: `${normalizePath(operationDirectory)}/${index}-${basename(originalPath)}`,
+    stagedPath: `${normalizePath(operationDirectory)}/${index}-${basename(originalPath, label)}`,
   }))
 
   await fs.createDirectory(operationDirectory)
@@ -40,18 +46,18 @@ export async function stageProjectFontFiles(
 }
 
 async function transferFiles(
-  files: readonly StagedFontFile[],
-  sourceKey: keyof StagedFontFile,
-  targetKey: keyof StagedFontFile,
+  files: readonly StagedFile[],
+  sourceKey: keyof StagedFile,
+  targetKey: keyof StagedFile,
   fs: FileSystemService,
 ): Promise<void> {
-  const copied: StagedFontFile[] = []
+  const copied: StagedFile[] = []
   try {
     for (const file of files) {
       const source = file[sourceKey]
       const target = file[targetKey]
-      if (!await fs.fileExists(source)) throw new Error(`Font history source does not exist: ${source}`)
-      if (await fs.fileExists(target)) throw new Error(`Font history target already exists: ${target}`)
+      if (!await fs.fileExists(source)) throw new Error(`History source does not exist: ${source}`)
+      if (await fs.fileExists(target)) throw new Error(`History target already exists: ${target}`)
       await fs.copyFile(source, target)
       copied.push(file)
     }
@@ -60,7 +66,7 @@ async function transferFiles(
     throw error
   }
 
-  const removed: StagedFontFile[] = []
+  const removed: StagedFile[] = []
   try {
     for (const file of files) {
       await fs.deleteFile(file[sourceKey])
@@ -73,7 +79,7 @@ async function transferFiles(
         await fs.copyFile(file[targetKey], file[sourceKey])
         restoredTargets.add(file[targetKey])
       } catch {
-        // Keep the staged copy when restoration fails so the user's font bytes are not lost.
+        // Keep the staged copy when restoration fails so the user's file bytes are not lost.
       }
     }
     await Promise.allSettled(copied
@@ -91,7 +97,7 @@ function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
-function basename(path: string): string {
+function basename(path: string, label: string): string {
   const normalized = normalizePath(path)
-  return normalized.slice(normalized.lastIndexOf('/') + 1) || 'font-file'
+  return normalized.slice(normalized.lastIndexOf('/') + 1) || `${label}-file`
 }

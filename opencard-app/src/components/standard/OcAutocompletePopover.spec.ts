@@ -57,7 +57,7 @@ describe('OcAutocompletePopover', () => {
         id: 'icon-autocomplete', open: true, anchor, activeKey: 'icon',
         items: [{
           key: 'icon', label: 'Icon',
-          thumbnailStyle: { '--oc-project-icon-renderer': 'atlas-crop' },
+          thumbnailStyle: { '--oc-project-icon-renderer': 'mask' },
         }],
       },
     })

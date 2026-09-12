@@ -4,11 +4,6 @@
       <OcText v-if="error" class="package-manager__error" tone="danger" role="alert">{{ error }}</OcText>
       <OcEmpty v-if="!rows.length" tone="muted" inset="comfortable">{{ t('packageManager.empty') }}</OcEmpty>
       <template v-else>
-        <div class="package-manager__toolbar">
-          <OcOptionGroup :model-value="packageManagerView" :options="viewOptions"
-            :aria-label="t('packageManager.viewLabel')" icon-only square size="sm"
-            appearance="sliding-outline" @update:model-value="setPackageManagerView" />
-        </div>
         <div class="package-manager__view">
           <OcAlbum v-if="packageManagerView === 'album'" fill :data="treeData"
             :aria-label="t('packageManager.title')" selection-mode="none" activation-mode="none"
@@ -78,6 +73,9 @@ const { t } = useI18n()
 const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const shellProgress = useShellProgressTasks()
+const PACKAGE_ADD_TASK_KEY = 'package-manager-add'
+/** Adding installs package files, so it owns the global progress bar and disables related commands. */
+const addTaskBusy = computed(() => shellProgress.tasks.value.some(task => task.key === PACKAGE_ADD_TASK_KEY))
 const busy = ref(false)
 const error = ref('')
 const confirmRequest = ref<{ message: string; resolve: (accepted: boolean) => void } | null>(null)
@@ -90,13 +88,9 @@ const addModeOptions = computed<readonly OcOption[]>(() => [
   { value: 'remote', label: t('packageManager.remote') },
 ])
 const packageManagerView = computed(() => settingsStore.settings.value.workspace.packageManagerView)
-const viewOptions = computed<readonly OcOption[]>(() => [
-  { value: 'tree', label: t('packageManager.viewTree'), icon: 'data.list-tree' },
-  { value: 'album', label: t('packageManager.viewAlbum'), icon: 'layout.columns' },
-])
 
-function setPackageManagerView(value: string): void {
-  settingsStore.updateSetting('workspace.packageManagerView', value)
+function togglePackageManagerView(): void {
+  settingsStore.updateSetting('workspace.packageManagerView', packageManagerView.value === 'album' ? 'tree' : 'album')
 }
 const remoteEntries = computed(() => remoteSource.value.split(/[;\n]+/)
   .map(entry => entry.trim())
@@ -121,23 +115,39 @@ const presentation = computed<EditorPresentation>(() => ({
 
 const WORKSPACE_SYNC_ACTION_KEY = 'project-package-manager.sync'
 const WORKSPACE_ADD_ACTION_KEY = 'project-package-manager.add'
+const WORKSPACE_VIEW_ACTION_KEY = 'project-package-manager.toggle-view'
 
-const workspaceActions = computed<ShellWorkspaceAction[]>(() => [
-  {
-    key: WORKSPACE_SYNC_ACTION_KEY,
-    icon: 'action.refresh',
-    hoverTip: t('packageManager.sync'),
-    disabled: busy.value,
-  },
-  {
-    key: WORKSPACE_ADD_ACTION_KEY,
-    icon: 'action.add',
-    hoverTip: t('packageManager.add'),
-    disabled: busy.value,
-  },
-])
+const workspaceActions = computed<ShellWorkspaceAction[]>(() => {
+  const albumMode = packageManagerView.value === 'album'
+  return [
+    {
+      key: WORKSPACE_VIEW_ACTION_KEY,
+      icon: albumMode ? 'data.list-tree' : 'layout.columns',
+      hoverTip: t('packageManager.switchView', {
+        view: t(albumMode ? 'packageManager.viewTree' : 'packageManager.viewAlbum'),
+      }),
+      disabled: !rows.value.length,
+    },
+    {
+      key: WORKSPACE_SYNC_ACTION_KEY,
+      icon: 'action.refresh',
+      hoverTip: t('packageManager.sync'),
+      disabled: busy.value || addTaskBusy.value,
+    },
+    {
+      key: WORKSPACE_ADD_ACTION_KEY,
+      icon: 'action.add',
+      hoverTip: t('packageManager.add'),
+      disabled: busy.value || addTaskBusy.value,
+    },
+  ]
+})
 
 async function runWorkspaceAction(actionKey: string): Promise<boolean> {
+  if (actionKey === WORKSPACE_VIEW_ACTION_KEY) {
+    togglePackageManagerView()
+    return true
+  }
   if (actionKey === WORKSPACE_SYNC_ACTION_KEY) {
     await synchronizePackages()
     return true
@@ -187,10 +197,15 @@ const treeData = computed<OcNodeCollection>(() => ({
         : []),
       { key: removeAction(row.key), title: t('packageManager.noLongerNeeded'), icon: 'action.delete', iconTone: 'danger' },
     ],
-    icon: 'file.package',
-    iconTone: row.status === 'missing' ? 'muted' : row.status === 'version' ? 'warning' : 'success',
-    thumbnailSrc: row.coverSrc,
-    thumbnailLabel: row.coverSrc ? `${row.key} ${t('packageManifest.coverAlt')}` : undefined,
+    visual: {
+      type: 'icon',
+      icon: 'file.package',
+      iconTone: row.status === 'missing' ? 'muted' : row.status === 'version' ? 'warning' : 'success',
+    },
+    // 相册视图独有的封面槽位；缺失时卡片媒体区留空，标题前的包图标始终保留。
+    ...(row.coverSrc
+      ? { cover: { type: 'image' as const, src: row.coverSrc, label: `${row.key} ${t('packageManifest.coverAlt')}` } }
+      : {}),
   }])),
   children: new Map(),
 }))
@@ -282,28 +297,54 @@ async function choosePackage(): Promise<void> {
   if (!sources.length) return
   localPaths.value = sources
 }
+/**
+ * The dialog has already validated its input, so it closes up front and the install continues on the
+ * shell's global progress bar. That keeps the workspace usable instead of freezing a modal, and the
+ * outcome arrives as an instant message. Replacement confirmation still happens inline as it is needed.
+ */
 async function addPackage(): Promise<void> {
-  if (!canAdd.value || busy.value) return
-  busy.value = true
+  if (!canAdd.value || busy.value || addTaskBusy.value) return
+  const mode = addMode.value
+  const localSources = [...localPaths.value]
+  const remoteEntriesToAdd = remoteEntries.value.map(item => ({ entry: item.entry, parsed: item.parsed }))
+  const total = mode === 'remote' ? remoteEntriesToAdd.length : localSources.length
+  addOpen.value = false
   error.value = ''
+  const publish = (completed: number) => {
+    shellProgress.setTask({
+      key: PACKAGE_ADD_TASK_KEY,
+      title: t('packageManager.add'),
+      progress: total > 0 ? Math.min(1, completed / total) : 1,
+      cancellable: false,
+    })
+  }
+  publish(0)
   try {
-    if (addMode.value === 'remote') {
-      const entries = remoteEntries.value.map(item => {
+    if (mode === 'remote') {
+      await projectStore.addRequiredPackages(remoteEntriesToAdd.map(item => {
         if (!item.parsed) throw new Error(t('packageManager.invalidSource', { source: item.entry }))
         return { key: item.parsed.key, version: item.parsed.version, source: createRemotePackageLocator(item.parsed) }
-      })
-      await projectStore.addRequiredPackages(entries)
+      }))
+      publish(total)
     } else {
-      for (const source of localPaths.value) await projectStore.installResourcePackageFile(source, { confirmReplacement: requestConfirm })
+      let completed = 0
+      for (const source of localSources) {
+        await projectStore.installResourcePackageFile(source, { confirmReplacement: requestConfirm })
+        completed += 1
+        publish(completed)
+      }
     }
-    addOpen.value = false
+    notifySuccess(t('packageManager.added', { count: total }))
+    // Only a completed add clears the input, so a failed one can be retried from the same selection.
     localPaths.value = []
     remoteSource.value = ''
     await refresh()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    notifyError(t('packageManager.addFailed', {
+      message: cause instanceof Error ? cause.message : String(cause),
+    }))
   } finally {
-    busy.value = false
+    shellProgress.removeTask(PACKAGE_ADD_TASK_KEY)
   }
 }
 </script>
@@ -316,12 +357,6 @@ async function addPackage(): Promise<void> {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-}
-.package-manager__toolbar {
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  padding: var(--oc-space-2) var(--oc-space-3) 0;
 }
 .package-manager__view { flex: 1 1 auto; min-height: 0; }
 .package-manager__error { padding: var(--oc-space-3); }

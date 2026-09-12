@@ -9,7 +9,7 @@ function createData(options: {
   roots?: string[]
   items?: Array<[string, OcNode]>
 } = {}): OcNodeCollection {
-  const items = options.items ?? [['root', { label: 'Root', icon: 'file.package' }]]
+  const items = options.items ?? [['root', { label: 'Root', visual: { type: 'icon', icon: 'file.package' } }]]
   return {
     rootKeys: options.roots ?? items.map(([key]) => key),
     items: new Map(items),
@@ -28,9 +28,9 @@ describe('OcAlbum', () => {
         data: {
           rootKeys: ['root', 'second'],
           items: new Map<string, OcNode>([
-            ['root', { label: 'Root', icon: 'file.package' }],
-            ['second', { label: 'Second', icon: 'file.package' }],
-            ['nested', { label: 'Nested', icon: 'file.package' }],
+            ['root', { label: 'Root', visual: { type: 'icon', icon: 'file.package' } }],
+            ['second', { label: 'Second', visual: { type: 'icon', icon: 'file.package' } }],
+            ['nested', { label: 'Nested', visual: { type: 'icon', icon: 'file.package' } }],
           ]),
           children: new Map([['root', ['nested']]]),
         },
@@ -41,65 +41,78 @@ describe('OcAlbum', () => {
     expect(wrapper.find('[data-oc-album-key="nested"]').exists()).toBe(false)
   })
 
-  it('prefers a resolved cover image over the node icon and exposes its label', () => {
+  it('keeps the cover image and the node icon in separate card slots', () => {
     const wrapper = mount(OcAlbum, {
       props: {
         data: createData({
           items: [['root', {
             label: 'Theme',
-            icon: 'file.package',
-            thumbnailSrc: 'asset://cover.png',
-            thumbnailLabel: 'Theme cover',
+            visual: { type: 'icon', icon: 'file.package' },
+            cover: { type: 'image', src: 'asset://cover.png', label: 'Theme cover' },
           }]],
         }),
       },
     })
 
-    const image = wrapper.get('.oc-album__cover-image')
+    const image = wrapper.get('.oc-album__cover')
     expect(image.attributes('src')).toBe('asset://cover.png')
     expect(image.attributes('alt')).toBe('Theme cover')
-    expect(wrapper.find('.oc-album__cover .oc-icon').exists()).toBe(false)
+    // The album-unique cover owns the media slot; the node icon never stands in for it.
+    expect(wrapper.find('.oc-album__media .oc-icon').exists()).toBe(false)
+    const title = wrapper.get('.oc-album__title')
+    expect(Array.from(title.element.children).map(child => child.tagName.toLowerCase()))
+      .toEqual(['svg', 'span'])
+    expect(title.get('.oc-album__label').text()).toBe('Theme')
   })
 
-  it('falls back to the node icon when a cover image fails to load', async () => {
+  it('drops a cover image that fails to load and keeps the node icon in the title', async () => {
     const wrapper = mount(OcAlbum, {
       props: {
         data: createData({
           items: [['root', {
             label: 'Theme',
-            icon: 'file.package',
-            thumbnailSrc: 'asset://missing.png',
+            visual: { type: 'icon', icon: 'file.package' },
+            cover: { type: 'image', src: 'asset://missing.png' },
           }]],
         }),
       },
     })
 
-    expect(wrapper.find('.oc-album__cover-image').exists()).toBe(true)
-    await wrapper.get('.oc-album__cover-image').trigger('error')
+    expect(wrapper.find('.oc-album__cover').exists()).toBe(true)
+    await wrapper.get('.oc-album__cover').trigger('error')
 
-    expect(wrapper.find('.oc-album__cover-image').exists()).toBe(false)
-    expect(wrapper.find('.oc-album__media .oc-icon').exists()).toBe(true)
+    expect(wrapper.find('.oc-album__cover').exists()).toBe(false)
+    expect(wrapper.find('.oc-album__media .oc-icon').exists()).toBe(false)
+    expect(wrapper.find('.oc-album__title .oc-icon').exists()).toBe(true)
   })
 
   it('retries the cover when the node points at a different image', async () => {
     const wrapper = mount(OcAlbum, {
       props: {
         data: createData({
-          items: [['root', { label: 'Theme', icon: 'file.package', thumbnailSrc: 'asset://broken.png' }]],
+          items: [['root', {
+            label: 'Theme',
+            visual: { type: 'icon', icon: 'file.package' },
+            cover: { type: 'image', src: 'asset://broken.png' },
+          }]],
         }),
       },
     })
 
-    await wrapper.get('.oc-album__cover-image').trigger('error')
-    expect(wrapper.find('.oc-album__cover-image').exists()).toBe(false)
+    await wrapper.get('.oc-album__cover').trigger('error')
+    expect(wrapper.find('.oc-album__cover').exists()).toBe(false)
 
     await wrapper.setProps({
       data: createData({
-        items: [['root', { label: 'Theme', icon: 'file.package', thumbnailSrc: 'asset://replaced.png' }]],
+        items: [['root', {
+          label: 'Theme',
+          visual: { type: 'icon', icon: 'file.package' },
+          cover: { type: 'image', src: 'asset://replaced.png' },
+        }]],
       }),
     })
 
-    expect(wrapper.get('.oc-album__cover-image').attributes('src')).toBe('asset://replaced.png')
+    expect(wrapper.get('.oc-album__cover').attributes('src')).toBe('asset://replaced.png')
   })
 
   it('renders text and status-badge tail parts without turning them into actions', () => {
@@ -108,7 +121,7 @@ describe('OcAlbum', () => {
         data: createData({
           items: [['root', {
             label: 'Theme',
-            icon: 'file.package',
+            visual: { type: 'icon', icon: 'file.package' },
             tail: ['Local', { type: 'badge', label: 'Missing', icon: 'status.warning', tone: 'warning' }],
           }]],
         }),
@@ -122,13 +135,13 @@ describe('OcAlbum', () => {
     expect(wrapper.find('.oc-album__tail button').exists()).toBe(false)
   })
 
-  it('stacks the label above the tail in the card overlay', () => {
+  it('stacks the title row above the tail in the card overlay', () => {
     const wrapper = mount(OcAlbum, {
       props: {
         data: createData({
           items: [['root', {
             label: 'Theme@1.0.0',
-            icon: 'file.package',
+            visual: { type: 'icon', icon: 'file.package' },
             tail: ['Local', { key: 'remove', title: 'Remove', icon: 'action.delete' }],
           }]],
         }),
@@ -136,8 +149,11 @@ describe('OcAlbum', () => {
     })
 
     const infoChildren = Array.from(wrapper.get('.oc-album__info').element.children)
-    expect(infoChildren[0]?.classList.contains('oc-album__label')).toBe(true)
+    expect(infoChildren[0]?.classList.contains('oc-album__title')).toBe(true)
     expect(infoChildren[1]?.classList.contains('oc-album__meta')).toBe(true)
+    const titleChildren = Array.from(wrapper.get('.oc-album__title').element.children)
+    expect(titleChildren[0]?.classList.contains('oc-icon')).toBe(true)
+    expect(titleChildren[1]?.classList.contains('oc-album__label')).toBe(true)
     expect(wrapper.get('.oc-album__meta').element.children[0]?.classList.contains('oc-album__tail')).toBe(true)
   })
 
@@ -147,7 +163,7 @@ describe('OcAlbum', () => {
         data: createData({
           items: [['theme', {
             label: 'Theme@1.0.0',
-            icon: 'file.package',
+            visual: { type: 'icon', icon: 'file.package' },
             tail: ['Local', { key: 'remove', title: 'No longer needed', icon: 'action.delete' }],
           }]],
         }),
@@ -170,7 +186,7 @@ describe('OcAlbum', () => {
         data: createData({
           items: [['theme', {
             label: 'Theme',
-            icon: 'file.package',
+            visual: { type: 'icon', icon: 'file.package' },
             tail: [{
               key: 'remove',
               title: 'No longer needed',
@@ -195,7 +211,7 @@ describe('OcAlbum', () => {
         data: createData({
           items: [['theme', {
             label: 'Theme',
-            icon: 'file.package',
+            visual: { type: 'icon', icon: 'file.package' },
             tail: [{
               key: 'remove',
               title: 'Remove',
@@ -219,8 +235,8 @@ describe('OcAlbum', () => {
       props: {
         data: createData({
           items: [
-            ['first', { label: 'First', icon: 'file.package' }],
-            ['second', { label: 'Second', icon: 'file.package' }],
+            ['first', { label: 'First', visual: { type: 'icon', icon: 'file.package' } }],
+            ['second', { label: 'Second', visual: { type: 'icon', icon: 'file.package' } }],
           ],
         }),
         selectedKeys: ['first'],

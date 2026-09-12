@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import type { EditorSession } from '../../workspace/store/editorSessionStore'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../../workspace/services/projectIconCatalog'
-import { inlineProjectIconAtlases, useProjectExport } from './useProjectExport'
+import { inlineProjectIconSources, useProjectExport } from './useProjectExport'
 import { createCardRenderResourceContext } from '../../card-rendering/cardRenderResources'
 import { createCardPipelineIssue } from '../../card-rendering/cardPipelineIssue'
 import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
@@ -93,26 +93,26 @@ describe('useProjectExport document source', () => {
 })
 
 describe('useProjectExport project icon assets', () => {
-  it('temporarily replaces atlas URLs stored in project-icon CSS variables', async () => {
+  it('temporarily replaces icon source URLs stored in project-icon CSS variables', async () => {
     const root = document.createElement('div')
     const icon = document.createElement('span')
     icon.className = 'oc-project-icon'
     icon.style.setProperty('--oc-project-icon-background-image', 'url("asset://atlas.png")')
+    icon.style.setProperty('--oc-project-icon-mask-image', 'url("asset://warn.svg")')
     root.appendChild(icon)
-    vi.stubGlobal('fetch', vi.fn(async () => ({
+    vi.stubGlobal('fetch', vi.fn(async (source: string) => ({
       ok: true,
-      blob: async () => new Blob(['atlas'], { type: 'image/png' }),
+      blob: async () => new Blob([source], { type: 'image/png' }),
     })))
 
-    const restore = await inlineProjectIconAtlases(root, {
-      series: [{ name: 'Atlas', key: 'atlas', source: 'atlas.png', src: 'asset://atlas.png', imageWidth: 8, imageHeight: 8 }],
-      entries: [],
-      errors: [],
-    })
+    const restore = await inlineProjectIconSources(root)
 
     expect(icon.style.getPropertyValue('--oc-project-icon-background-image')).toMatch(/^url\("data:image\/png;base64,/)
+    expect(icon.style.getPropertyValue('--oc-project-icon-mask-image')).toMatch(/^url\("data:image\/png;base64,/)
+    expect(fetch).toHaveBeenCalledTimes(2)
     restore()
     expect(icon.style.getPropertyValue('--oc-project-icon-background-image')).toBe('url("asset://atlas.png")')
+    expect(icon.style.getPropertyValue('--oc-project-icon-mask-image')).toBe('url("asset://warn.svg")')
     vi.unstubAllGlobals()
   })
 })

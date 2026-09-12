@@ -35,10 +35,12 @@ describe('project cover paths', () => {
   it('only accepts supported cover image files', () => {
     expect(coverImageExtension('assets/cover.png')).toBe('png')
     expect(coverImageExtension('assets/COVER.JPEG')).toBe('jpeg')
+    expect(coverImageExtension('assets/cover.svg')).toBe('svg')
     expect(coverImageExtension('assets/cover.png.txt')).toBeNull()
     expect(coverImageExtension('assets/cover')).toBeNull()
     expect(coverImageExtension('assets/.png')).toBeNull()
     expect(isProjectCoverPath('assets/cover.webp')).toBe(true)
+    expect(isProjectCoverPath('assets/cover.svg')).toBe(true)
     expect(isProjectCoverPath('assets/cover.txt')).toBe(false)
     expect(isProjectCoverPath('../cover.png')).toBe(false)
   })

@@ -1,5 +1,6 @@
 /** Key-only UI contract for node collections consumed by OcTree and OcAlbum. */
 import type { IconToken, IconTone } from '../icon/iconRegistry'
+import type { OcVisual } from '../visual/visual.types'
 import type { OcActionButtonAction } from '../../../components/standard/OcActionButton.vue'
 import type { OcActionDivider } from '../../../components/standard/OcActionMenu.vue'
 
@@ -41,12 +42,10 @@ export type OcNodeContextEntry = OcNodeAction | OcActionDivider
 /** Presentation of one node; its identity is the key it is stored under in `OcNodeCollection.items`. */
 export interface OcNode {
   label: string
-  icon?: IconToken
-  iconTone?: IconTone
-  thumbnailStyle?: Readonly<Record<string, string>>
-  thumbnailLabel?: string
-  /** Resolved image source used by card views such as OcAlbum. */
-  thumbnailSrc?: string
+  /** 标签之前的视觉；所有节点视图都以同样的方式渲染它。 */
+  visual?: OcVisual
+  /** 相册这类卡片视图独有的封面视觉，绘制在卡片的媒体区域；其余视图忽略它。 */
+  cover?: OcVisual
   tone?: OcNodeTone
   /** Trailing line of the node, in order; text and badges are always visible, commands appear on interaction. */
   tail?: OcNodeTailPart | readonly OcNodeTailPart[]
@@ -98,6 +97,17 @@ export interface OcNodeMoveEvent {
   key: OcNodeKey
   targetKey: OcNodeKey | null
   position: OcNodeDropPosition
+}
+
+/**
+ * An external drop (files dragged in from outside the application) that landed on the tree.
+ * `targetKey === null` means the empty area of the tree, and `payload` is opaque: the view reports
+ * what the platform handed it and never inspects or interprets it.
+ */
+export interface OcNodeExternalDropEvent {
+  targetKey: OcNodeKey | null
+  position: OcNodeDropPosition
+  payload: readonly string[]
 }
 
 export function normalizeNodeTail(

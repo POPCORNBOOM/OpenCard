@@ -151,11 +151,11 @@ describe('TextBlockRenderer', () => {
       content: '<p><span data-oc-icon-path="mc-wu-pin/r3-c16"></span></p>',
     })
     const catalog = {
-      series: [{ name: 'MC items', key: 'mc-wu-pin', source: 'items.png', src: 'asset://items.png', imageWidth: 400, imageHeight: 400 }],
+      series: [{ name: 'MC items', key: 'mc-wu-pin' }],
       entries: [{
-        seriesKey: 'mc-wu-pin', source: 'items.png', src: 'asset://items.png', imageWidth: 400, imageHeight: 400,
-        iconKey: 'r3-c16', name: 'Carrot on a Stick', x: 240, y: 32, width: 16, height: 16,
-        pixelated: true, rotation: 180,
+        seriesKey: 'mc-wu-pin', source: '.opencard/icons/mc-wu-pin/carrot.svg', src: 'asset://icons/carrot.svg',
+        imageWidth: 16, imageHeight: 16,
+        iconKey: 'r3-c16', name: 'Carrot on a Stick', tint: 'original', pixelated: true, rotation: 180,
       }],
       errors: [],
     } as const
@@ -166,8 +166,10 @@ describe('TextBlockRenderer', () => {
     })
     const icon = wrapper.get<HTMLElement>('.project-inline-icon').element
 
-    expect(icon.style.getPropertyValue('--oc-project-icon-background-image')).toBe('url("asset://items.png")')
-    expect(icon.style.getPropertyValue('--oc-project-icon-background-position')).toBe('-15em -2em')
+    expect(icon.style.getPropertyValue('--oc-project-icon-renderer')).toBe('image')
+    expect(icon.style.getPropertyValue('--oc-project-icon-background-image')).toBe('url("asset://icons/carrot.svg")')
+    expect(icon.style.getPropertyValue('--oc-project-icon-background-size')).toBe('100% 100%')
+    expect(icon.style.getPropertyValue('--oc-project-icon-image-rendering')).toBe('pixelated')
     expect(icon.style.getPropertyValue('--oc-project-icon-transform')).toBe('rotate(180deg)')
   })
 

@@ -53,8 +53,7 @@ describe('workspace issue projection', () => {
     const issueKey = projection.treeData.children.get('workspace-issue-session:a')?.[0]
     expect(projection.treeData.items.get(issueKey!)).toMatchObject({
       label: 'Card A / title: invalid issue',
-      icon: 'status.error',
-      iconTone: 'danger',
+      visual: { type: 'icon', icon: 'status.error', iconTone: 'danger' },
     })
     expect(normalizeNodeTail(projection.treeData.items.get(issueKey!)?.tail)).toEqual([{
       key: 'copy-issue',

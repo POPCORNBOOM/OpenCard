@@ -42,33 +42,33 @@
           @focus="activeKey = entry.key"
         >
           <span class="oc-album__media">
-            <img
-              v-if="entry.item.thumbnailSrc && !isThumbnailBroken(entry)"
-              class="oc-album__cover-image"
-              :src="entry.item.thumbnailSrc"
-              :alt="entry.item.thumbnailLabel ?? entry.item.label"
-              @error="markThumbnailBroken(entry)"
+            <OcVisual
+              v-if="resolveCover(entry)"
+              class="oc-album__cover"
+              :visual="resolveCover(entry)!"
+              :label="entry.item.label"
+              size="lg"
+              @image-error="markCoverBroken(entry)"
             />
-            <span
-              v-else-if="entry.item.thumbnailStyle"
-              class="oc-album__cover-atlas"
-              :class="{ 'oc-project-icon': entry.item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
-              :style="entry.item.thumbnailStyle"
-              role="img"
-              :aria-label="entry.item.thumbnailLabel ?? entry.item.label"
-            />
-            <OcIcon v-else :name="entry.item.icon ?? 'file.generic'" :tone="entry.item.iconTone" size="lg" />
           </span>
 
           <span class="oc-album__info">
-            <OcText
-              class="oc-album__label"
-              :tone="entry.item.tone"
-              :truncate="true"
-              :tooltip-on-overflow="entry.item.label"
-            >
-              {{ entry.item.label }}
-            </OcText>
+            <span class="oc-album__title">
+              <OcVisual
+                v-if="entry.item.visual"
+                :visual="entry.item.visual"
+                :label="entry.item.label"
+                size="md"
+              />
+              <OcText
+                class="oc-album__label"
+                :tone="entry.item.tone"
+                :truncate="true"
+                :tooltip-on-overflow="entry.item.label"
+              >
+                {{ entry.item.label }}
+              </OcText>
+            </span>
             <span class="oc-album__meta">
               <span v-if="entry.item.tail" class="oc-album__tail">
                 <template
@@ -109,7 +109,9 @@ import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vu
 import OcActionButton from './OcActionButton.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import OcVisual from '../base/OcVisual.vue'
 import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
+import type { OcVisual as OcVisualModel } from '../../shared/ui/visual/visual.types'
 import type {
   OcNode,
   OcNodeActionEvent,
@@ -160,19 +162,22 @@ const albumRootElement = ref<HTMLElement | null>(null)
 const cardRefs = new Map<OcNodeKey, HTMLElement>()
 const activeKey = ref<OcNodeKey | null>(null)
 const selectionAnchorKey = ref<OcNodeKey | null>(null)
-/** Cover sources that failed to load, so a card falls back to its icon instead of a broken image. */
-const brokenThumbnailSources = ref<ReadonlyMap<OcNodeKey, string>>(new Map())
+/** 已解析失败的封面图片源，让卡片隐藏该图而不是显示破图。 */
+const brokenCoverSources = ref<ReadonlyMap<OcNodeKey, string>>(new Map())
 
-function isThumbnailBroken(entry: AlbumEntry): boolean {
-  return Boolean(entry.item.thumbnailSrc)
-    && brokenThumbnailSources.value.get(entry.key) === entry.item.thumbnailSrc
+/** 卡片媒体区要绘制的封面；图片源加载失败后返回 null，媒体区留空。 */
+function resolveCover(entry: AlbumEntry): OcVisualModel | null {
+  const cover = entry.item.cover
+  if (!cover) return null
+  if (cover.type === 'image' && brokenCoverSources.value.get(entry.key) === cover.src) return null
+  return cover
 }
-
-function markThumbnailBroken(entry: AlbumEntry): void {
-  if (isThumbnailBroken(entry) || !entry.item.thumbnailSrc) return
-  const next = new Map(brokenThumbnailSources.value)
-  next.set(entry.key, entry.item.thumbnailSrc)
-  brokenThumbnailSources.value = next
+function markCoverBroken(entry: AlbumEntry): void {
+  const cover = entry.item.cover
+  if (!cover || cover.type !== 'image' || brokenCoverSources.value.get(entry.key) === cover.src) return
+  const next = new Map(brokenCoverSources.value)
+  next.set(entry.key, cover.src)
+  brokenCoverSources.value = next
 }
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
@@ -375,15 +380,11 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   justify-content: center;
 }
 
-.oc-album__cover-image {
+/* 封面铺满媒体区；图片与精灵图裁剪都按面积适配，图标变体保持自身尺寸。 */
+.oc-album__cover {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.oc-album__cover-atlas {
-  width: 100%;
-  height: 100%;
 }
 
 .oc-album__info {
@@ -395,9 +396,20 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   gap: var(--oc-space-1);
   min-width: 0;
   padding: var(--oc-space-1) var(--oc-space-3);
+  /* The strip sits on the card's inner bottom corners, so it must round itself: a composited
+     backdrop-filter layer can escape the ancestor's overflow clip and paint square corners. */
+  border-end-start-radius: calc(var(--oc-radius-md) - var(--oc-border-width));
+  border-end-end-radius: calc(var(--oc-radius-md) - var(--oc-border-width));
   background: var(--oc-bg-glass);
   -webkit-backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
   backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+}
+
+.oc-album__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--oc-space-1);
 }
 
 .oc-album__label {

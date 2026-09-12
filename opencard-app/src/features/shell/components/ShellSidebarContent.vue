@@ -25,6 +25,7 @@ const props = defineProps<{
     :action-visibility="props.list.content.actionVisibility"
     :tab-navigation="props.list.content.tabNavigation"
     :placeholder="props.list.placeholder"
+    :external-drop="props.list.content.externalDrop"
     @selection-change="props.list.content.onSelectionChange"
     @expansion-change="props.list.content.onExpansionChange"
     @expansion-sync="props.list.content.onExpansionSync"
@@ -32,6 +33,7 @@ const props = defineProps<{
     @action="props.list.content.onAction"
     @rename-commit="props.list.content.onRenameCommit"
     @move="props.list.content.onMove"
+    @external-drop="props.list.content.onExternalDrop"
     @auxclick="props.list.content.onAuxclick"
   />
   <div v-else-if="!props.list.content || props.list.content.type === 'empty'" class="shell-sidebar-empty">

@@ -9,6 +9,7 @@ import {
 } from "./shared/ui/foundation";
 import { useAppSettingsStore } from "./features/settings/store/appSettingsStore";
 import { addTitleBarNotice } from "./features/notifications/titlebarNotices";
+import { warmCodeEditorOnIdle } from "./features/editor-runtime/services/warmCodeEditor";
 import "./features/shell/shell.css";
 import "./styles.css";
 
@@ -121,6 +122,8 @@ async function bootstrap(): Promise<void> {
   recordStartupTiming("Vue mounted");
   window.requestAnimationFrame(() => {
     dismissStartupCover();
+    // 首帧之后再预热代码编辑器，既不占用启动路径，又能让首次打开文件时已经就绪。
+    warmCodeEditorOnIdle();
     window.setTimeout(() => recordStartupTiming("first frame painted"), 0);
   });
 }

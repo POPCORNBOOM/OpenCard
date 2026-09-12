@@ -6,6 +6,7 @@ import {
   findProjectIcon,
   type ProjectIconCatalogEntry,
   type ProjectIconCatalog,
+  type ProjectIconDimensionRequest,
 } from '../../workspace/services/projectIconCatalog'
 
 const IMAGE_ATTRIBUTE_NAMES = new Set(['width', 'height', 'fit', 'align'])
@@ -60,6 +61,8 @@ export type MarkdownRenderOptions = {
   resolveImageSrc?: (path: string) => string
   projectIconCatalog?: ProjectIconCatalog
   resolveIconReference?: (source: string) => ProjectIconCatalogEntry | null
+  /** Reports an unmeasured icon that is about to be painted, so its size gets resolved. */
+  resolveIconDimensions?: ProjectIconDimensionRequest
   missingProjectIconLabel?: string
 }
 
@@ -67,6 +70,7 @@ type MarkdownEnvironment = {
   resolveImageSrc?: (path: string) => string
   projectIconCatalog?: ProjectIconCatalog
   resolveIconReference?: (source: string) => ProjectIconCatalogEntry | null
+  resolveIconDimensions?: ProjectIconDimensionRequest
   missingProjectIconLabel?: string
 }
 
@@ -88,7 +92,7 @@ markdown.renderer.rules.opencard_project_icon = (tokens, index, _options, enviro
     )
     return `<span class="project-inline-icon project-inline-icon--missing" role="img" aria-label="${label}" data-oc-icon-missing="true"></span>`
   }
-  const style = Object.entries(createProjectIconCssProperties(entry))
+  const style = Object.entries(createProjectIconCssProperties(entry, markdownEnvironment.resolveIconDimensions))
     .map(([name, value]) => `${name}:${value}`)
     .join(';')
   return `<span class="project-inline-icon oc-project-icon" role="img" aria-label="${markdown.utils.escapeHtml(entry.name)}" style="${markdown.utils.escapeHtml(style)}"></span>`
@@ -156,6 +160,7 @@ export function renderMarkdown(source: string, options: MarkdownRenderOptions = 
     resolveImageSrc: options.resolveImageSrc,
     projectIconCatalog: options.projectIconCatalog,
     resolveIconReference: options.resolveIconReference,
+    resolveIconDimensions: options.resolveIconDimensions,
     missingProjectIconLabel: options.missingProjectIconLabel,
   } satisfies MarkdownEnvironment)
 }

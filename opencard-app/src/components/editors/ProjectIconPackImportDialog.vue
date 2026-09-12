@@ -1,13 +1,13 @@
 <template>
   <OcDialog class="project-icon-pack-dialog" :open="open" :title="t('projectConfig.icons.importPack')"
-    as="form" size="md" min-height="md" close-on-backdrop :dismissible="!busy"
+    as="form" size="md" min-height="md" close-on-backdrop
     @request-close="close" @submit="submit">
     <label class="project-icon-pack-dialog__field">
       <span>{{ t('projectConfig.icons.packFile') }}</span>
       <span class="project-icon-pack-dialog__file-control">
         <OcFieldInput full-width mono readonly :value="selectedPath"
           :aria-invalid="!selectedPath" :placeholder="t('projectConfig.icons.noPackSelected')" />
-        <OcButton type="button" icon="nav.files" variant="outline" :disabled="busy" @click="pickIconPackFile">
+        <OcButton type="button" icon="nav.files" variant="outline" @click="pickIconPackFile">
           {{ t('projectConfig.icons.choosePack') }}
         </OcButton>
       </span>
@@ -31,11 +31,10 @@
     </div>
 
     <OcText v-if="validationMessage" tone="danger" size="sm" role="alert">{{ validationMessage }}</OcText>
-    <OcText v-if="error || packError" tone="danger" size="sm" role="alert">{{ error || packError }}</OcText>
 
     <template #footer>
-      <OcButton type="button" :disabled="busy" @click="close">{{ t('projectConfig.icons.cancel') }}</OcButton>
-      <OcButton type="submit" variant="solid" :disabled="!canSubmit || busy">
+      <OcButton type="button" @click="close">{{ t('projectConfig.icons.cancel') }}</OcButton>
+      <OcButton type="submit" variant="solid" :disabled="!canSubmit">
         {{ t('projectConfig.icons.confirmImportPack') }}
       </OcButton>
     </template>
@@ -54,7 +53,6 @@ export type ProjectIconPackImportRequest = {
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { createAvailableProjectIconSeriesKey, projectIconKeyPattern, type ProjectIconSeries } from '../../features/workspace/model/projectIcons'
-import { readProjectIconPack, type ProjectIconPack } from '../../features/workspace/services/projectIconPack'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import OcButton from '../base/OcButton.vue'
 import OcFieldInput from '../base/OcFieldInput.vue'
@@ -66,9 +64,7 @@ const props = withDefaults(defineProps<{
   open: boolean
   series?: readonly ProjectIconSeries[]
   defaultOpenPath?: string
-  busy?: boolean
-  error?: string
-}>(), { series: () => [], defaultOpenPath: undefined, busy: false, error: '' })
+}>(), { series: () => [], defaultOpenPath: undefined })
 const emit = defineEmits<{
   close: []
   submit: [request: ProjectIconPackImportRequest]
@@ -77,8 +73,6 @@ const { t } = useI18n()
 const selectedPath = ref('')
 const packName = ref('')
 const packKey = ref('')
-const pack = ref<ProjectIconPack | null>(null)
-const packError = ref('')
 
 const generatedKey = computed(() => createAvailableProjectIconSeriesKey(packName.value, props.series ?? []))
 const effectiveKey = computed(() => packKey.value || generatedKey.value)
@@ -87,11 +81,10 @@ const uniqueKey = computed(() => !(props.series ?? []).some(series => (
   series.key.toLocaleLowerCase() === effectiveKey.value.toLocaleLowerCase()
 )))
 const canSubmit = computed(() => Boolean(
-  pack.value && selectedPath.value && packName.value.trim() && validKey.value && uniqueKey.value
+  selectedPath.value && packName.value.trim() && validKey.value && uniqueKey.value
 ))
 const validationMessage = computed(() => {
   if (!selectedPath.value) return ''
-  if (!pack.value) return t('projectConfig.icons.invalidPack')
   if (!packName.value.trim()) return t('projectConfig.icons.invalidPackName')
   if (!validKey.value) return t('projectConfig.icons.invalidIconSetKey')
   if (!uniqueKey.value) return t('projectConfig.icons.iconSetKeyExists')
@@ -103,10 +96,12 @@ watch(() => props.open, open => {
   selectedPath.value = ''
   packName.value = ''
   packKey.value = ''
-  pack.value = null
-  packError.value = ''
 }, { immediate: true })
 
+/**
+ * Only the file is chosen here; the owner reads and unpacks it inside the global progress task, so the
+ * dialog never performs the archive I/O and can close as soon as the user confirms.
+ */
 async function pickIconPackFile(): Promise<void> {
   const path = await fileSystemService.pickFile({
     title: t('projectConfig.icons.pickPackTitle'),
@@ -117,15 +112,7 @@ async function pickIconPackFile(): Promise<void> {
   if (!path) return
   selectedPath.value = path
   packKey.value = ''
-  packError.value = ''
-  try {
-    pack.value = await readProjectIconPack(fileSystemService, path)
-    packName.value = pack.value.manifest.name || fileName(path).replace(/\.ociconpack$/i, '')
-  } catch {
-    pack.value = null
-    packName.value = fileName(path).replace(/\.ociconpack$/i, '')
-    packError.value = t('projectConfig.icons.invalidPack')
-  }
+  packName.value = fileName(path).replace(/\.ociconpack$/i, '')
 }
 
 function updateText(field: 'name' | 'key', event: Event): void {
@@ -135,7 +122,7 @@ function updateText(field: 'name' | 'key', event: Event): void {
 }
 
 function close(): void {
-  if (!props.busy) emit('close')
+  emit('close')
 }
 
 function submit(): void {

@@ -5,16 +5,16 @@ import ProjectIconSetSettingsDialog from './ProjectIconSetSettingsDialog.vue'
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 describe('ProjectIconSetSettingsDialog', () => {
-  it('saves an independent display name and Key while preserving the source', async () => {
+  it('saves an independent display name and Key', async () => {
     const wrapper = mount(ProjectIconSetSettingsDialog, {
       props: {
-        open: true, name: 'Status icons', seriesKey: 'status',
-        source: 'assets/icons/status.png', existingKeys: ['status'],
+        open: true, name: 'Status icons', seriesKey: 'status', existingKeys: ['status'],
       },
       global: { stubs: { Teleport: true } },
     })
     const inputs = wrapper.findAll('input')
-    expect(inputs[2]!.attributes('readonly')).toBeDefined()
+    // A set is renamed through its own name and Key only; its icons each own their file.
+    expect(inputs).toHaveLength(2)
     await inputs[0]!.setValue(' 状态图标 ')
     await inputs[1]!.setValue(' status-new ')
     await wrapper.get('form').trigger('submit')

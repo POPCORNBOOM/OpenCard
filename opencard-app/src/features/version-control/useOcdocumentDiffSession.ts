@@ -11,7 +11,7 @@ import { PROJECT_PROFILE_FILE_NAME, parseProjectMetadataText, toProjectInformati
 import { PROJECT_DICTIONARY_FILE_NAME, parseProjectDictionaryText, resolveProjectDictionary } from '../workspace/model/projectDictionary'
 import { PROJECT_ICON_REGISTRY_FILE_NAME, parseProjectIconRegistryText } from '../workspace/model/projectIconRegistry'
 import { PROJECT_FONT_REGISTRY_FILE_NAME, parseProjectFontRegistryText, projectFontFileEntries, projectFontWeightValues } from '../workspace/model/projectFontRegistry'
-import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG, loadProjectImageDimensions } from '../workspace/services/projectIconCatalog'
+import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
 import { resolveProjectInternalRelativePath } from '../workspace/model/projectStructure'
 
 export interface OcdocumentDiffSessionOptions {
@@ -37,21 +37,6 @@ export function isResourceSnapshotDiffPath(path: string): boolean {
 }
 
 const snapshotContextCache = new Map<string, Promise<Pick<DiffSnapshot, 'project' | 'dictionary' | 'projectIconCatalog' | 'resolveFontFamily'>>>()
-const SNAPSHOT_RESOURCE_LOAD_TIMEOUT_MS = 2_000
-
-async function loadSnapshotImageDimensions(src: string): Promise<{ width: number; height: number }> {
-  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
-  try {
-    return await Promise.race([
-      loadProjectImageDimensions(src),
-      new Promise<never>((_, reject) => {
-        timeoutHandle = setTimeout(() => reject(new Error('Project image dimensions timed out')), SNAPSHOT_RESOURCE_LOAD_TIMEOUT_MS)
-      }),
-    ])
-  } finally {
-    if (timeoutHandle !== null) clearTimeout(timeoutHandle)
-  }
-}
 
 function createSnapshotFontResolver(root: string, fontDocument: NonNullable<ReturnType<typeof parseProjectFontRegistryText>>, namespace: string): (references: string) => string {
   const families = new Map((fontDocument.families ?? []).map(font => [font.key.toLowerCase(), `OpenCardSnapshot-${namespace}-${font.key}`]))
@@ -104,10 +89,9 @@ async function loadSnapshotContext(root: string): Promise<Pick<DiffSnapshot, 'pr
   if (iconText) {
     const document = parseProjectIconRegistryText(iconText)
     if (document) {
-      projectIconCatalog = await buildProjectIconCatalog(
+      projectIconCatalog = buildProjectIconCatalog(
         document.iconSeries,
         source => convertFileSrc(resolveProjectFile(root, resolveProjectInternalRelativePath(source))),
-        loadSnapshotImageDimensions,
       )
     }
   }

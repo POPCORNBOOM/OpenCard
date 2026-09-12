@@ -28,7 +28,7 @@
         <span class="oc-autocomplete-popover__main">
           <OcIcon v-if="item.icon" :name="item.icon" size="sm" />
           <span v-else-if="item.thumbnailStyle" class="oc-autocomplete-popover__thumbnail"
-            :class="{ 'oc-project-icon': item.thumbnailStyle['--oc-project-icon-renderer'] === 'atlas-crop' }"
+            :class="{ 'oc-project-icon': isProjectIconStyle(item.thumbnailStyle) }"
             :style="item.thumbnailStyle" role="img" :aria-label="item.thumbnailLabel ?? item.label" />
           <OcOverflowText class="oc-autocomplete-popover__label" :text="item.label"
             :active="item.key === activeKey" :content-style="item.labelStyle" />
@@ -44,6 +44,7 @@
 import { nextTick, watch, type ComponentPublicInstance } from 'vue'
 import type { Placement } from '@floating-ui/vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import { isProjectIconStyle } from '../../shared/ui/visual/projectIconStyle'
 import OcIcon from '../base/OcIcon.vue'
 import OcFloatingLayer from './OcFloatingLayer.vue'
 import OcOverflowText from './OcOverflowText.vue'

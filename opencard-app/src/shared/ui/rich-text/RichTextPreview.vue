@@ -6,6 +6,7 @@ import {
   type ProjectIconCatalog,
 } from '../../../features/workspace/services/projectIconCatalog'
 import { parseRichTextHtml, type RichTextNode } from '../../rich-text/richTextHtml'
+import { resolveProjectIconDimensions } from '../../../features/workspace/services/projectIconDimensionResolver'
 
 const props = defineProps<{
   html: string
@@ -21,7 +22,7 @@ function renderNode(node: RichTextNode): VNodeChild {
     return entry
       ? h('span', {
           class: 'rich-text-preview__icon',
-          style: createProjectIconStyle(entry),
+          style: createProjectIconStyle(entry, resolveProjectIconDimensions),
           role: 'img',
           'aria-label': entry.name,
         })

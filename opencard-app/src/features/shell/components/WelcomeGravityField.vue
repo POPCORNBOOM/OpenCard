@@ -1,4 +1,5 @@
-<!-- 业务 欢迎页引力背景：远端生成的球体被中心按平方反比加速度吸进去，形状之间平滑融合。 -->
+<!-- 业务 欢迎页引力背景：远端生成的球体被中心按平方反比加速度吸进去，形状之间平滑融合，
+     边缘用屏幕空间颗粒做出磨砂玻璃式的沙面过渡。 -->
 <template>
   <canvas ref="canvasElement" class="welcome-gravity-field" aria-hidden="true" />
 </template>
@@ -31,6 +32,12 @@ const GRAVITY = 0.01
 /** 每帧最多补算时间与子步长，保证不同帧率下坠落速度一致。 */
 const MAX_FRAME_SECONDS = 0.05
 const MAX_SUBSTEP_SECONDS = 1 / 240
+/** 边缘磨砂带宽度（CSS 像素）：带内颗粒要铺得开才像砂面，太宽又会把小球的边糊掉。 */
+const FROST_BAND_WIDTH = 5
+/** 颗粒格子边长（CSS 像素），写入 uniform 时乘画布像素比；格子越小颗粒越细。 */
+const GRAIN_PIXEL_SIZE = 1.2
+/** 颗粒对磨砂带内覆盖率的扰动强度，1 表示能抖到完全不透明或完全透明。 */
+const GRAIN_AMOUNT = 1
 
 type Blob = {
   angle: number
@@ -55,15 +62,25 @@ void main() {
 }
 `
 
-const FRAGMENT_SHADER = (edgeSource: string) => `
+const FRAGMENT_SHADER = (extension: string, edgeSource: string) => `${extension}
 precision highp float;
 varying vec2 v_uv;
 uniform vec2 u_resolution;
 uniform float u_short_side;
 uniform vec3 u_color;
 uniform float u_center_radius;
+uniform float u_grain_pixel;
+uniform float u_grain_amount;
+uniform float u_frost_pixel;
 uniform vec4 u_blobs[${BLOB_COUNT}];
 ${edgeSource}
+
+/* 屏幕空间的颗粒：格子钉在屏幕上而不是跟着形状走，
+   形状从下面经过时才会像砂面玻璃一样被磨出颗粒。 */
+float grainNoise(vec2 pixel) {
+  vec2 cell = floor(pixel / u_grain_pixel);
+  return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+}
 
 void main() {
   vec2 point = (v_uv - 0.5) * u_resolution / u_short_side;
@@ -71,26 +88,40 @@ void main() {
 
   // 中心圆与球体共用同一个场：field 等于 1 的位置正好是形状边缘，
   // 相加之后靠近的形状会平滑连在一起，并最终并进中心圆。
-  float field = (u_center_radius * u_center_radius) / max(dot(point, point), 1e-4);
+  // 除数只用来防除零，下限必须远小于任何球的半径：夹得太大会截断场，
+  // 小球就会先隐形、再在固定半径上整块弹出来，且弹出瞬间中心是空的、只剩一圈亮边。
+  float field = (u_center_radius * u_center_radius) / max(dot(point, point), 1e-8);
   for (int index = 0; index < ${BLOB_COUNT}; index++) {
     vec4 blob = u_blobs[index];
     vec2 offset = point - blob.xy;
-    field += (blob.z * blob.z) / max(dot(offset, offset), 1e-4);
+    field += (blob.z * blob.z) / max(dot(offset, offset), 1e-8);
   }
 
-  // 纯背景色实心填充，只在边缘留一丝抗锯齿，不做半透明。
-  float alpha = smoothstep(1.0 - edgeWidth(field), 1.0 + edgeWidth(field), field);
+  // 边缘不再是干净的羽化：先留出比抗锯齿更宽的磨砂带，再用屏幕空间的颗粒抖动带内覆盖率，
+  // 过渡因此变成磨砂玻璃那样的沙面；band 只在带中段有值，形状内外都保持干净。
+  float coverage = smoothstep(1.0 - frostWidth(field), 1.0 + edgeWidth(field), field);
+  float band = 4.0 * coverage * (1.0 - coverage);
+  float grain = grainNoise(gl_FragCoord.xy);
+  float alpha = clamp(coverage + (grain - 0.5) * u_grain_amount * band, 0.0, 1.0);
   gl_FragColor = vec4(u_color * alpha, alpha);
 }
 `
 
 /** 小球只有几十像素，用基于屏幕导数的边缘宽度才不会出现锯齿或闪动。 */
-const DERIVATIVE_EDGE = `#extension GL_OES_standard_derivatives : enable
-float edgeWidth(float field) {
+const DERIVATIVE_EXTENSION = '#extension GL_OES_standard_derivatives : enable'
+const DERIVATIVE_EDGE = `float edgeWidth(float field) {
   return max(fwidth(field), 0.0008);
+}
+/* 磨砂带比抗锯齿边宽若干倍：边缘宽度取自屏幕导数，乘上像素宽度就得到带在屏幕上的范围。 */
+float frostWidth(float field) {
+  return edgeWidth(field) * u_frost_pixel;
 }`
 const FALLBACK_EDGE = `float edgeWidth(float field) {
   return 0.05;
+}
+/* 没有屏幕导数时只有一条很宽的柔和边，磨砂带不再额外加宽。 */
+float frostWidth(float field) {
+  return edgeWidth(field);
 }`
 
 const canvasElement = ref<HTMLCanvasElement | null>(null)
@@ -202,8 +233,12 @@ function compileShader(context: WebGLRenderingContext, type: number, source: str
 
 function createProgram(context: WebGLRenderingContext): WebGLProgram | null {
   const vertex = compileShader(context, context.VERTEX_SHADER, VERTEX_SHADER)
-  const edge = context.getExtension('OES_standard_derivatives') ? DERIVATIVE_EDGE : FALLBACK_EDGE
-  const fragment = compileShader(context, context.FRAGMENT_SHADER, FRAGMENT_SHADER(edge))
+  // fwidth 来自扩展，而 #extension 指令必须排在着色器任何语句之前，因此指令与函数体分开拼装。
+  const derivatives = context.getExtension('OES_standard_derivatives')
+  const fragment = compileShader(context, context.FRAGMENT_SHADER, FRAGMENT_SHADER(
+    derivatives ? DERIVATIVE_EXTENSION : '',
+    derivatives ? DERIVATIVE_EDGE : FALLBACK_EDGE,
+  ))
   const program = context.createProgram()
   if (!program) return null
   context.attachShader(program, vertex)
@@ -250,6 +285,10 @@ function draw(): void {
   gl.uniform2f(uniforms.resolution ?? null, width, height)
   gl.uniform1f(uniforms.shortSide ?? null, Math.min(width, height))
   gl.uniform1f(uniforms.centerRadius ?? null, CENTER_RADIUS)
+  // 颗粒格子与磨砂带都按设备像素换算，因此任何像素比下粗细都一致。
+  gl.uniform1f(uniforms.grainPixel ?? null, GRAIN_PIXEL_SIZE * pixelRatio)
+  gl.uniform1f(uniforms.grainAmount ?? null, GRAIN_AMOUNT)
+  gl.uniform1f(uniforms.frostPixel ?? null, FROST_BAND_WIDTH * pixelRatio)
   gl.uniform4fv(uniforms.blobs ?? null, blobData)
   gl.drawArrays(gl.TRIANGLES, 0, 6)
 }
@@ -316,6 +355,9 @@ onMounted(() => {
     shortSide: context.getUniformLocation(program, 'u_short_side'),
     centerRadius: context.getUniformLocation(program, 'u_center_radius'),
     color: context.getUniformLocation(program, 'u_color'),
+    grainPixel: context.getUniformLocation(program, 'u_grain_pixel'),
+    grainAmount: context.getUniformLocation(program, 'u_grain_amount'),
+    frostPixel: context.getUniformLocation(program, 'u_frost_pixel'),
     blobs: context.getUniformLocation(program, 'u_blobs[0]'),
   }
   uploadColor()
