@@ -2,14 +2,15 @@
   <OcFieldFrame full-width readonly :disabled="disabled">
     <template #prefix>
       <OcButton type="button" icon-only variant="ghost" icon="nav.arrow-left"
-        :disabled="disabled || currentIndex <= 0" :aria-label="previousLabel" @click="step(-1)" />
+        :disabled="disabled || currentIndex <= 0" :aria-label="previousLabel" :data-tooltip="previousLabel"
+        @click="step(-1)" />
     </template>
     <OcFieldInput variant="plain" full-width readonly :value="currentOption?.label ?? ''"
       @keydown.left.prevent="step(-1)" @keydown.right.prevent="step(1)" />
     <template #suffix>
       <OcButton type="button" icon-only variant="ghost" icon="nav.arrow-right"
         :disabled="disabled || currentIndex < 0 || currentIndex >= options.length - 1"
-        :aria-label="nextLabel" @click="step(1)" />
+        :aria-label="nextLabel" :data-tooltip="nextLabel" @click="step(1)" />
     </template>
   </OcFieldFrame>
 </template>

@@ -51,7 +51,7 @@
             :aria-label="`插入最近图标：${entry.name}`" @mousedown.prevent @click="insertRecentProjectIcon(entry)">
             <template #icon>
               <span class="oc-rich-text-editor__recent-icon-image oc-project-icon"
-                :style="createProjectIconPreviewStyle(entry, resolveProjectIconDimensions)" aria-hidden="true" />
+                :style="createProjectIconPreviewStyle(entry, readProjectIconSize)" aria-hidden="true" />
             </template>
           </OcButton>
         </div>
@@ -166,7 +166,7 @@ import {
   type ProjectIconCatalog,
   type ProjectIconCatalogEntry,
 } from '../../../features/workspace/services/projectIconCatalog'
-import { resolveProjectIconDimensions } from '../../../features/workspace/services/projectIconDimensionResolver'
+import { readProjectIconSize } from '../../../features/workspace/services/projectIconDimensionResolver'
 import {
   projectIconRecentIdentity,
   recentProjectIconIdentities,
@@ -375,7 +375,7 @@ const projectIconActionChildren = computed(() => (props.projectIconCatalog?.seri
     .map(entry => ({
       key: projectIconActionKey(entry),
       title: entry.name,
-      thumbnailStyle: createProjectIconStyle(entry, resolveProjectIconDimensions),
+      thumbnailStyle: createProjectIconStyle(entry, readProjectIconSize),
       thumbnailLabel: entry.name,
     })) ?? [],
 })).filter(series => series.children.length > 0))

@@ -127,8 +127,7 @@
       }
     ],
     "resources": {
-      "resources/templates/": "templates/",
-      "resources/icon-packs/": "icon-packs/"
+      "resources/templates/": "templates/"
     }
   },
   "plugins": {

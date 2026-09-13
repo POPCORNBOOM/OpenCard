@@ -37,6 +37,7 @@
     <button
       v-else
       ref="triggerRef"
+      :data-tooltip="label"
       v-bind="triggerAttrs"
       type="button"
       class="oc-color-picker__trigger"

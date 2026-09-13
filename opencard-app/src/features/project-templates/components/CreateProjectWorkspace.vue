@@ -13,9 +13,6 @@
         <p v-if="store.isLoading.value" class="create-project__status">
           {{ t('projectTemplates.status.loading') }}
         </p>
-        <p v-else-if="store.error.value" class="create-project__status is-error">
-          {{ t('projectTemplates.errors.invalidCatalog') }}
-        </p>
         <article v-else-if="selectedTemplate" class="create-project__details">
           <div class="create-project__details-heading">
             <OcIcon name="file.opencard" size="sm" />
@@ -35,14 +32,14 @@
               <dd><code>{{ selectedTemplateEntryName(selectedEntry) }}</code></dd>
             </div>
             <div>
-              <dt>{{ t('projectTemplates.fields.iconPacks') }}</dt>
+              <dt>{{ t('projectTemplates.fields.resourcePackages') }}</dt>
               <dd>
-                <ul v-if="selectedIconPacks.length" class="create-project__icon-pack-list">
-                  <li v-for="pack in selectedIconPacks" :key="pack.key">
-                    {{ localizedIconPackName(pack) }}
+                <ul v-if="attachedResourcePackages.length" class="create-project__resource-package-list">
+                  <li v-for="pack in attachedResourcePackages" :key="pack.key">
+                    {{ pack.name }}
                   </li>
                 </ul>
-                <span v-else>{{ t('projectTemplates.status.noIconPacksSelected') }}</span>
+                <span v-else>{{ t('projectTemplates.status.noResourcePackagesSelected') }}</span>
               </dd>
             </div>
           </dl>
@@ -134,10 +131,6 @@
             </OcButton>
           </div>
         </div>
-
-        <p v-if="store.warnings.value.length > 0" class="create-project__warning">
-          {{ t('projectTemplates.status.skippedTemplates', { count: store.warnings.value.length }) }}
-        </p>
         </div>
       </section>
       <form class="create-project__form" @submit.prevent="createProject">
@@ -184,10 +177,6 @@
           <code>{{ targetPreview || t('projectTemplates.status.chooseLocation') }}</code>
         </div>
 
-        <p v-if="displayedOperationError" class="create-project__operation-error" role="alert">
-          {{ displayedOperationError }}
-        </p>
-
         <div class="create-project__form-actions">
           <OcButton type="submit" variant="solid" icon="action.folder-plus" :disabled="!canCreate">
             {{ isCreating ? t('projectTemplates.status.creating') : t('projectTemplates.actions.create') }}
@@ -220,24 +209,22 @@ import {
   type ProjectTemplateKey,
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
-import {
-  resolveProjectIconPackName,
-  type ProjectIconPackCatalogEntry,
-  type ProjectIconPackCatalogKey,
-} from '../../workspace/model/projectIconPackCatalog'
+import type { StoredResourcePackage } from '../../workspace/model/storedResourcePackage'
 import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
-import { useProjectIconPackStore } from '../../workspace/store/projectIconPackStore'
 import { useProjectTemplateStore } from '../store/projectTemplateStore'
+import { notifyError } from '../../notifications/titlebarNotices'
+import { publishAppOutput } from '../../logging/appOutput'
+import { reportCatalogWarnings } from '../../logging/catalogWarningReporter'
 
 defineOptions({ name: 'CreateProjectWorkspace' })
 
 const props = withDefaults(defineProps<{
   selectedKey: ProjectTemplateKey | null
-  selectedIconPackKeys?: readonly string[]
-  activationError?: string
+  /** 创建后要装入新项目的附加包，由外壳从软件存储解析。 */
+  attachedResourcePackages?: readonly StoredResourcePackage[]
   externalBusy?: boolean
 }>(), {
-  selectedIconPackKeys: () => [],
+  attachedResourcePackages: () => [],
 })
 
 const emit = defineEmits<{
@@ -248,7 +235,6 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 const store = useProjectTemplateStore()
-const iconPackStore = useProjectIconPackStore()
 const appSettingsStore = useAppSettingsStore()
 
 const projectName = ref(t('projectTemplates.defaults.projectName'))
@@ -260,7 +246,6 @@ const isSavingTemplate = ref(false)
 const isDeleting = ref(false)
 const isInspecting = ref(false)
 const isChoosingParent = ref(false)
-const operationError = ref('')
 const pendingDeleteKey = ref<ProjectTemplateKey | null>(null)
 const templateInspection = ref<TemplateProjectInspection | null>(null)
 const templateName = ref('')
@@ -271,9 +256,6 @@ const coverSlideIndex = ref(0)
 let coverSlideTimer: ReturnType<typeof setInterval> | null = null
 
 const selectedTemplate = computed(() => props.selectedKey ? store.findTemplate(props.selectedKey) : null)
-const selectedIconPacks = computed(() => props.selectedIconPackKeys
-  .map((key) => iconPackStore.findPack(key as ProjectIconPackCatalogKey))
-  .filter((pack): pack is ProjectIconPackCatalogEntry => Boolean(pack)))
 const selectedTemplateEntries = computed(() => (
   selectedTemplate.value ? resolveTemplateEntries(selectedTemplate.value) : []
 ))
@@ -300,9 +282,6 @@ function localizedTemplateName(template: ProjectTemplate): string {
 function localizedTemplateDescription(template: ProjectTemplate): string {
   return resolveProjectTemplateDescription(template, locale.value)
 }
-function localizedIconPackName(pack: ProjectIconPackCatalogEntry): string {
-  return resolveProjectIconPackName(pack, locale.value)
-}
 const selectedCoverSources = computed(() => (
   selectedTemplate.value?.coverPaths.map((path) => convertFileSrc(path)) ?? []
 ))
@@ -317,7 +296,6 @@ const localBusy = computed(() => (
   || isChoosingParent.value
 ))
 const isBusy = computed(() => localBusy.value || props.externalBusy === true)
-const displayedOperationError = computed(() => operationError.value || props.activationError || '')
 const targetPreview = computed(() => {
   if (!parentPath.value || !projectName.value.trim()) return ''
   const separator = parentPath.value.includes('\\') ? '\\' : '/'
@@ -362,12 +340,23 @@ watch(localBusy, (busy) => {
 }, { immediate: true, flush: 'sync' })
 
 onMounted(async () => {
-  try {
-    await Promise.all([store.load(), iconPackStore.load()])
-  } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
-  }
+  await loadTemplateCatalog()
 })
+
+async function loadTemplateCatalog(): Promise<void> {
+  try {
+    await store.load()
+    // 模板目录里用不了的模板只上报一次，具体原因留在输出里。
+    reportCatalogWarnings({
+      warnings: store.warnings.value,
+      summaryKey: 'projectTemplates.status.skippedTemplates',
+      itemKey: 'projectTemplates.status.skippedTemplate',
+      translate: t,
+    })
+  } catch (cause) {
+    reportFailure(cause)
+  }
+}
 
 onBeforeUnmount(stopCoverSlideshow)
 
@@ -380,7 +369,6 @@ function stopCoverSlideshow(): void {
 async function chooseParentDirectory(): Promise<void> {
   if (isBusy.value) return
   isChoosingParent.value = true
-  operationError.value = ''
   try {
     const selected = await store.pickProjectParentDirectory(t('projectTemplates.dialogs.chooseParent'))
     if (selected) {
@@ -388,7 +376,7 @@ async function chooseParentDirectory(): Promise<void> {
       appSettingsStore.updateProjectCreation({ lastParentPath: selected })
     }
   } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
+    reportFailure(cause)
   } finally {
     isChoosingParent.value = false
   }
@@ -397,14 +385,13 @@ async function chooseParentDirectory(): Promise<void> {
 async function beginImport(): Promise<void> {
   if (isBusy.value || store.isLoading.value) return
   isImporting.value = true
-  operationError.value = ''
   try {
     const sourcePath = await store.pickTemplateSourceFile(t('projectTemplates.dialogs.chooseTemplatePackage'))
     if (!sourcePath) return
     const imported = await store.importUserTemplate(sourcePath)
     emit('update:selectedKey', imported.key)
   } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
+    reportFailure(cause)
   } finally {
     isImporting.value = false
   }
@@ -413,7 +400,6 @@ async function beginImport(): Promise<void> {
 async function beginCreateTemplate(sourcePath: string): Promise<void> {
   if (!sourcePath || isBusy.value || store.isLoading.value) return
   isInspecting.value = true
-  operationError.value = ''
   try {
     const inspection = await store.inspectProjectSource(sourcePath)
     templateInspection.value = inspection
@@ -422,7 +408,7 @@ async function beginCreateTemplate(sourcePath: string): Promise<void> {
     templateEntry.value = inspection.entries[0] ?? ''
     templateCovers.value = []
   } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
+    reportFailure(cause)
   } finally {
     isInspecting.value = false
   }
@@ -445,7 +431,6 @@ function cancelTemplateCreation(): void {
 async function confirmCreateTemplate(): Promise<void> {
   if (!canSaveTemplate.value || !templateInspection.value) return
   isSavingTemplate.value = true
-  operationError.value = ''
   try {
     const created = await store.createUserTemplate({
       sourcePath: templateInspection.value.sourcePath,
@@ -458,7 +443,7 @@ async function confirmCreateTemplate(): Promise<void> {
     emit('update:selectedKey', created.key)
     cancelTemplateCreation()
   } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
+    reportFailure(cause)
   } finally {
     isSavingTemplate.value = false
   }
@@ -466,7 +451,6 @@ async function confirmCreateTemplate(): Promise<void> {
 
 async function deleteTemplate(template: ProjectTemplate): Promise<void> {
   isDeleting.value = true
-  operationError.value = ''
   try {
     await store.deleteUserTemplate(template)
     pendingDeleteKey.value = null
@@ -474,7 +458,7 @@ async function deleteTemplate(template: ProjectTemplate): Promise<void> {
       emit('update:selectedKey', store.templates.value[0]?.key ?? null)
     }
   } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
+    reportFailure(cause)
   } finally {
     isDeleting.value = false
   }
@@ -485,21 +469,31 @@ defineExpose({ beginCreateTemplate, beginImport })
 async function createProject(): Promise<void> {
   if (!canCreate.value || !selectedTemplate.value) return
   isCreating.value = true
-  operationError.value = ''
   try {
     const project = await store.createProject({
       template: selectedTemplate.value,
       parentPath: parentPath.value,
       projectName: projectName.value,
       entry: selectedEntry.value || undefined,
-      iconPacks: selectedIconPacks.value,
     })
     emit('created', project)
   } catch (cause) {
-    operationError.value = resolveErrorMessage(cause)
+    reportFailure(cause)
   } finally {
     isCreating.value = false
   }
+}
+
+/** 一次性失败交给即时信息，具体原因留在输出里，页面不再长期挂一段过期报错。 */
+function reportFailure(cause: unknown): void {
+  const message = resolveErrorMessage(cause)
+  notifyError(message)
+  publishAppOutput({ severity: 'error', message, detail: describeFailure(cause) })
+}
+
+function describeFailure(cause: unknown): string {
+  if (cause instanceof TemplateServiceError) return `${cause.code}: ${cause.message}`
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 function resolveErrorMessage(cause: unknown): string {
@@ -522,7 +516,6 @@ function resolveErrorMessage(cause: unknown): string {
     'copy-failed': 'copyFailed',
     'invalid-package': 'invalidPackage',
     'archive-failed': 'archiveFailed',
-    'icon-pack-failed': 'iconPackFailed',
   }
   return t(`projectTemplates.errors.${keyByCode[cause.code]}`)
 }
@@ -704,7 +697,7 @@ function resolveErrorMessage(cause: unknown): string {
   font-size: var(--oc-text-sm);
 }
 
-.create-project__icon-pack-list {
+.create-project__resource-package-list {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
@@ -851,20 +844,13 @@ function resolveErrorMessage(cause: unknown): string {
   justify-content: flex-end;
 }
 
-.create-project__status,
-.create-project__warning,
-.create-project__operation-error {
+.create-project__status {
   margin: var(--oc-space-2) 0 0;
 }
 
-.create-project__operation-error,
 .is-error {
   color: var(--oc-fg-danger);
   font-size: var(--oc-text-sm);
-}
-
-.create-project__warning {
-  color: var(--oc-icon-warning);
 }
 
 

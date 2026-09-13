@@ -1,8 +1,11 @@
 <!-- Standard tree/list view: consumes a key-only node collection and emits narrow node events. -->
+<!-- Node tail actions sit in one horizontal row, so their tooltips rise above the row and never
+     cover the sibling action next to the hovered one. -->
 <template>
   <div
     ref="treeRootElement"
     class="oc-tree"
+    data-tooltip-placement="top"
     :class="{
       'is-fill': props.fill,
       'is-empty': visibleEntries.length === 0,
@@ -125,10 +128,10 @@
         <span
           v-if="entry.item.tail"
           class="oc-tree__tail"
-          :class="{ 'is-compact': normalizeNodeTail(entry.item.tail).every(part => typeof part !== 'string') }"
+          data-tooltip-group
         >
           <template v-for="(part, index) in resolveTailParts(entry.key, entry.item.tail)" :key="tailPartKey(part, index)">
-            <OcText v-if="typeof part === 'string'" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
+            <OcText v-if="typeof part === 'string'" class="oc-tree__tail-text" tone="muted" size="xs" :truncate="true">{{ part }}</OcText>
             <span v-else-if="part.type === 'badge'" class="oc-tree__tail-badge" role="img" :aria-label="part.label" :data-tooltip="part.label">
               <OcIcon :name="part.icon" :tone="part.tone" size="sm" />
             </span>
@@ -267,6 +270,8 @@ const virtualRowHeight = ref(1)
 const collapsedActionKeys = ref<ReadonlySet<OcNodeKey>>(new Set())
 const directActionWidths = new Map<OcNodeKey, number>()
 const VIRTUAL_OVERSCAN_ROWS = 6
+/** Temporary tree state: every row shows its commands, used only to measure them. */
+const COMMANDS_REVEALED_CLASS = 'are-commands-revealed'
 let treeResizeObserver: ResizeObserver | null = null
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
@@ -410,7 +415,7 @@ function syncVirtualMetrics(): void {
 /**
  * Width the row's commands occupy right now, including the gaps between them.
  * Collapsed commands are represented by the single overflow button, so this doubles
- * as the "collapsed" width the projected-label calculation needs.
+ * as the "collapsed" width the projected-title calculation needs.
  */
 function measureTailActionWidth(row: HTMLElement): number {
   const parts = [...row.querySelectorAll<HTMLElement>('.oc-tree__tail-action')]
@@ -420,33 +425,65 @@ function measureTailActionWidth(row: HTMLElement): number {
     + gap * (parts.length - 1)
 }
 
+/** Width the node's trailing text occupies right now; the row trades it away before the title. */
+function measureTailTextWidth(row: HTMLElement): number {
+  return [...row.querySelectorAll<HTMLElement>('.oc-tree__tail-text')]
+    .reduce((total, part) => total + part.getBoundingClientRect().width, 0)
+}
+
+/**
+ * Commands stay hidden until the row is interacted with, so a row at rest reports no width for them.
+ * The decision below is about the row the user will actually see, so measurement runs with the tree
+ * temporarily showing every row's commands: the reveal class is added, read back, and removed in the
+ * same task, before the browser can paint the revealed state.
+ */
+function withCommandsRevealed<T>(measure: () => T): T {
+  const root = treeRootElement.value
+  if (!root) return measure()
+  root.classList.add(COMMANDS_REVEALED_CLASS)
+  try {
+    return measure()
+  } finally {
+    root.classList.remove(COMMANDS_REVEALED_CLASS)
+  }
+}
+
+/**
+ * A row yields space in one order: the trailing text first, then the commands (all of them replaced
+ * by one overflow menu), and only then the title. This pass decides the middle step — a row collapses
+ * its commands exactly while the title cannot be shown in full without that trade.
+ */
 function syncActionOverflow(): void {
   const nextCollapsed = new Set(collapsedActionKeys.value)
-  const minimumLabelWidth = resolveOcPixelToken('--oc-tree-action-label-min-width', treeRootElement.value)
 
-  for (const [key, row] of rowRefs) {
-    const actionCount = tailActionParts(key).length
-    if (actionCount <= 1 || row.clientWidth <= 0) {
-      nextCollapsed.delete(key)
-      directActionWidths.delete(key)
-      continue
+  withCommandsRevealed(() => {
+    for (const [key, row] of rowRefs) {
+      const actionCount = tailActionParts(key).length
+      if (actionCount <= 1 || row.clientWidth <= 0) {
+        nextCollapsed.delete(key)
+        directActionWidths.delete(key)
+        continue
+      }
+      const label = row.querySelector<HTMLElement>('.oc-tree__label')
+      if (!label || row.querySelector('.oc-tree__tail-action') === null) continue
+      // Width the title holds once the trailing text has given up everything it can, and the width
+      // it needs to be shown in full.
+      const titleWidth = label.getBoundingClientRect().width + measureTailTextWidth(row)
+      const titleDemand = label.scrollWidth
+      const actionWidth = measureTailActionWidth(row)
+
+      if (!nextCollapsed.has(key)) {
+        directActionWidths.set(key, actionWidth)
+        if (titleWidth < titleDemand) nextCollapsed.add(key)
+        continue
+      }
+
+      const directWidth = directActionWidths.get(key)
+      if (directWidth === undefined) continue
+      const projectedTitleWidth = titleWidth - Math.max(0, directWidth - actionWidth)
+      if (projectedTitleWidth >= titleDemand) nextCollapsed.delete(key)
     }
-    const label = row.querySelector<HTMLElement>('.oc-tree__label')
-    if (!label || row.querySelector('.oc-tree__tail-action') === null) continue
-    const labelWidth = label.getBoundingClientRect().width
-    const actionWidth = measureTailActionWidth(row)
-
-    if (!nextCollapsed.has(key)) {
-      directActionWidths.set(key, actionWidth)
-      if (labelWidth < minimumLabelWidth) nextCollapsed.add(key)
-      continue
-    }
-
-    const directWidth = directActionWidths.get(key)
-    if (directWidth === undefined) continue
-    const projectedLabelWidth = labelWidth - Math.max(0, directWidth - actionWidth)
-    if (projectedLabelWidth >= minimumLabelWidth) nextCollapsed.delete(key)
-  }
+  })
 
   const current = collapsedActionKeys.value
   if (nextCollapsed.size === current.size && [...nextCollapsed].every(key => current.has(key))) return
@@ -1161,22 +1198,29 @@ onBeforeUnmount(() => {
   color: var(--oc-fg-accent);
 }
 
+/*
+ * A row spends its width in one order: the title keeps what it needs, the trailing text gives up
+ * its own width first, and only a title that still does not fit is truncated. The trailing line is
+ * therefore not a box of its own competing with the title — its parts are laid out on the row's own
+ * flex line, where the text can shrink to nothing and the chips and commands keep their full width.
+ */
 .oc-tree__label {
   flex: 1 1 auto;
   min-width: 0;
 }
 
 .oc-tree__tail {
-  display: inline-flex;
-  flex: 0 1 auto;
-  min-width: 0;
-  align-items: center;
-  gap: var(--oc-space-1);
+  display: contents;
 }
 
-.oc-tree__tail.is-compact {
-  flex: 0 0 auto;
-  min-width: auto;
+/* Squeezed before the title: the weight is far above the title's 1, so the text bottoms out first. */
+.oc-tree__tail-text {
+  flex: 0 1000 auto;
+}
+
+/* The trailing line keeps its own tighter rhythm inside the row, which spaces its parts wider. */
+.oc-tree__tail > *:not(:last-child) {
+  margin-inline-end: calc(var(--oc-space-1) - var(--oc-space-2));
 }
 
 .oc-tree__tail-badge { display: inline-flex; align-items: center; flex: 0 0 auto; }
@@ -1197,7 +1241,8 @@ onBeforeUnmount(() => {
 .oc-tree__row:focus-within .oc-tree__tail-action,
 .oc-tree__node.is-selected .oc-tree__tail-action,
 .oc-tree__tail-action:has(.oc-action-button.is-menu-open),
-.oc-tree.are-actions-always-visible .oc-tree__tail-action {
+.oc-tree.are-actions-always-visible .oc-tree__tail-action,
+.oc-tree.are-commands-revealed .oc-tree__tail-action {
   display: inline-flex;
 }
 

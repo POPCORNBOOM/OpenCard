@@ -10,7 +10,7 @@ function createDocument(): CardDocument {
         type: 'card-face', id: 'front', background: '#fff',
         children: [{
           block: {
-            type: 'custom-block', id: 'custom', customBlockKey: 'block:card',
+            type: 'text-block', id: 'custom',
             width: '100%', mystery: 'preserved',
             additionalFieldDefinition: { score: { fieldType: 'number', title: 'Score' } }, score: '12',
           } as any,
@@ -30,7 +30,7 @@ describe('card document storage', () => {
     expect(stored).toEqual(document)
   })
 
-  it('preserves unknown and custom block fields during parsing', () => {
+  it('preserves unknown block fields during parsing', () => {
     const source = createDocument() as unknown as Record<string, unknown>
     source.extra = true
     const parsed = parseCardDocument(source)
@@ -41,8 +41,8 @@ describe('card document storage', () => {
 
   it('only rejects a non-object document root', () => {
     expect(() => parseCardDocument(null)).toThrow('JSON object')
-    expect(parseStoredCardBlock({ type: 'custom-block', id: 'x', customBlockKey: 'block:x' })).toMatchObject({
-      type: 'custom-block',
+    expect(parseStoredCardBlock({ type: 'text-block', id: 'x' })).toMatchObject({
+      type: 'text-block',
     })
     expect(parseStoredCardBlock({ type: 1 })).toBeNull()
   })

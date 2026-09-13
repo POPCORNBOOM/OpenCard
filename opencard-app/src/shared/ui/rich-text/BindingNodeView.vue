@@ -36,7 +36,6 @@
       :style="expressionStyle"
       role="button"
       tabindex="-1"
-      data-tooltip="点击选中 binding"
       aria-label="点击选中 binding"
       @mousedown.stop
       @click="handleLabelClick"

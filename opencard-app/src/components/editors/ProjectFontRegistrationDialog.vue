@@ -47,7 +47,8 @@
                       : fallbackLabel(slotKey(weight, style)) || t('projectConfig.fonts.chooseFiles') }}
                   </OcButton>
                   <OcButton v-if="slotFor(weight, style)" type="button" variant="ghost" icon="action.delete"
-                    icon-only :aria-label="t('projectConfig.fonts.removeFace')" @click="clearSlot(slotKey(weight, style))" />
+                    icon-only :aria-label="t('projectConfig.fonts.removeFace')"
+                    :data-tooltip="t('projectConfig.fonts.removeFace')" @click="clearSlot(slotKey(weight, style))" />
                 </div>
               </td>
             </tr>

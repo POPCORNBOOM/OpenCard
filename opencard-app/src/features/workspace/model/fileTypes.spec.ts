@@ -2,26 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { resolveDirectoryIcon, resolveEntryIcon, resolveFileType } from './fileTypes'
 
 describe('project metadata file types', () => {
-  it('recognizes exact project resource file names and custom block packages', () => {
+  it('recognizes exact project resource file names', () => {
     expect(resolveFileType('D:/Cards/.opencard/project.json', 'D:/Cards').id).toBe('opencard-project-profile')
     expect(resolveFileType('D:/Cards/.opencard/locale.json', 'D:/Cards').id).toBe('opencard-dictionary')
     expect(resolveFileType('D:/Cards/.opencard/fonts/fonts.json', 'D:/Cards').id).toBe('opencard-font-registry')
     expect(resolveFileType('D:/Cards/.opencard/icons/icons.json', 'D:/Cards').id).toBe('opencard-icon-registry')
-    expect(resolveFileType('D:/Cards/.opencard/blocks/blocks.json', 'D:/Cards')).toMatchObject({
-      id: 'opencard-custom-block-manager',
-      editorId: 'custom-block-manager',
-    })
-    expect(resolveFileType('D:/Cards/assets/square.ocblock')).toMatchObject({
-      id: 'opencard-custom-block',
-      editorId: 'monaco',
-    })
     expect(resolveFileType('D:/Cards/en_US.ocproject').id).toBe('unsupported')
     expect(resolveFileType('D:/Cards/notes.oclocale').id).toBe('unsupported')
   })
 
   it('restricts special files to the managed project directory', () => {
     expect(resolveFileType('D:/Cards/.opencard/fonts/fonts.json', 'D:/Cards').id).toBe('opencard-font-registry')
-    expect(resolveFileType('D:/Cards/.opencard/blocks/blocks.json', 'D:/Cards').id).toBe('opencard-custom-block-manager')
     expect(resolveFileType('D:/Cards/.opencard/other/blocks/blocks.json', 'D:/Cards').id).toBe('json')
   })
 

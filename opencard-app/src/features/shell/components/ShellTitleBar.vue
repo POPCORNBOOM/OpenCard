@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
         <AppearanceShaderPreview :progress="titlebarProgress" />
       </div>
     </Transition>
-    <div class="titlebar-left">
+    <div class="titlebar-left" data-tooltip-group>
       <button
         class="titlebar-icon"
         type="button"
@@ -297,7 +297,9 @@ onBeforeUnmount(() => {
             <span class="titlebar-task-row__actions">
               <span class="titlebar-task-row__value">{{ taskProgressPercent(task) }}%</span>
               <OcButton v-if="task.cancellable" icon-only size="sm" variant="ghost" icon="action.close"
-                :aria-label="props.cancelTaskLabel || 'Cancel task'" @click="emit('cancel-task', task.key)" />
+                :aria-label="props.cancelTaskLabel || 'Cancel task'"
+                :data-tooltip="props.cancelTaskLabel || 'Cancel task'"
+                @click="emit('cancel-task', task.key)" />
             </span>
           </div>
           <span v-if="task.detail" class="titlebar-task-row__detail">{{ task.detail }}</span>

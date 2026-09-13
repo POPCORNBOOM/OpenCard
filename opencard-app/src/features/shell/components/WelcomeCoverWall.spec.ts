@@ -14,11 +14,16 @@ function mountWall(covers: readonly WelcomeCoverWallCover[] = [], highlightKeys:
   return mount(WelcomeCoverWall, { props: { covers, highlightKeys } })
 }
 
+/** 瓦片当前实际显示的图：项目封面占用的格子以封面为准，其余仍显示内置封面。 */
+function tileSource(tile: Element): string {
+  const cover = tile.querySelector('.welcome-cover-wall__tile-cover')
+  const image = cover ?? tile.querySelector('.welcome-cover-wall__tile-artwork')
+  return image?.getAttribute('src') ?? 'empty'
+}
+
 function rowSources(wrapper: ReturnType<typeof mountWall>, rowIndex = 0): readonly string[] {
   const row = wrapper.findAll('.welcome-cover-wall__row')[rowIndex]!
-  return [...row.element.children].map(tile => (
-    (tile as HTMLElement).querySelector('img')?.getAttribute('src') ?? 'empty'
-  ))
+  return [...row.element.children].map(tile => tileSource(tile))
 }
 
 class ResizeObserverMock {
@@ -59,6 +64,52 @@ describe('WelcomeCoverWall', () => {
     for (const [index] of wrapper.findAll('.welcome-cover-wall__row').entries()) {
       expect(rowSources(wrapper, index)).not.toContain('empty')
     }
+  })
+
+  it('reveals the whole wall at once once the artwork is decoded, and a cover only when its own image is ready', async () => {
+    const coverSource = cover(0)
+    const wrapper = mountWall([coverSource])
+    const tiles = wrapper.findAll('.welcome-cover-wall__tile')
+    expect(tiles.length).toBeGreaterThan(0)
+
+    // 内置封面整批解码完成后墙面一次性出现，不是一块块补上来。
+    await vi.waitFor(() => {
+      expect(wrapper.findAll('.welcome-cover-wall__tile.is-ready')).toHaveLength(tiles.length)
+    })
+
+    // 项目封面要经资源协议异步读取：它自己的图就绪前不淡入，底图仍然在场。
+    const coverImages = wrapper.findAll('.welcome-cover-wall__tile-cover')
+    expect(coverImages.length).toBeGreaterThan(0)
+    expect(coverImages.every(image => !image.classes().includes('is-ready'))).toBe(true)
+    expect(tiles.every(tile => tile.find('.welcome-cover-wall__tile-artwork').exists())).toBe(true)
+
+    await coverImages[0]!.trigger('load')
+    expect(coverImages.every(image => image.classes().includes('is-ready'))).toBe(true)
+  })
+
+  it('keeps the artwork in place when project covers arrive', async () => {
+    const wrapper = mountWall()
+    const before = rowSources(wrapper)
+    expect(before).not.toContain(cover(0).src)
+
+    await wrapper.setProps({ covers: [cover(0), cover(1)] })
+
+    // 封面只占用固定的封面格：其余格子的内置封面一个都不动。
+    const after = rowSources(wrapper)
+    expect(after).toHaveLength(before.length)
+    const changed = after.filter((source, index) => source !== before[index])
+    expect(changed.length).toBeGreaterThan(0)
+    expect(changed.every(source => [cover(0).src, cover(1).src].includes(source))).toBe(true)
+  })
+
+  it('staggers the covers instead of swapping every tile at the same instant', () => {
+    const wrapper = mountWall([cover(0), cover(1), cover(2)])
+    const delays = wrapper.findAll('.welcome-cover-wall__tile')
+      .map(tile => tile.attributes('style') ?? '')
+      .filter(style => style.includes('--welcome-cover-wall-cover-delay'))
+
+    expect(delays.length).toBeGreaterThan(1)
+    expect(new Set(delays).size).toBeGreaterThan(1)
   })
 
   it('lays the wall out as a grid without brick offsets', () => {
@@ -119,7 +170,9 @@ describe('WelcomeCoverWall', () => {
 
     const emphasized = wrapper.findAll('.welcome-cover-wall__tile.is-emphasized')
     expect(emphasized.length).toBeGreaterThan(0)
-    expect(emphasized.every(tile => tile.find('img').attributes('src') === selected.src)).toBe(true)
+    expect(emphasized.every(tile => (
+      tile.find('.welcome-cover-wall__tile-cover').attributes('src') === selected.src
+    ))).toBe(true)
 
     const other = mountWall([cover(0), selected], [])
     expect(other.find('.welcome-cover-wall__tile.is-emphasized').exists()).toBe(false)

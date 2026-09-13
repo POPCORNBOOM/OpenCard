@@ -204,7 +204,7 @@ describe('useCdeSelectionCommands', () => {
     expect(flow.children[0]!.location.align).toBe('center')
   })
 
-  it('filters layout writes on locked custom-block axes', () => {
+  it('filters layout writes on locked axes', () => {
     const { commands, simple } = createHarness((_blockId, axis) => axis === 'width')
     const child = simple.children[0]!
 

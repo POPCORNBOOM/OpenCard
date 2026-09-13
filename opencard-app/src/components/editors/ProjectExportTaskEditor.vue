@@ -9,6 +9,7 @@
           @focus="openMenu" @input="updateQuery" @blur="closeMenu" @keydown="handleKeydown" />
         <OcButton type="button" icon-only variant="soft" icon="action.add"
           :disabled="busy || !candidatePath" :aria-label="t('projectConfig.export.addDocument')"
+          :data-tooltip="t('projectConfig.export.addDocument')"
           @click="addCandidate" />
       </div>
       <OcAutocompletePopover :id="autocompleteId" :open="menuOpen" :anchor="pickerRef"
@@ -53,7 +54,8 @@
             :placeholder="t('projectConfig.export.chooseOutputDirectory')" />
           <template #suffix>
             <OcButton type="button" icon-only variant="ghost" icon="status.folder-open"
-              :disabled="busy" :aria-label="t('projectConfig.export.chooseOutputDirectory')" @click="chooseOutputDirectory" />
+              :disabled="busy" :aria-label="t('projectConfig.export.chooseOutputDirectory')"
+              :data-tooltip="t('projectConfig.export.chooseOutputDirectory')" @click="chooseOutputDirectory" />
           </template>
         </OcFieldFrame>
       </label>

@@ -49,7 +49,7 @@ const numberValue = computed(() => {
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--oc-field-control-gap, var(--oc-space-3));
+  gap: var(--oc-space-2);
 }
 
 .number-slider-field__value {

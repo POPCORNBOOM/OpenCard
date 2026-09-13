@@ -2,7 +2,7 @@ import type { ProjectRemoteResourcePolicy } from '../workspace/model/projectMeta
 import {
   EMPTY_PROJECT_ICON_CATALOG,
   type ProjectIconCatalog,
-  type ProjectIconDimensionRequest,
+  type ProjectIconDimensionReader,
 } from '../workspace/services/projectIconCatalog'
 import type { ProjectInformation } from '../workspace/model/projectMetadata'
 import type { PreparedRichTextCatalog } from './prepareRichText'
@@ -32,8 +32,8 @@ export type CardRenderResourceContext = {
   readonly remoteResourcePolicy?: ProjectRemoteResourcePolicy
   readonly resolveRemoteResource?: (url: string) => string | null
   readonly projectIconCatalog: ProjectIconCatalog
-  /** Reports an unmeasured icon that is about to be painted, so its size gets resolved. */
-  readonly resolveIconDimensions?: ProjectIconDimensionRequest
+  /** Reads an icon's size, which is what asks for it and re-renders the consumer that read it. */
+  readonly resolveIconDimensions?: ProjectIconDimensionReader
   readonly resourceScopes: ProjectResourceScopeMap
   readonly packageEnvironments: ReadonlyMap<string, ProjectResourceEnvironment>
   readonly richText?: PreparedRichTextCatalog
@@ -57,8 +57,8 @@ export interface CardResourceResolver {
   resolveImageSource: (source: string, blockId?: string, fieldKey?: string) => ResolvedImageSource
   resolveFont: (value: string, blockId?: string, fieldKey?: string) => string
   resolveIcon: (source: string, blockId?: string, fieldKey?: string) => ProjectIconCatalog['entries'][number] | null
-  /** Reports an unmeasured icon that is about to be painted, so its size gets resolved. */
-  resolveIconDimensions: (entry: ProjectIconCatalog['entries'][number]) => void
+  /** Reads an icon's size, which is what asks for it. */
+  resolveIconDimensions: ProjectIconDimensionReader
   withScopes: (scopes: CardRenderResourceScopeSource) => CardResourceResolver
 }
 
@@ -67,7 +67,7 @@ function readSource<T>(source: T | (() => T)): T {
 }
 
 /** A render without a project behind it — a fixture, a preview — simply keeps the square default. */
-const noopIconDimensionRequest: ProjectIconDimensionRequest = () => undefined
+const noopIconDimensionReader: ProjectIconDimensionReader = () => undefined
 
 export function createCardResourceResolver(
   contextSource: CardRenderResourceContextSource,
@@ -91,7 +91,7 @@ export function createCardResourceResolver(
     resolveImageSource: (source, blockId, fieldKey) => resolveCardImageSource(source, context(), blockId, fieldKey),
     resolveFont: (value, blockId, fieldKey) => resolveCardFontFamily(value, context(), blockId, fieldKey),
     resolveIcon: (source, blockId, fieldKey) => resolveCardIconReference(source, context(), blockId, fieldKey),
-    resolveIconDimensions: entry => (context().resolveIconDimensions ?? noopIconDimensionRequest)(entry),
+    resolveIconDimensions: entry => (context().resolveIconDimensions ?? noopIconDimensionReader)(entry),
     withScopes: scopes => createCardResourceResolver(contextSource, [...scopeSources, scopes]),
   }
 }
@@ -142,7 +142,7 @@ export function createCardRenderResourceContext(options: {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   resolveRemoteResource?: (url: string) => string | null
   projectIconCatalog?: ProjectIconCatalog
-  resolveIconDimensions?: ProjectIconDimensionRequest
+  resolveIconDimensions?: ProjectIconDimensionReader
   resourceScopes?: ProjectResourceScopeMap
   packageEnvironments?: ReadonlyMap<string, ProjectResourceEnvironment>
   richText?: PreparedRichTextCatalog

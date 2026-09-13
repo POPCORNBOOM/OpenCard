@@ -243,15 +243,13 @@ export function useProjectExport(options: UseProjectExportOptions) {
     }, cancel)
   }
 
-  function logResult(result: ExportRunResult): void {
+  function reportResult(result: ExportRunResult): void {
     const summary = options.translate('app.exportProgress.summary', {
       succeeded: result.succeeded,
       skipped: result.skipped,
       failed: result.failed,
       directory: result.outputDirectory,
     })
-    console.info(summary)
-    for (const failure of result.failures) console.warn('[export]', failure)
     if (result.status === 'failed') {
       reportAppError('OC-E5006', result)
       notifyError(summary)
@@ -266,11 +264,6 @@ export function useProjectExport(options: UseProjectExportOptions) {
     if (isRunning.value) return null
     isRunning.value = true
     controller.value = new AbortController()
-    for (const entry of plan.entries) {
-      if (entry.render.issues.length > 0) {
-        console.warn(`[export] pipeline issues in ${entry.sourcePath}:`, entry.render.issues)
-      }
-    }
     setTask({
       key: PROJECT_EXPORT_PROGRESS_KEY,
       title: options.translate('app.exportProgress.project'),
@@ -286,7 +279,7 @@ export function useProjectExport(options: UseProjectExportOptions) {
         signal: controller.value.signal,
         report: reportProgress,
       })
-      logResult(result)
+      reportResult(result)
       return result
     } catch (error) {
       notifyAppError('OC-E5006', error)

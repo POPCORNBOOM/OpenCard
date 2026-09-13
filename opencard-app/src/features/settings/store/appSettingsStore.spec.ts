@@ -69,18 +69,6 @@ describe('appSettingsStore', () => {
     })
   })
 
-  it('persists the normalized custom block recursion depth', async () => {
-    const persistence = new MemorySettingsPersistence()
-    const store = createAppSettingsStore(persistence)
-    await store.initialize()
-
-    store.updateSetting('workspace.customBlockMaxDepth', 24)
-    await store.flush()
-
-    expect(store.settings.value.workspace.customBlockMaxDepth).toBe(24)
-    expect(await persistence.load()).toMatchObject({ workspace: { customBlockMaxDepth: 24 } })
-  })
-
   it('persists the title bar notice history limit', async () => {
     const persistence = new MemorySettingsPersistence()
     const store = createAppSettingsStore(persistence)

@@ -1,7 +1,7 @@
 import { applyInstance } from '../../entities/card/instance'
 import type { CardDocument, CardInstanceRecord } from '../../entities/card/model'
 import type { ProjectInformation, ProjectRemoteResourcePolicy } from '../workspace/model/projectMetadata'
-import type { ProjectIconCatalog, ProjectIconDimensionRequest } from '../workspace/services/projectIconCatalog'
+import type { ProjectIconCatalog, ProjectIconDimensionReader } from '../workspace/services/projectIconCatalog'
 import type { ProjectResourceEnvironment, ProjectResourceScopeMap } from '../workspace/services/projectResourceEnvironment'
 import { createCardRenderResourceContext, type CardRenderResourceContext } from './cardRenderResources'
 import type { CardPipelineIssue } from './cardPipelineIssue'
@@ -28,8 +28,8 @@ export type CardRenderEnvironment = RenderPipelineContext & {
   remoteResourcePolicy?: ProjectRemoteResourcePolicy
   resolveRemoteResource?: (url: string) => string | null
   projectIconCatalog: ProjectIconCatalog
-  /** Reports an unmeasured icon that is about to be painted, so its size gets resolved. */
-  resolveIconDimensions?: ProjectIconDimensionRequest
+  /** Reads an icon's size, which is what asks for it and re-renders the consumer that read it. */
+  resolveIconDimensions?: ProjectIconDimensionReader
   resolveFontFamily?: (references: string) => string
 }
 

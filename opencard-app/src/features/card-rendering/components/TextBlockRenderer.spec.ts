@@ -2,13 +2,8 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { createTextBlock } from '../../../entities/card/model'
 import TextBlockRenderer from './TextBlockRenderer.vue'
-import { createRendererTestResources, parseRenderReadyBlockForTest, rendererTestGlobal, richTextRendererTestGlobal } from './renderTestUtils'
-import CardBlockRenderer from './CardBlockRenderer.vue'
-import type { PreparedRichTextCatalog } from '../prepareRichText'
+import { parseRenderReadyBlockForTest, rendererTestGlobal, richTextRendererTestGlobal } from './renderTestUtils'
 import { cardEditorContextKey } from './cardEditorContext'
-import { computed } from 'vue'
-import { parseRichTextHtml } from '../../../shared/rich-text/richTextHtml'
-import { createI18n } from 'vue-i18n'
 
 describe('TextBlockRenderer', () => {
   it('promotes plain-text line breaks to rich-text paragraphs', () => {
@@ -171,42 +166,5 @@ describe('TextBlockRenderer', () => {
     expect(icon.style.getPropertyValue('--oc-project-icon-background-size')).toBe('100% 100%')
     expect(icon.style.getPropertyValue('--oc-project-icon-image-rendering')).toBe('pixelated')
     expect(icon.style.getPropertyValue('--oc-project-icon-transform')).toBe('rotate(180deg)')
-  })
-
-  it('passes prepared embeds to the existing card block renderer without runtime preparation', () => {
-    const block = parseRenderReadyBlockForTest({
-      id: 'host', type: 'text-block',
-      content: '<p><oc-custom-block data-oc-id="badge" data-oc-custom-block-key="alice@block:badge" data-oc-layout="inline"></oc-custom-block></p>',
-    })
-    const embedded = parseRenderReadyBlockForTest({
-      id: 'host::embed:badge', type: 'text-block', content: 'Ready',
-    })
-    const parsed = parseRichTextHtml(block.content)
-    const richText: PreparedRichTextCatalog = new Map([['host', {
-      document: parsed.document,
-      embeddedBlocks: new Map([['badge', embedded]]),
-      diagnostics: [],
-      valid: true,
-    }]])
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: {
-      'en-US': { cardDesigner: { customBlock: { unavailable: 'Unavailable' } } },
-    } })
-    const wrapper = mount(TextBlockRenderer, {
-      props: { block, placement: { kind: 'root' } },
-      global: {
-        plugins: [i18n],
-        stubs: { CardBlockRenderer: true },
-        provide: { [cardEditorContextKey as symbol]: {
-          transformDisabledBlockIds: computed(() => new Set<string>()),
-          handleBlockClick: () => undefined,
-          resources: createRendererTestResources(),
-          richText: computed(() => richText),
-        } },
-      },
-    })
-
-    expect(wrapper.get('.rich-text-custom-block--inline').element.tagName).toBe('DIV')
-    expect(wrapper.getComponent(CardBlockRenderer).props('block')).toBe(embedded)
-    expect(wrapper.getComponent(CardBlockRenderer).props('placement')).toEqual({ kind: 'root' })
   })
 })

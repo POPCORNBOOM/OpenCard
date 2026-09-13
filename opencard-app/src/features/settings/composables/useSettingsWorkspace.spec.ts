@@ -19,6 +19,13 @@ describe('useSettingsWorkspace', () => {
     })
 
     expect(categoryTreeData.value.rootKeys).toEqual(['general', 'appearance', 'workspace'])
+    // Every category row shows its own icon: the tree paints a row's leading visual from `visual`,
+    // and a node that carries none falls back to the expand chevron.
+    expect(categoryTreeData.value.rootKeys.map(key => categoryTreeData.value.items.get(key)?.visual)).toEqual([
+      { type: 'icon', icon: 'tool.settings' },
+      { type: 'icon', icon: 'data.symbol-color' },
+      { type: 'icon', icon: 'nav.files' },
+    ])
     expect(activeCategory.value.items.map(item => item.key)).toEqual([
       'appearance.locale',
       'shell.titleBarNoticeHistoryLimit',
@@ -110,9 +117,6 @@ describe('useSettingsWorkspace', () => {
     })
     expect(definitionFor('workspace.historyEntryLimit')).toMatchObject({
       ticks: [10, 50, 100, 250, 500, 1000],
-    })
-    expect(definitionFor('workspace.customBlockMaxDepth')).toMatchObject({
-      ticks: [1, 2, 4, 8, 16, 32, 64],
     })
   })
 })

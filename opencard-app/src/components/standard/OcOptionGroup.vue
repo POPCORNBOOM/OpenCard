@@ -50,19 +50,20 @@ const containerStyle = computed<CSSProperties>(() => {
   const selectionStyle = {
     '--oc-option-count': props.options.length,
     '--oc-option-index': selectedIndex.value,
+    '--oc-option-gap': 'var(--oc-space-1)',
   }
   if (props.columns) {
     return {
       ...selectionStyle,
       display: 'grid',
       gridTemplateColumns: `repeat(${props.columns}, 1fr)`,
-      gap: props.appearance === 'sliding-outline' ? '0' : 'var(--oc-field-control-gap, var(--oc-space-1))'
+      gap: 'var(--oc-option-gap)',
     }
   }
   return {
     ...selectionStyle,
     display: 'flex',
-    gap: props.appearance === 'sliding-outline' ? '0' : 'var(--oc-field-control-gap, var(--oc-space-1))'
+    gap: 'var(--oc-option-gap)',
   }
 })
 
@@ -151,16 +152,21 @@ function handleKeydown(event: KeyboardEvent, index: number): void {
   min-width: 0;
 }
 
+/**
+ * The frame spans one option and steps by one option plus the gap. The step uses `transform`
+ * because a percentage there resolves against the frame's own width; the same `100%` inside
+ * `inset-inline-start` would resolve against the whole row and throw the frame past the last option.
+ */
 .oc-option-group__indicator {
   position: absolute;
   z-index: 0;
   inset-block: 0;
   inset-inline-start: 0;
-  width: calc(100% / var(--oc-option-count));
+  width: calc((100% - (var(--oc-option-count) - 1) * var(--oc-option-gap)) / var(--oc-option-count));
   border: 1px solid var(--oc-border-accent);
   border-radius: var(--oc-radius-sm);
   pointer-events: none;
-  transform: translateX(calc(var(--oc-option-index) * 100%));
+  transform: translateX(calc(var(--oc-option-index) * (100% + var(--oc-option-gap))));
   transition: transform var(--oc-duration-normal) var(--oc-ease);
 }
 

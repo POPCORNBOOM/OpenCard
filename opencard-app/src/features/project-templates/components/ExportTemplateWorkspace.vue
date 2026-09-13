@@ -77,9 +77,6 @@
       </div>
 
       <footer class="export-template__footer">
-        <div class="export-template__feedback">
-          <p v-if="errorMessage" class="export-template__error" role="alert">{{ errorMessage }}</p>
-        </div>
         <OcButton type="submit" size="lg" variant="solid" icon="action.export" :disabled="!canExport">
           {{ isExporting ? t('templateExport.status.exporting') : t('templateExport.actions.export') }}
         </OcButton>
@@ -104,6 +101,8 @@ import {
   type TemplateProjectInspection,
 } from '../model/projectTemplate'
 import { useProjectTemplateStore } from '../store/projectTemplateStore'
+import { notifyError } from '../../notifications/titlebarNotices'
+import { publishAppOutput } from '../../logging/appOutput'
 
 const props = defineProps<{ projectPath: string }>()
 const emit = defineEmits<{
@@ -122,7 +121,6 @@ const excludedPaths = ref<string[]>([])
 const activeCoverIndex = ref(0)
 const isInspecting = ref(true)
 const isExporting = ref(false)
-const errorMessage = ref('')
 let coverTimer: ReturnType<typeof setInterval> | null = null
 
 const isBusy = computed(() => isInspecting.value || isExporting.value)
@@ -180,7 +178,7 @@ onMounted(async () => {
     entries.value = result.entries.slice(0, 1)
     emitSelection()
   } catch (cause) {
-    errorMessage.value = resolveError(cause)
+    reportFailure(cause)
   } finally {
     isInspecting.value = false
     emit('update:busy', false)
@@ -242,7 +240,6 @@ function safeFileName(value: string): string {
 
 async function exportTemplate(): Promise<void> {
   if (!canExport.value || !inspection.value) return
-  errorMessage.value = ''
   try {
     const outputPath = await store.pickTemplateExportPath(
       `${safeFileName(name.value)}${PROJECT_TEMPLATE_PACKAGE_SUFFIX}`,
@@ -263,11 +260,23 @@ async function exportTemplate(): Promise<void> {
     })
     emit('exported', exportedPath)
   } catch (cause) {
-    errorMessage.value = resolveError(cause)
+    reportFailure(cause)
   } finally {
     isExporting.value = false
     emit('update:busy', false)
   }
+}
+
+/** 一次性失败交给即时信息，具体原因留在输出里，页面不再长期挂着过期报错。 */
+function reportFailure(cause: unknown): void {
+  const message = resolveError(cause)
+  notifyError(message)
+  publishAppOutput({ severity: 'error', message, detail: describeFailure(cause) })
+}
+
+function describeFailure(cause: unknown): string {
+  if (cause instanceof TemplateServiceError) return `${cause.code}: ${cause.message}`
+  return cause instanceof Error ? cause.message : String(cause)
 }
 
 function resolveError(cause: unknown): string {
@@ -462,11 +471,6 @@ function resolveError(cause: unknown): string {
   border-top: 1px solid var(--oc-border-muted);
 }
 
-.export-template__feedback {
-  min-width: 0;
-}
-
-.export-template__error,
 .is-error {
   margin: 0;
   color: var(--oc-fg-danger) !important;

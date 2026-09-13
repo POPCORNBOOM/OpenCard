@@ -29,7 +29,7 @@
             :entry="resolvedSource.entry"
             mode="block"
             :fit="block.fit"
-            :resolve-dimensions="editorContext.resources.resolveIconDimensions"
+            :read-dimensions="editorContext.resources.resolveIconDimensions"
         />
         <img
             v-if="resolvedSource.kind === 'image'"

@@ -70,7 +70,7 @@
               </OcText>
             </span>
             <span class="oc-album__meta">
-              <span v-if="entry.item.tail" class="oc-album__tail">
+              <span v-if="entry.item.tail" class="oc-album__tail" data-tooltip-group>
                 <template
                   v-for="(part, index) in normalizeNodeTail(entry.item.tail)"
                   :key="tailPartKey(part, index)"

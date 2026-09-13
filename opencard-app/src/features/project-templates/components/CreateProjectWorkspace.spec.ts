@@ -4,20 +4,33 @@ import { createI18n } from 'vue-i18n'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OcCheckbox from '../../../components/base/OcCheckbox.vue'
 import OcSelect from '../../../components/standard/OcSelect.vue'
+import { TemplateServiceError } from '../model/projectTemplate'
 import type {
   CreatedProject,
   ProjectTemplate,
   ProjectTemplateKey,
+  TemplateCatalogWarning,
   TemplateProjectInspection,
 } from '../model/projectTemplate'
 import type { ProjectTemplateStore } from '../store/projectTemplateStore'
 import CreateProjectWorkspace from './CreateProjectWorkspace.vue'
 
 let store: ProjectTemplateStore
+let catalogWarnings: Ref<TemplateCatalogWarning[]>
 let appSettingsStore: {
   settings: Ref<{ projectCreation: { lastParentPath: string } }>
   updateProjectCreation: ReturnType<typeof vi.fn>
 }
+
+const notifications = vi.hoisted(() => ({ notifyError: vi.fn(), notifyWarning: vi.fn() }))
+const output = vi.hoisted(() => ({ publishAppOutput: vi.fn() }))
+
+vi.mock('../../notifications/titlebarNotices', () => ({
+  notifyError: notifications.notifyError,
+  notifyWarning: notifications.notifyWarning,
+}))
+
+vi.mock('../../logging/appOutput', () => ({ publishAppOutput: output.publishAppOutput }))
 
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => 'asset://' + path,
@@ -40,14 +53,11 @@ const messages = {
     formTitle: 'Project',
     sections: {
       builtin: 'Built-in templates', user: 'My templates',
-      builtinIconPacks: 'Built-in icon packs', userIconPacks: 'My icon packs',
     },
     actions: {
       back: 'Back',
       saveTemplate: 'Save template',
       import: 'Import template',
-      importIconPack: 'Import icon pack',
-      registerIconPack: 'Register to project',
       confirmImport: 'Import',
       cancel: 'Cancel',
       delete: 'Delete',
@@ -56,16 +66,14 @@ const messages = {
     },
     status: {
       loading: 'Loading',
-      loadingIconPacks: 'Loading icon packs',
-      noBuiltinIconPacks: 'No built-in icon packs',
-      noUserIconPacks: 'No user icon packs',
-      noIconPacksSelected: 'None',
+      noResourcePackagesSelected: 'None',
       selectTemplate: 'Select a template',
       noDescription: 'No description',
       noInitialPage: 'None',
       chooseLocation: 'Choose a location',
       creating: 'Creating',
       skippedTemplates: 'Skipped {count}',
+      skippedTemplate: 'Skipped {name}',
       creatingFromProject: 'Creating from project',
       noCoverCandidates: 'No covers',
     },
@@ -78,14 +86,13 @@ const messages = {
       projectName: 'Project name',
       location: 'Location',
       target: 'Target',
-      iconPacks: 'Icon packs to register',
+      resourcePackages: 'Add-on packages',
     },
     confirmDelete: 'Delete this template?',
     defaults: { projectName: 'Untitled Project' },
     dialogs: {
       chooseParent: 'Choose parent',
       chooseTemplatePackage: 'Choose package',
-      chooseIconPack: 'Choose icon pack',
     },
     errors: {
       invalidCatalog: 'Invalid catalog',
@@ -103,7 +110,6 @@ const messages = {
       targetExists: 'Target exists',
       builtinDeleteForbidden: 'Cannot delete built-in template',
       copyFailed: 'Copy failed',
-      iconPackFailed: 'Icon pack failed',
       unknown: 'Unknown error',
     },
   },
@@ -130,11 +136,12 @@ function template(
 
 function createStore(templates: ProjectTemplate[]): ProjectTemplateStore {
   const templateList = ref(templates)
+  catalogWarnings = ref<TemplateCatalogWarning[]>([])
   return {
     templates: templateList,
     builtinTemplates: computed(() => templateList.value.filter((item) => item.source === 'builtin')),
     userTemplates: computed(() => templateList.value.filter((item) => item.source === 'user')),
-    warnings: ref([]),
+    warnings: catalogWarnings,
     isLoading: ref(false),
     error: ref(null),
     load: vi.fn(async () => undefined),
@@ -155,11 +162,10 @@ function createStore(templates: ProjectTemplate[]): ProjectTemplateStore {
 
 function mountWorkspace(
   selectedKey: ProjectTemplateKey | null,
-  selectedCustomBlockKeys: readonly string[] = [],
 ): VueWrapper {
   const i18n = createI18n({ legacy: false, locale: 'en', messages: { en: messages } })
   return mount(CreateProjectWorkspace, {
-    props: { selectedKey, selectedCustomBlockKeys },
+    props: { selectedKey },
     global: { plugins: [i18n] },
   })
 }
@@ -174,6 +180,41 @@ describe('CreateProjectWorkspace', () => {
       settings: ref({ projectCreation: { lastParentPath: '/cached-projects' } }),
       updateProjectCreation: vi.fn(),
     }
+    notifications.notifyError.mockClear()
+    notifications.notifyWarning.mockClear()
+    output.publishAppOutput.mockClear()
+  })
+
+  it('reports skipped catalog templates as a notice and output detail instead of page text', async () => {
+    catalogWarnings.value = [
+      { path: '/appdata/templates/broken-pack', reason: 'Invalid manifest' },
+    ]
+    const wrapper = mountWorkspace(builtin.key)
+    await flushPromises()
+
+    expect(notifications.notifyWarning).toHaveBeenCalledWith('Skipped 1')
+    expect(output.publishAppOutput).toHaveBeenCalledWith({
+      severity: 'warning',
+      message: 'Skipped broken-pack',
+      detail: '/appdata/templates/broken-pack: Invalid manifest',
+    })
+    expect(wrapper.text()).not.toContain('Skipped')
+  })
+
+  it('reports a catalog load failure as a notice and output detail instead of page text', async () => {
+    vi.mocked(store.load).mockRejectedValueOnce(
+      new TemplateServiceError('invalid-catalog', 'catalog unreadable'),
+    )
+    const wrapper = mountWorkspace(builtin.key)
+    await flushPromises()
+
+    expect(notifications.notifyError).toHaveBeenCalledWith('Invalid catalog')
+    expect(output.publishAppOutput).toHaveBeenCalledWith({
+      severity: 'error',
+      message: 'Invalid catalog',
+      detail: 'invalid-catalog: catalog unreadable',
+    })
+    expect(wrapper.text()).not.toContain('Invalid catalog')
   })
 
   it('starts with a default name and restores and updates the last parent path', async () => {
@@ -216,6 +257,24 @@ describe('CreateProjectWorkspace', () => {
 
     expect(store.deleteUserTemplate).toHaveBeenCalledWith(user)
     expect(wrapper.emitted('update:selectedKey')).toEqual([[builtin.key]])
+  })
+
+  it('lists the add-on packages that will be installed into the new project', async () => {
+    const wrapper = mountWorkspace(builtin.key)
+    await flushPromises()
+
+    expect(wrapper.find('.create-project__resource-package-list').exists()).toBe(false)
+
+    await wrapper.setProps({
+      attachedResourcePackages: [
+        { path: '/app/packages/theme.ocpack', key: 'theme', name: 'Theme Pack', version: '1.0.0' },
+        { path: '/app/packages/extra.ocpack', key: 'extra', name: 'Extra Pack', version: '2.1.0' },
+      ],
+    })
+    await flushPromises()
+
+    const list = wrapper.get('.create-project__resource-package-list')
+    expect(list.findAll('li').map((item) => item.text())).toEqual(['Theme Pack', 'Extra Pack'])
   })
 
   it('disables creation until template, project name, and parent location are complete', async () => {

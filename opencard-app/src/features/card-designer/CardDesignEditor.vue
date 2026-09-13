@@ -1744,9 +1744,6 @@ const {
   sourceFilePath: renderSourceFilePath,
   renderEnvironment,
 })
-watch(renderPipelineResult, (result) => {
-  if (result && result.issues.length > 0) console.warn('[cde] render pipeline issues:', result.issues)
-}, { immediate: true })
 
 const viewportFaceSize = computed(() => {
   const face = viewFace.value

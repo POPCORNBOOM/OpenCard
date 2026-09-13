@@ -16,6 +16,7 @@
             icon="action.close"
             icon-only
             :aria-label="t('app.feedback.actions.close')"
+            :data-tooltip="t('app.feedback.actions.close')"
             @click="close"
           />
         </div>

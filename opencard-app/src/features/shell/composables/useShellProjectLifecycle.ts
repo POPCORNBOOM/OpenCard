@@ -1,6 +1,7 @@
 import { readonly, ref, type Ref } from 'vue'
 import type { CreatedProject } from '../../project-templates/model/projectTemplate'
 import { reportAppError } from '../../logging/appErrorCatalog'
+import { notifyError } from '../../notifications/titlebarNotices'
 import {
   getPrimaryShellPage,
   resolveShellPageAfterProjectClose,
@@ -38,7 +39,6 @@ function normalizePath(path: string): string {
 
 export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   const isActivating = ref(false)
-  const activationError = ref('')
   /** 用户正在回答未保存确认时暂存的打开请求；取消时直接丢弃。 */
   let deferredActivation: { path: string, entryPath?: string } | null = null
 
@@ -51,7 +51,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
     if (isActivating.value) return false
 
     isActivating.value = true
-    activationError.value = ''
 
     try {
       await options.project.setProjectPath(path)
@@ -62,7 +61,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
       options.shellPage.value = { type: 'workbench' }
       return true
     } catch (error) {
-      activationError.value = options.translate('projectTemplates.errors.activationFailed')
+      notifyError(options.translate('projectTemplates.errors.activationFailed'))
       reportAppError('OC-E3001', error)
       return false
     } finally {
@@ -121,7 +120,6 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   }
 
   function enterCreateProject(): void {
-    activationError.value = ''
     options.shellPage.value = {
       type: 'create-project',
       returnPage: getPrimaryShellPage(options.shellPage.value),
@@ -135,14 +133,12 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
     options.shellPage.value = resolveShellPageAfterProjectClose(options.shellPage.value, destination)
 
     if (destination === 'create-project') {
-      activationError.value = ''
       void options.templates.load().catch(() => undefined)
     }
   }
 
   return {
     isActivating: readonly(isActivating),
-    activationError: readonly(activationError),
     openProject,
     openRecentProject,
     relocateRecentProject,

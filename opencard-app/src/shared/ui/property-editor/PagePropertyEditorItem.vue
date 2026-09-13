@@ -38,7 +38,6 @@
             :variant="part.variant"
             :size="part.size ?? 'sm'"
             :disabled="part.disabled"
-            :data-tooltip="part.disabled ? part.title : undefined"
             @click="emit('action', { itemPath: currentPath, actionKey: part.key })"
           >
             {{ part.title ?? part.key }}
@@ -152,7 +151,7 @@ function handleCommit(part: EditorItemEditorPart, value: unknown): void {
   align-items: center;
   justify-content: flex-end;
   justify-self: end;
-  gap: var(--oc-field-control-gap, var(--oc-space-2));
+  gap: var(--oc-space-2);
 }
 
 .page-property-editor-item__editor {

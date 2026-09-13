@@ -1,4 +1,3 @@
-import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
 import { isProjectCoverPath } from '../../workspace/model/projectCover'
 
 export const PROJECT_TEMPLATE_SCHEMA_VERSION = 1 as const
@@ -74,7 +73,6 @@ export interface CreateProjectFromTemplateRequest {
   parentPath: string
   projectName: string
   entry?: string
-  iconPacks?: readonly ProjectIconPackCatalogEntry[]
 }
 
 export interface TemplateExportSelection {
@@ -107,7 +105,6 @@ export type TemplateServiceErrorCode =
   | 'copy-failed'
   | 'invalid-package'
   | 'archive-failed'
-  | 'icon-pack-failed'
 
 export class TemplateServiceError extends Error {
   readonly cause?: unknown

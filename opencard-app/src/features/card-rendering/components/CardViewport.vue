@@ -76,12 +76,12 @@
       }"
       :disabled="props.comparison.viewMode === 'side-by-side'"
       :style="comparisonDividerStyle" :aria-label="props.comparisonDividerLabel"
-      :data-tooltip="props.comparisonDividerLabel"
+      :data-tooltip="props.comparisonDividerLabel" data-tooltip-placement="right"
       @pointerdown.stop.prevent="startComparisonDividerDrag">
       <span v-if="props.comparison.beforeLabel" class="card-viewport-comparison-label card-viewport-comparison-label--before"
-        :data-tooltip="props.comparison.beforeLabel">{{ props.comparison.beforeLabel }}</span>
+        :data-tooltip="props.comparison.beforeLabel" data-tooltip-overflow>{{ props.comparison.beforeLabel }}</span>
       <span v-if="props.comparison.afterLabel" class="card-viewport-comparison-label card-viewport-comparison-label--after"
-        :data-tooltip="props.comparison.afterLabel">{{ props.comparison.afterLabel }}</span>
+        :data-tooltip="props.comparison.afterLabel" data-tooltip-overflow>{{ props.comparison.afterLabel }}</span>
     </button>
     <CardLayerView
       v-if="effectiveLayerViewActive"
@@ -200,7 +200,7 @@
         </Transition>
         <button v-for="handle in activeHandles" :key="handle" type="button" class="selection-handle"
           :class="[`selection-handle-${handle}`, { 'is-active': activeHandle === handle }]"
-          :data-tooltip="`Resize ${handle}`" :aria-label="`Resize ${handle}`"
+          :aria-label="`Resize ${handle}`"
           @pointerdown.stop.prevent="startResize(handle)" />
       </div>
     </div>
@@ -1856,7 +1856,6 @@ function stopTransform() {
       const payload = resizeMode.value === 'flow'
         ? buildFlowResizePayload(preview, activeHandle.value)
         : buildAbsoluteResizePayload(preview, measurement)
-      //console.log(payload)
       emit('resize-selection', { blockId, ...payload })
     } else if (isMovingSelection.value && hasMeaningfulMoveChange(preview, measurement)) {
       emit('move-selection', { blockId, ...buildMovePayload(preview, measurement) })

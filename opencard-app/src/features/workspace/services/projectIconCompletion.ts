@@ -4,12 +4,14 @@ import {
   createProjectIconStyle,
   projectIconIdentity,
   type ProjectIconCatalog,
+  type ProjectIconDimensionReader,
 } from './projectIconCatalog'
-import { resolveProjectIconDimensions } from './projectIconDimensionResolver'
+import { readProjectIconSize } from './projectIconDimensionResolver'
 
 export function createProjectIconCompletionProvider(
   seriesList: readonly ProjectIconSeries[] | null | undefined,
   catalog: ProjectIconCatalog | null | undefined,
+  readDimensions: ProjectIconDimensionReader = readProjectIconSize,
 ): PropertyCompletionProvider {
   const entriesByIdentity = new Map((catalog?.entries ?? []).map(entry => [
     projectIconIdentity(entry.seriesKey, entry.iconKey),
@@ -43,7 +45,7 @@ export function createProjectIconCompletionProvider(
         detail: icon.iconKey,
         insertText: `[[icon:${series.key}/${icon.iconKey}]]`,
         searchKeys: [icon.iconKey.toLocaleLowerCase(), icon.name.toLocaleLowerCase()],
-        ...(entry ? { thumbnailStyle: createProjectIconStyle(entry, resolveProjectIconDimensions), thumbnailLabel: icon.name } : {}),
+        ...(entry ? { thumbnailStyle: createProjectIconStyle(entry, readDimensions), thumbnailLabel: icon.name } : {}),
       }
     })
     preparedIconsBySeries.set(series.searchKey, icons)

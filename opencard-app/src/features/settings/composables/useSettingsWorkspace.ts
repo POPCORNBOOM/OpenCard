@@ -15,11 +15,9 @@ import {
 } from '../../../shared/ui/foundation'
 import {
   APP_THEME_PRESETS,
-  MAX_CUSTOM_BLOCK_MAX_DEPTH,
   MAX_AUTO_SAVE_INTERVAL_SECONDS,
   MAX_PHASE_IMAGE_SPEED,
   MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
-  MIN_CUSTOM_BLOCK_MAX_DEPTH,
   MIN_AUTO_SAVE_INTERVAL_SECONDS,
   MIN_PHASE_IMAGE_SPEED,
   MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT,
@@ -98,9 +96,9 @@ export function useSettingsWorkspace(
   const categoryTreeData = computed<OcNodeCollection>(() => ({
     rootKeys: CATEGORY_KEYS,
     items: new Map([
-      ['general', { label: categoryLabels.value.general, icon: 'tool.settings' }],
-      ['appearance', { label: categoryLabels.value.appearance, icon: 'data.symbol-color' }],
-      ['workspace', { label: categoryLabels.value.workspace, icon: 'nav.files' }],
+      ['general', { label: categoryLabels.value.general, visual: { type: 'icon', icon: 'tool.settings' } }],
+      ['appearance', { label: categoryLabels.value.appearance, visual: { type: 'icon', icon: 'data.symbol-color' } }],
+      ['workspace', { label: categoryLabels.value.workspace, visual: { type: 'icon', icon: 'nav.files' } }],
     ]),
     children: new Map(),
   }))
@@ -317,13 +315,6 @@ export function useSettingsWorkspace(
           ticks: [10, 50, 100, 250, 500, 1000],
           suffix: options.translate('settings.values.historyEntries', ' entries'),
         }, settings.workspace.historyEntryLimit),
-        fieldItem('workspace.customBlockMaxDepth', {
-          title: options.translate('settings.fields.customBlockMaxDepth', 'Maximum custom block recursion depth'),
-          fieldType: 'number', presentation: 'slider',
-          min: MIN_CUSTOM_BLOCK_MAX_DEPTH, max: MAX_CUSTOM_BLOCK_MAX_DEPTH, step: 1,
-          ticks: [1, 2, 4, 8, 16, 32, 64],
-          suffix: options.translate('settings.values.recursionLevels', ' levels'),
-        }, settings.workspace.customBlockMaxDepth),
         fieldItem('workspace.structureTreeSelectionBehavior', {
           title: options.translate('settings.fields.structureTreeSelectionBehavior', 'Structure tree selection'),
           fieldType: 'string', presentation: 'option-group',

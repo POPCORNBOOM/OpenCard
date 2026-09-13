@@ -21,6 +21,11 @@ const stateBoundaryRoots = [
   'src/components/base/',
   'src/components/standard/',
 ]
+/**
+ * Tooltip policy guardrails: the placement enum lives in shared/ui/tooltip/globalTooltip.ts and is
+ * only allowed to name a side; icon-only controls must still carry their accessible name.
+ */
+const tooltipPlacements = new Set(['top', 'bottom', 'left', 'right'])
 const violations = []
 
 function walk(dir) {
@@ -55,8 +60,20 @@ function inspectFile(fullPath) {
     violations.push(`${relativePath}: keep global stores and persistence outside reusable UI controls`)
   }
 
-  for (const tag of content.matchAll(/<([A-Za-z][\w.-]*)\b[^>]*>/g)) {
+  for (const match of content.matchAll(/(?<![:-\w])data-tooltip-placement\s*=\s*"([^"]*)"/g)) {
+    if (!tooltipPlacements.has(match[1])) {
+      violations.push(`${relativePath}: data-tooltip-placement must be one of ${[...tooltipPlacements].join('/')} (found "${match[1]}")`)
+    }
+  }
+
+  // Attribute values are blanked first so a `>` inside an expression cannot truncate the tag.
+  const tagSource = content.replace(/"[^"]*"/g, '""')
+  for (const tag of tagSource.matchAll(/<([A-Za-z][\w.-]*)\b[^>]*>/g)) {
     const [, tagName] = tag
+    if (/(?:^|\s)icon-only(?:\s|$)/.test(tag[0].replace(/>$/, ''))
+      && !/(?:^|\s)(?::|v-bind:)?aria-label\s*=/.test(tag[0])) {
+      violations.push(`${relativePath}: icon-only <${tagName}> must declare aria-label`)
+    }
     if (visibleTitleComponents.has(tagName)) continue
     if (/(?:^|\s)(?::|v-bind:)?title\s*=/.test(tag[0])) {
       violations.push(`${relativePath}: use data-tooltip instead of a browser-native title tooltip on <${tagName}>`)

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="definition.isReadonly" class="readonly-value" :data-tooltip="stringValue || '-'">
+  <div v-if="definition.isReadonly" class="readonly-value" :data-tooltip="stringValue || '-'" data-tooltip-overflow>
     {{ stringValue || '-' }}
   </div>
   <OcEnumStepper v-else-if="definition.options?.length && definition.presentation === 'stepper'"

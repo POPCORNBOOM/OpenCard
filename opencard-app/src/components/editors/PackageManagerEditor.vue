@@ -1,7 +1,6 @@
 <template>
   <ProjectRegistryEditorShell content-mode="workspace">
     <div class="package-manager">
-      <OcText v-if="error" class="package-manager__error" tone="danger" role="alert">{{ error }}</OcText>
       <OcEmpty v-if="!rows.length" tone="muted" inset="comfortable">{{ t('packageManager.empty') }}</OcEmpty>
       <template v-else>
         <div class="package-manager__view">
@@ -64,6 +63,7 @@ import OcOptionGroup, { type OcOption } from '../standard/OcOptionGroup.vue'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 import { notifyError, notifySuccess } from '../../features/notifications/titlebarNotices'
+import { publishAppOutput } from '../../features/logging/appOutput'
 import { useShellProgressTasks } from '../../features/shell/composables/useShellProgressTasks'
 const removeAction = (key: string) => `package-remove:${key}`
 
@@ -77,7 +77,6 @@ const PACKAGE_ADD_TASK_KEY = 'package-manager-add'
 /** Adding installs package files, so it owns the global progress bar and disables related commands. */
 const addTaskBusy = computed(() => shellProgress.tasks.value.some(task => task.key === PACKAGE_ADD_TASK_KEY))
 const busy = ref(false)
-const error = ref('')
 const confirmRequest = ref<{ message: string; resolve: (accepted: boolean) => void } | null>(null)
 const addOpen = ref(false)
 const addMode = ref<'local' | 'remote'>('local')
@@ -215,9 +214,15 @@ function handleNodeAction(event: OcNodeActionEvent): void {
 async function removePackage(key: string): Promise<void> { await projectStore.removeRequiredPackage(key); await refresh() }
 watch(() => props.filePath, () => {
   emit('modified', false)
-  error.value = ''
   void refresh()
 }, { immediate: true })
+
+/** 一次性失败交给即时信息，同时留在输出里，页面不再长期挂着过期报错。 */
+function reportFailure(cause: unknown): void {
+  const message = cause instanceof Error ? cause.message : String(cause)
+  notifyError(message)
+  publishAppOutput({ severity: 'error', message })
+}
 
 function requestConfirm(next: ResourcePackageManifest, previous: ResourcePackageManifest): Promise<boolean> {
   return new Promise(resolve => {
@@ -240,7 +245,7 @@ async function refresh(): Promise<void> {
   try {
     await projectStore.reloadProjectResourceEnvironment()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    reportFailure(cause)
   } finally {
     busy.value = false
   }
@@ -274,7 +279,7 @@ async function synchronizePackages(): Promise<void> {
     else notifySuccess(t('packageManager.installSummary', { count: result.succeeded.length }))
     await projectStore.reloadProjectResourceEnvironment()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    reportFailure(cause)
   } finally {
     shellProgress.removeTask(taskKey)
     busy.value = false
@@ -309,7 +314,6 @@ async function addPackage(): Promise<void> {
   const remoteEntriesToAdd = remoteEntries.value.map(item => ({ entry: item.entry, parsed: item.parsed }))
   const total = mode === 'remote' ? remoteEntriesToAdd.length : localSources.length
   addOpen.value = false
-  error.value = ''
   const publish = (completed: number) => {
     shellProgress.setTask({
       key: PACKAGE_ADD_TASK_KEY,
@@ -359,7 +363,6 @@ async function addPackage(): Promise<void> {
   overflow: hidden;
 }
 .package-manager__view { flex: 1 1 auto; min-height: 0; }
-.package-manager__error { padding: var(--oc-space-3); }
 .package-manager__field { display: grid; gap: var(--oc-space-2); margin-block: var(--oc-space-3); }
 .package-manager__source { display: grid; gap: var(--oc-space-2); }
 </style>

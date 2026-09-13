@@ -29,7 +29,7 @@ import {
 } from '../../editor-runtime/history/editorHistoryManager'
 
 const PROJECT_CONFIGURATION_AUTOSAVE_KEY_PREFIX = 'project-configuration-autosave:'
-const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'package-manifest', 'custom-block-package', 'custom-block-manager', 'unsupported-file'])
+const CONTENTLESS_EDITOR_IDS = new Set(['image-preview', 'font-preview', 'package-manifest', 'unsupported-file'])
 
 function resolveOpenedSessionName(path: string, fileTypeId: string): string {
   if (fileTypeId === 'opencard-installed-package-manifest') {

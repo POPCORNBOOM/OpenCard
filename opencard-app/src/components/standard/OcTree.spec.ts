@@ -95,7 +95,7 @@ describe('OcTree', () => {
     }])
   })
 
-  it('reserves layout width for a badge-only tail', () => {
+  it('keeps a badge-only tail as a standalone part of the row', () => {
     const wrapper = mount(OcTree, {
       props: {
         data: createData({
@@ -107,7 +107,10 @@ describe('OcTree', () => {
       },
     })
 
-    expect(wrapper.get('.oc-tree__tail').classes()).toContain('is-compact')
+    // The trailing line shares the row's flex line, so the chip carries its own width next to the
+    // title instead of being squeezed inside a box of its own.
+    const tail = wrapper.get('.oc-tree__tail')
+    expect(Array.from(tail.element.children).map(child => child.className)).toEqual(['oc-tree__tail-badge'])
     expect(wrapper.get('.oc-tree__tail-badge').attributes('aria-label')).toBe('Added')
     expect(wrapper.get('.oc-tree__tail-badge').attributes('data-tooltip')).toBe('Added')
     expect(wrapper.get('.oc-tree__label').attributes('data-tooltip')).toBe('A long changed file name')
@@ -586,7 +589,7 @@ describe('OcTree', () => {
     ]])
   })
 
-  it('packs all root actions into one more menu when the row lacks label space', async () => {
+  it('packs all root actions into one more menu when the title cannot fit without the trade', async () => {
     let resize: ResizeObserverCallback = () => undefined
     vi.stubGlobal('ResizeObserver', class {
       constructor(callback: ResizeObserverCallback) { resize = callback }
@@ -608,8 +611,11 @@ describe('OcTree', () => {
     })
     const row = wrapper.get('.oc-tree__row').element as HTMLElement
     const label = wrapper.get('.oc-tree__label').element as HTMLElement
+    const revealClass = vi.spyOn(wrapper.get('.oc-tree').element.classList, 'add')
     let actionParts = [...wrapper.findAll('.oc-tree__tail-action')]
     Object.defineProperty(row, 'clientWidth', { configurable: true, value: 160 })
+    // The row leaves the title 40px while the title needs 100px, so its commands go into one menu.
+    Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 100 })
     vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(40, 28))
     for (const part of actionParts) {
       vi.spyOn(part.element as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(40, 22))
@@ -627,9 +633,12 @@ describe('OcTree', () => {
     expect(wrapper.emitted('action')).toContainEqual([{
       key: 'root', actionKey: 'up', source: 'inline',
     }])
+    // Hidden commands are revealed for the measurement pass, and that state never survives it.
+    expect(revealClass).toHaveBeenCalledWith('are-commands-revealed')
+    expect(wrapper.classes()).not.toContain('are-commands-revealed')
 
     actionParts = [...wrapper.findAll('.oc-tree__tail-action')]
-    vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(200, 28))
+    vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(220, 28))
     for (const part of actionParts) {
       vi.spyOn(part.element as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(10, 22))
     }
@@ -637,6 +646,47 @@ describe('OcTree', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.findAllComponents(OcActionButton).map(button => button.props('action').key))
       .toEqual(['top', 'up', 'delete'])
+  })
+
+  it('trades the trailing text before trading the commands', async () => {
+    let resize: ResizeObserverCallback = () => undefined
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { resize = callback }
+      observe(): void {}
+      disconnect(): void {}
+    })
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [['root', {
+            label: 'Root',
+            tail: [
+              '2 weeks',
+              { key: 'top', title: 'Move to top', icon: 'tool.flip-to-front' },
+              { key: 'up', title: 'Move up', icon: 'nav.arrow-up' },
+            ],
+          }]],
+        }),
+      },
+    })
+    const row = wrapper.get('.oc-tree__row').element as HTMLElement
+    const label = wrapper.get('.oc-tree__label').element as HTMLElement
+    const tailText = wrapper.get('.oc-tree__tail-text').element as HTMLElement
+    Object.defineProperty(row, 'clientWidth', { configurable: true, value: 120 })
+    // The title needs 60px and holds 50px, but the 30px its trailing text still occupies already
+    // counts towards the room the title can get back, so no command has to be given up.
+    Object.defineProperty(label, 'scrollWidth', { configurable: true, value: 60 })
+    vi.spyOn(label, 'getBoundingClientRect').mockReturnValue(rect(50, 28))
+    vi.spyOn(tailText, 'getBoundingClientRect').mockReturnValue(rect(30, 20))
+    for (const part of wrapper.findAll('.oc-tree__tail-action')) {
+      vi.spyOn(part.element as HTMLElement, 'getBoundingClientRect').mockReturnValue(rect(20, 22))
+    }
+
+    resize([], {} as ResizeObserver)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAllComponents(OcActionButton).map(button => button.props('action').key))
+      .toEqual(['top', 'up'])
   })
 
   it('renders no action container when a node declares no commands', () => {

@@ -15,10 +15,10 @@
     <template #suffix>
       <span class="number-field__steppers">
         <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.chevron-up"
-          :disabled="definition.isReadonly || isAtMaximum" data-tooltip="Increase" aria-label="Increase"
+          :disabled="definition.isReadonly || isAtMaximum" aria-label="Increase"
           @click="handleStepperClick(1, $event)" @pointerdown="startStepHold(1, $event)" />
         <OcButton class="number-field__stepper" icon-only variant="ghost" icon="nav.chevron-down"
-          :disabled="definition.isReadonly || isAtMinimum" data-tooltip="Decrease" aria-label="Decrease"
+          :disabled="definition.isReadonly || isAtMinimum" aria-label="Decrease"
           @click="handleStepperClick(-1, $event)" @pointerdown="startStepHold(-1, $event)" />
       </span>
     </template>

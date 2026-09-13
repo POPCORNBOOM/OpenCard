@@ -11,6 +11,6 @@ describe('isResourceSnapshotDiffPath', () => {
   })
 
   it('keeps unsupported binary packages on the unsupported path', () => {
-    expect(isResourceSnapshotDiffPath('packages/block.ocblock')).toBe(false)
+    expect(isResourceSnapshotDiffPath('packages/theme.ociconpack')).toBe(false)
   })
 })

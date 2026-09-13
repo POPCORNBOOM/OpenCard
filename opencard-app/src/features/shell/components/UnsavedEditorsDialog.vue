@@ -59,7 +59,7 @@
 
             <div class="unsaved-editors-dialog__identity">
               <strong>{{ row.name }}</strong>
-              <span :data-tooltip="row.path ?? undefined">
+              <span :data-tooltip="row.path ?? undefined" data-tooltip-overflow>
                 {{ row.resourceKind === 'draft' ? t('app.unsavedEditors.notOnDisk') : row.path }}
               </span>
             </div>
@@ -69,6 +69,7 @@
                 class="unsaved-editors-dialog__decision-label"
                 :class="`unsaved-editors-dialog__decision-label--${row.decision}`"
                 :data-tooltip="row.savePath ?? undefined"
+                data-tooltip-overflow
               >
                 {{ decisionLabel(row) }}
               </span>

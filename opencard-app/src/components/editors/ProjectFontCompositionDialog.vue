@@ -37,18 +37,23 @@
           <span>
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="format.vertical-top"
               :disabled="index === 0" :aria-label="t('projectConfig.fonts.moveMemberToTop')"
+              :data-tooltip="t('projectConfig.fonts.moveMemberToTop')"
               @click="moveMember(index, 0)" />
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="nav.arrow-up" :disabled="index === 0"
-              :aria-label="t('propertyEditor.arrays.moveUp')" @click="moveMember(index, index - 1)" />
+              :aria-label="t('propertyEditor.arrays.moveUp')" :data-tooltip="t('propertyEditor.arrays.moveUp')"
+              @click="moveMember(index, index - 1)" />
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="nav.arrow-down"
               :disabled="index === selectedMembers.length - 1" :aria-label="t('propertyEditor.arrays.moveDown')"
+              :data-tooltip="t('propertyEditor.arrays.moveDown')"
               @click="moveMember(index, index + 1)" />
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="format.vertical-bottom"
               :disabled="index === selectedMembers.length - 1"
               :aria-label="t('projectConfig.fonts.moveMemberToBottom')"
+              :data-tooltip="t('projectConfig.fonts.moveMemberToBottom')"
               @click="moveMember(index, selectedMembers.length - 1)" />
             <OcButton type="button" icon-only size="sm" variant="ghost" icon="action.delete" icon-tone="danger"
-              :aria-label="t('projectConfig.fonts.removeMember')" @click="removeMember(index)" />
+              :aria-label="t('projectConfig.fonts.removeMember')"
+              :data-tooltip="t('projectConfig.fonts.removeMember')" @click="removeMember(index)" />
           </span>
           <div v-if="advancedOpen" class="project-font-set-dialog__range-editor">
             <div class="project-font-set-dialog__range-presets">

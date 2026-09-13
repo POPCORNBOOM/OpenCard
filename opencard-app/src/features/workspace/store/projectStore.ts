@@ -74,8 +74,7 @@ import {
   clearProjectIconDimensions,
   forgetProjectIconDimensions,
   loadProjectImageDimensions,
-  resolveProjectIconDimensions,
-  resolvedProjectIconDimensionCount,
+  readProjectIconSize,
   setProjectIconDimensionLoader,
 } from '../services/projectIconDimensionResolver'
 import type { CardRenderEnvironment } from '../../card-rendering/renderPipeline'
@@ -247,7 +246,7 @@ const renderEnvironment = computed<CardRenderEnvironment>(() => ({
     return resource ? convertFileSrc(resource.path) : null
   },
   projectIconCatalog: projectIconCatalog.value,
-  resolveIconDimensions: resolveProjectIconDimensions,
+  resolveIconDimensions: readProjectIconSize,
   projectResourceEnvironment: projectResourceEnvironment.value,
 }) as CardRenderEnvironment)
 
@@ -913,7 +912,7 @@ async function setProjectPath(path: string) {
   }
   scheduleProjectMetadataSave()
   openTimer.step('tail')
-  openTimer.done(`entries ${walk.entries}, worst dir read ${walk.worstMs.toFixed(1)}ms, ${resolvedProjectIconDimensionCount()} icons measured on demand`)
+  openTimer.done(`entries ${walk.entries}, worst dir read ${walk.worstMs.toFixed(1)}ms`)
 }
 
 async function chooseProjectDirectory(): Promise<string | null> {

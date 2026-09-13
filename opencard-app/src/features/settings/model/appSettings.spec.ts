@@ -25,7 +25,6 @@ describe('appSettings', () => {
       version: APP_SETTINGS_VERSION,
       appearance: { theme: 'light', locale: 'zh-CN', glassIntensity: 130, phaseImageSpeed: 999 },
       shell: { sidebarWidth: 9999, sidebarCollapsed: true },
-      workspace: { customBlockMaxDepth: 999 },
     })).toEqual({
       version: APP_SETTINGS_VERSION,
       identity: createDefaultAppSettings().identity,
@@ -55,7 +54,6 @@ describe('appSettings', () => {
         showSelectionPositionOnMove: true,
         showSelectionSizeOnResize: true,
         alignmentSnappingEnabledByDefault: true,
-        customBlockMaxDepth: 64,
       },
       projectCreation: { lastParentPath: '', recentProjects: [], workspaceStates: {} },
     })

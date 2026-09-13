@@ -27,36 +27,23 @@ import {
   createProjectIconStyle,
   type ProjectIconBlockFit,
   type ProjectIconCatalogEntry,
-  type ProjectIconDimensionRequest,
+  type ProjectIconDimensionReader,
 } from '../../workspace/services/projectIconCatalog'
-import { resolveProjectIconDimensions } from '../../workspace/services/projectIconDimensionResolver'
+import { readProjectIconSize } from '../../workspace/services/projectIconDimensionResolver'
 
 const props = withDefaults(defineProps<{
   entry: ProjectIconCatalogEntry
   mode?: 'inline' | 'block'
   fit?: ProjectIconBlockFit
-  /** Reports an unmeasured icon, so its size gets resolved and this graphic re-renders. */
-  resolveDimensions?: ProjectIconDimensionRequest
+  /** Reads the icon's size, which is what asks for it and what re-renders this graphic. */
+  readDimensions?: ProjectIconDimensionReader
 }>(), {
   mode: 'inline',
   fit: 'contain',
 })
 
-const requestDimensions = (entry: ProjectIconCatalogEntry): void => {
-  (props.resolveDimensions ?? resolveProjectIconDimensions)(entry)
-}
-
-/** Reading the entry's size here is what makes a size resolved later invalidate this style. */
-const inlineStyle = computed(() => {
-  void props.entry.imageWidth
-  void props.entry.imageHeight
-  return createProjectIconStyle(props.entry, requestDimensions)
-})
-const blockStyle = computed(() => {
-  void props.entry.imageWidth
-  void props.entry.imageHeight
-  return createProjectIconBlockStyle(props.entry, props.fit, requestDimensions)
-})
+const inlineStyle = computed(() => createProjectIconStyle(props.entry, props.readDimensions ?? readProjectIconSize))
+const blockStyle = computed(() => createProjectIconBlockStyle(props.entry, props.fit, props.readDimensions ?? readProjectIconSize))
 </script>
 
 <style scoped>

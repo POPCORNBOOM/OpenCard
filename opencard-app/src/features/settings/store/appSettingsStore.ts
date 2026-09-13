@@ -131,8 +131,6 @@ export function createAppSettingsStore(
       candidate.workspace.alignmentSnappingEnabledByDefault = value as boolean
     } else if (key === 'workspace.historyEntryLimit') {
       candidate.workspace.historyEntryLimit = value as number
-    } else if (key === 'workspace.customBlockMaxDepth') {
-      candidate.workspace.customBlockMaxDepth = value as number
     } else if (key === 'workspace.autoSave') {
       candidate.workspace.autoSave = value as boolean
     } else if (key === 'workspace.autoSaveIntervalSeconds') {

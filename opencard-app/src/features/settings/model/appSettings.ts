@@ -17,8 +17,6 @@ export const MIN_BASE_FONT_SIZE = 10
 export const MAX_BASE_FONT_SIZE = 16
 export const MIN_PHASE_IMAGE_SPEED = 25
 export const MAX_PHASE_IMAGE_SPEED = 400
-export const MIN_CUSTOM_BLOCK_MAX_DEPTH = 1
-export const MAX_CUSTOM_BLOCK_MAX_DEPTH = 64
 export const MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT = 1
 export const MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT = 512
 export const MIN_AUTO_SAVE_INTERVAL_SECONDS = 5
@@ -138,7 +136,6 @@ export type AppSettingKey =
   | 'workspace.showSelectionSizeOnResize'
   | 'workspace.alignmentSnappingEnabledByDefault'
   | 'workspace.historyEntryLimit'
-  | 'workspace.customBlockMaxDepth'
   | 'workspace.autoSave'
   | 'workspace.autoSaveIntervalSeconds'
 
@@ -183,7 +180,6 @@ export interface AppSettings {
     showSelectionSizeOnResize: boolean
     alignmentSnappingEnabledByDefault: boolean
     historyEntryLimit: number
-    customBlockMaxDepth: number
   }
   projectCreation: {
     lastParentPath: string
@@ -269,7 +265,6 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
     showSelectionSizeOnResize: true,
     alignmentSnappingEnabledByDefault: true,
     historyEntryLimit: 100,
-    customBlockMaxDepth: 16,
   }),
   projectCreation: Object.freeze({
     lastParentPath: '',
@@ -307,11 +302,6 @@ function clampTitleBarNoticeHistoryLimit(value: unknown): number {
     MAX_TITLE_BAR_NOTICE_HISTORY_LIMIT,
     Math.max(MIN_TITLE_BAR_NOTICE_HISTORY_LIMIT, Math.round(value)),
   )
-}
-
-function clampCustomBlockMaxDepth(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_APP_SETTINGS.workspace.customBlockMaxDepth
-  return Math.min(MAX_CUSTOM_BLOCK_MAX_DEPTH, Math.max(MIN_CUSTOM_BLOCK_MAX_DEPTH, Math.round(value)))
 }
 
 function clampAutoSaveIntervalSeconds(value: unknown): number {
@@ -729,7 +719,6 @@ export function normalizeAppSettings(value: unknown): AppSettings {
         ? workspace.alignmentSnappingEnabledByDefault
         : DEFAULT_APP_SETTINGS.workspace.alignmentSnappingEnabledByDefault,
       historyEntryLimit: clampHistoryEntryLimit(workspace.historyEntryLimit),
-      customBlockMaxDepth: clampCustomBlockMaxDepth(workspace.customBlockMaxDepth),
     },
     projectCreation: {
       lastParentPath: typeof projectCreation.lastParentPath === 'string'

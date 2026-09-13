@@ -13,7 +13,6 @@ export const iconTokens = {
   'action.clean': true,
   'action.close': true,
   'action.copy': true,
-  'action.custom-block-plus': true,
   'action.delete': true,
   'action.discard': true,
   'action.download': true,
@@ -110,7 +109,6 @@ export const iconTokens = {
   'data.symbol-key': true,
   'data.symbol-number': true,
   'data.symbol-string': true,
-  'data.symbol-custom-block': true,
   'data.variable': true,
 
   'format.align-start': true,
@@ -164,7 +162,6 @@ export const iconTokens = {
   'status.circle-medium': true,
 
   'file.css': true,
-  'file.custom-block': true,
   'file.dictionary': true,
   'file.env': true,
   'file.font': true,

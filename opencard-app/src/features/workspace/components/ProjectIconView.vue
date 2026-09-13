@@ -13,23 +13,21 @@ import {
   createProjectIconPreviewStyle,
   createProjectIconStyle,
   type ProjectIconCatalogEntry,
-  type ProjectIconDimensionRequest,
+  type ProjectIconDimensionReader,
 } from '../services/projectIconCatalog'
-import { resolveProjectIconDimensions } from '../services/projectIconDimensionResolver'
+import { readProjectIconSize } from '../services/projectIconDimensionResolver'
 
 const props = withDefaults(defineProps<{
   entry: ProjectIconCatalogEntry
   mode?: 'inline' | 'preview'
-  /** Reports an unmeasured icon, so its size gets resolved and this view re-renders. */
-  resolveDimensions?: ProjectIconDimensionRequest
+  /** Reads the icon's size, which is what asks for it and what re-renders this view. */
+  readDimensions?: ProjectIconDimensionReader
 }>(), { mode: 'inline' })
 const style = computed(() => {
-  void props.entry.imageWidth
-  void props.entry.imageHeight
-  const request = props.resolveDimensions ?? resolveProjectIconDimensions
+  const read = props.readDimensions ?? readProjectIconSize
   return props.mode === 'preview'
-    ? createProjectIconPreviewStyle(props.entry, request)
-    : createProjectIconStyle(props.entry, request)
+    ? createProjectIconPreviewStyle(props.entry, read)
+    : createProjectIconStyle(props.entry, read)
 })
 </script>
 

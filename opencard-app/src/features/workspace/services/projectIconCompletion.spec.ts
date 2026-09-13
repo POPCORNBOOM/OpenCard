@@ -9,11 +9,11 @@ const series: ProjectIconSeries = {
 }
 const catalog: ProjectIconCatalog = {
   series: [{ name: series.name, key: 'status' }],
-  entries: [{
-    ...series.icons[0]!, seriesKey: 'status', src: 'asset://status', imageWidth: 16, imageHeight: 8,
-  }],
+  entries: [{ ...series.icons[0]!, seriesKey: 'status', src: 'asset://status' }],
   errors: [],
 }
+/** Sizes as the resolver reports them once the icon has been painted. */
+const readSize = () => ({ width: 16, height: 8 })
 
 describe('project icon completion', () => {
   it('completes a series first and keeps the menu open', async () => {
@@ -25,7 +25,7 @@ describe('project icon completion', () => {
 
   it('searches icons by name and supplies a cropped thumbnail', async () => {
     const value = '[[icon:status/bad]]'
-    const result = await createProjectIconCompletionProvider([series], catalog)({ value, cursor: value.length - 2 })
+    const result = await createProjectIconCompletionProvider([series], catalog, readSize)({ value, cursor: value.length - 2 })
     expect(result?.items[0]).toMatchObject({
       label: 'Warning badge',
       detail: 'warning',

@@ -4,13 +4,15 @@ import { renderMarkdown } from './renderMarkdown'
 
 const catalog: ProjectIconCatalog = {
   series: [{ name: 'Status icons', key: 'status' }],
-  entries: [{ iconKey: 'wide', name: 'Wide', source: 'icons/wide.svg', tint: 'theme', seriesKey: 'status', src: 'asset://status', imageWidth: 16, imageHeight: 8 }],
+  entries: [{ iconKey: 'wide', name: 'Wide', source: 'icons/wide.svg', tint: 'theme', seriesKey: 'status', src: 'asset://status' }],
   errors: [],
 }
+/** Sizes as the resolver reports them once the icon has been painted. */
+const readSize = () => ({ width: 16, height: 8 })
 
 describe('renderMarkdown project icons', () => {
   it('renders a valid project icon at its original crop ratio', () => {
-    const html = renderMarkdown('A [[icon:status/wide]] B', { projectIconCatalog: catalog })
+    const html = renderMarkdown('A [[icon:status/wide]] B', { projectIconCatalog: catalog, readIconDimensions: readSize })
     expect(html).toContain('project-inline-icon oc-project-icon')
     expect(html).toContain('width:2em')
   })

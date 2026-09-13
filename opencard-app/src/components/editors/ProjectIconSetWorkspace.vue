@@ -52,7 +52,7 @@ import {
   projectIconIdentity,
   type ProjectIconCatalogEntry,
 } from '../../features/workspace/services/projectIconCatalog'
-import { resolveProjectIconDimensions } from '../../features/workspace/services/projectIconDimensionResolver'
+import { readProjectIconSize } from '../../features/workspace/services/projectIconDimensionResolver'
 import type {
   PropertyEditorCategoryDefinition,
   PropertyEditorInput,
@@ -178,7 +178,7 @@ const iconTreeData = computed<OcNodeCollection>(() => {
       return [key, {
         label: icon.name,
         visual: entry
-          ? { type: 'style' as const, style: createProjectIconStyle(entry, resolveProjectIconDimensions), label: icon.name }
+          ? { type: 'style' as const, style: createProjectIconStyle(entry, readProjectIconSize), label: icon.name }
           : { type: 'icon' as const, icon: 'file.image' },
         draggable: true,
         tail: actions.inline,

@@ -19,14 +19,13 @@ const vectorSeries = {
   ],
 }
 
-/** The same series with sizes, as they are once the icons have been painted. */
-const measuredSeries = {
-  ...vectorSeries,
-  icons: [
-    { ...vectorSeries.icons[0], imageWidth: 24, imageHeight: 24 },
-    { ...vectorSeries.icons[1], imageWidth: 24, imageHeight: 12 },
-  ],
+/** Sizes as the resolver would report them once these icons have been painted. */
+const measuredSizes: Readonly<Record<string, { width: number, height: number }>> = {
+  'icons/warn.svg': { width: 24, height: 24 },
+  'icons/logo.svg': { width: 24, height: 12 },
+  'icons/coin.png': { width: 8, height: 24 },
 }
+const readSize = (entry: { source: string }) => measuredSizes[entry.source]
 
 describe('projectIconCatalog', () => {
   it('assembles the catalog as plain data, without touching any icon file', () => {
@@ -43,25 +42,24 @@ describe('projectIconCatalog', () => {
     expect(findProjectIconSeries(catalog, 'OUTLINE')).toEqual({ name: 'Outline icons', key: 'outline' })
   })
 
-  it('reports an unmeasured icon to the caller instead of measuring it itself', () => {
+  it('reads an icon\u2019s size through the reader rather than measuring it itself', () => {
     const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
-    const requestDimensions = vi.fn()
+    const readDimensions = vi.fn(() => undefined)
 
-    createProjectIconStyle(catalog.entries[0]!, requestDimensions)
+    createProjectIconStyle(catalog.entries[0]!, readDimensions)
 
-    expect(requestDimensions).toHaveBeenCalledTimes(1)
-    expect(requestDimensions).toHaveBeenCalledWith(catalog.entries[0])
+    expect(readDimensions).toHaveBeenCalledTimes(1)
+    expect(readDimensions).toHaveBeenCalledWith(catalog.entries[0])
   })
 
-  it('does not ask for a size it already has', () => {
-    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
-    const requestDimensions = vi.fn()
+  it('paints from whatever the reader knows, for every style shape', () => {
+    const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
 
-    createProjectIconStyle(catalog.entries[0]!, requestDimensions)
-    createProjectIconPreviewStyle(catalog.entries[1]!, requestDimensions)
-    createProjectIconBlockStyle(catalog.entries[0]!, 'contain', requestDimensions)
-
-    expect(requestDimensions).not.toHaveBeenCalled()
+    expect(createProjectIconStyle(catalog.entries[1]!, readSize)).toMatchObject({ width: '2em', height: '1em' })
+    expect(createProjectIconPreviewStyle(catalog.entries[1]!, readSize)).toMatchObject({ width: '1em', height: '0.5em' })
+    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'contain', readSize)).toMatchObject({
+      '--oc-project-icon-display-width': 'min(100cqw, 200cqh)',
+    })
   })
 
   it('paints an unmeasured icon as a square, which is what a square icon measures anyway', () => {
@@ -72,9 +70,9 @@ describe('projectIconCatalog', () => {
   })
 
   it('paints a theme-tinted icon through a mask and an original icon through the background', () => {
-    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+    const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
 
-    const masked = createProjectIconStyle(catalog.entries[0]!)
+    const masked = createProjectIconStyle(catalog.entries[0]!, readSize)
     expect(masked).toMatchObject({
       width: '1em',
       height: '1em',
@@ -89,7 +87,7 @@ describe('projectIconCatalog', () => {
     })
     expect(masked).not.toHaveProperty('--oc-project-icon-background-image')
 
-    const painted = createProjectIconStyle(catalog.entries[1]!)
+    const painted = createProjectIconStyle(catalog.entries[1]!, readSize)
     expect(painted).toMatchObject({
       width: '2em',
       '--oc-project-icon-renderer': 'image',
@@ -101,18 +99,18 @@ describe('projectIconCatalog', () => {
   })
 
   it('sizes a preview by the longer edge and a block by the container', () => {
-    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+    const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
 
     // A 24×12 icon in a preview box one unit on its longer edge.
-    expect(createProjectIconPreviewStyle(catalog.entries[1]!)).toMatchObject({ width: '1em', height: '0.5em' })
-    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'contain')).toMatchObject({
+    expect(createProjectIconPreviewStyle(catalog.entries[1]!, readSize)).toMatchObject({ width: '1em', height: '0.5em' })
+    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'contain', readSize)).toMatchObject({
       '--oc-project-icon-renderer': 'image',
       '--oc-project-icon-display-width': 'min(100cqw, 200cqh)',
       '--oc-project-icon-display-height': 'min(50cqw, 100cqh)',
       '--oc-project-icon-source-width': 'var(--oc-project-icon-display-width)',
       '--oc-project-icon-source-height': 'var(--oc-project-icon-display-height)',
     })
-    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'fill')).toMatchObject({
+    expect(createProjectIconBlockStyle(catalog.entries[1]!, 'fill', readSize)).toMatchObject({
       '--oc-project-icon-display-width': '100cqw',
       '--oc-project-icon-display-height': '100cqh',
     })
@@ -123,15 +121,15 @@ describe('projectIconCatalog', () => {
       name: 'Pixels', key: 'pixels',
       icons: [{
         iconKey: 'coin', name: 'Coin', source: 'icons/coin.png', tint: 'original' as const,
-        pixelated: true, rotation: 90 as const, imageWidth: 8, imageHeight: 24,
+        pixelated: true, rotation: 90 as const,
       }],
     }], src => `asset://${src}`)
 
     // An 8×24 icon turned on its side paints three units wide for one unit of height.
-    expect(createProjectIconStyle(catalog.entries[0]!)).toMatchObject({
+    expect(createProjectIconStyle(catalog.entries[0]!, readSize)).toMatchObject({
       width: '3em', height: '1em', '--oc-project-icon-transform': 'rotate(90deg)',
     })
-    expect(createProjectIconBlockStyle(catalog.entries[0]!, 'contain')).toMatchObject({
+    expect(createProjectIconBlockStyle(catalog.entries[0]!, 'contain', readSize)).toMatchObject({
       '--oc-project-icon-source-width': 'var(--oc-project-icon-display-height)',
       '--oc-project-icon-source-height': 'var(--oc-project-icon-display-width)',
       '--oc-project-icon-transform': 'rotate(90deg)',
@@ -139,9 +137,9 @@ describe('projectIconCatalog', () => {
   })
 
   it('emits css property names for an inline style attribute', () => {
-    const catalog = buildProjectIconCatalog([measuredSeries], src => `asset://${src}`)
+    const catalog = buildProjectIconCatalog([vectorSeries], src => `asset://${src}`)
 
-    expect(createProjectIconCssProperties(catalog.entries[0]!)).toMatchObject({
+    expect(createProjectIconCssProperties(catalog.entries[0]!, readSize)).toMatchObject({
       '--oc-project-icon-mask-image': 'url("asset://icons/warn.svg")',
       '--oc-project-icon-source-width': '1em',
     })

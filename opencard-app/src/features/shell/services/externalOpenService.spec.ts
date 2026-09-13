@@ -28,17 +28,20 @@ describe('externalOpenService', () => {
     expect(classifyExternalOpenPath('D:\\Cards\\main.ocdocument')).toBe('card')
     expect(classifyExternalOpenPath('D:/Cards/.opencard/.ocproject')).toBe('project-resource')
     expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCLOCALE')).toBe('project-resource')
-    expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCBLOCKS')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/en_US.ocproject')).toBeNull()
     expect(classifyExternalOpenPath('/cards/.opencard/.OCLOCALE')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/demo.octemplate')).toBe('template')
     expect(classifyExternalOpenPath('D:/Packs/status.ociconpack')).toBe('icon-pack')
-    expect(classifyExternalOpenPath('D:/Blocks/square.ocblock')).toBe('custom-block')
     expect(classifyExternalOpenPath('D:/Cards/demo.zip')).toBeNull()
     expect(filterSupportedExternalOpenPaths([
       'D:/Cards/main.ocdocument',
       'D:/Cards/readme.txt',
     ])).toEqual(['D:/Cards/main.ocdocument'])
+  })
+
+  it('tells an icon pack from a package archive by their extensions', () => {
+    expect(classifyExternalOpenPath('D:/Packs/status.ociconpack')).toBe('icon-pack')
+    expect(classifyExternalOpenPath('D:/Packs/theme.ocpack')).toBe('resource-package')
   })
 
   it('drains startup paths and paths queued by later app launches', async () => {

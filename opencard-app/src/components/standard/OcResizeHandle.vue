@@ -17,6 +17,7 @@
     :aria-label="props.label"
     :aria-disabled="props.disabled || undefined"
     :data-tooltip="props.tooltip ?? props.label"
+    :data-tooltip-placement="tooltipPlacement"
     v-bind="forwardedAttrs"
     @pointerdown="startResize"
     @pointermove="continueResize"
@@ -71,6 +72,12 @@ const emit = defineEmits<{
 const attrs = useAttrs()
 const handleRef = ref<HTMLElement | null>(null)
 const isResizing = ref(false)
+
+/**
+ * The hint never sits on the drag axis: a vertical handle grows in width, so its hint stays beside
+ * the handle; a horizontal handle grows in height, so its hint stays above it.
+ */
+const tooltipPlacement = computed(() => (props.orientation === 'vertical' ? 'right' : 'top'))
 const currentValue = ref(normalizeValue(props.value))
 const resizeState = ref<{
   pointerId: number

@@ -2,6 +2,11 @@ import { ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ShellPage } from '../shellPage'
 import { useShellProjectLifecycle } from './useShellProjectLifecycle'
+
+const notifications = vi.hoisted(() => ({ notifyError: vi.fn() }))
+
+vi.mock('../../notifications/titlebarNotices', () => ({ notifyError: notifications.notifyError }))
+
 function createHarness(options?: {
   currentProject?: string
   selectedProject?: string | null
@@ -78,6 +83,7 @@ function createHarness(options?: {
 describe('useShellProjectLifecycle', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    notifications.notifyError.mockClear()
   })
 
   afterEach(() => {
@@ -204,20 +210,20 @@ describe('useShellProjectLifecycle', () => {
     expect(harness.readDirectoryEntries).toHaveBeenCalledWith('', Number.POSITIVE_INFINITY)
   })
 
-  it('clears busy and exposes an activation error when project loading fails', async () => {
+  it('clears busy and reports an immediate notice when project loading fails', async () => {
     const harness = createHarness()
     harness.setProjectPath.mockRejectedValueOnce(new Error('load failed'))
 
     await expect(harness.lifecycle.openRecentProject('D:/new-project')).resolves.toBe(false)
 
     expect(harness.lifecycle.isActivating.value).toBe(false)
-    expect(harness.lifecycle.activationError.value).toBe(
+    expect(notifications.notifyError).toHaveBeenCalledWith(
       'translated:projectTemplates.errors.activationFailed',
     )
     expect(harness.shellPage.value).toEqual({ type: 'welcome' })
   })
 
-  it('clears busy and keeps the create page when opening a created entry fails', async () => {
+  it('clears busy and reports an immediate notice when opening a created entry fails', async () => {
     const harness = createHarness({ page: { type: 'create-project', returnPage: 'welcome' } })
     harness.openFile.mockRejectedValueOnce(new Error('entry failed'))
 
@@ -227,7 +233,7 @@ describe('useShellProjectLifecycle', () => {
     })).resolves.toBe(false)
 
     expect(harness.lifecycle.isActivating.value).toBe(false)
-    expect(harness.lifecycle.activationError.value).not.toBe('')
+    expect(notifications.notifyError).toHaveBeenCalledOnce()
     expect(harness.shellPage.value).toEqual({ type: 'create-project', returnPage: 'welcome' })
   })
 

@@ -23,7 +23,7 @@ export default defineComponent({
               class: 'project-inline-icon',
               entry,
               mode: 'inline',
-              resolveDimensions: context.resources.resolveIconDimensions,
+              readDimensions: context.resources.resolveIconDimensions,
             })
           : h(OcIcon, { name: 'status.warning', tone: 'warning', size: 'md' })
       }

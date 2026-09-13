@@ -129,7 +129,6 @@ const rawStringDefinition = computed(() => {
   --oc-field-invalid-border-color: transparent;
   --oc-field-readonly-background: transparent;
   --oc-field-content-padding: 0;
-  --oc-field-control-gap: 0;
   --oc-control-border-radius: 0;
   --oc-control-icon-border-radius: 0;
   --oc-control-focus-shadow: none;

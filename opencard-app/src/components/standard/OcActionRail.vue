@@ -1,5 +1,5 @@
 <template>
-  <div class="oc-action-rail">
+  <div class="oc-action-rail" data-tooltip-group>
     <OcActionButton
       v-for="action in actions"
       :key="action.key"

@@ -3,6 +3,7 @@ import type { FileSystemService } from './fileSystemService'
 import { parseProjectIconSeries, type ProjectIcon, type ProjectIconSeries } from '../model/projectIcons'
 
 export const PROJECT_ICON_PACK_EXTENSION = 'ociconpack'
+export const PROJECT_ICON_PACK_SUFFIX = `.${PROJECT_ICON_PACK_EXTENSION}`
 export const PROJECT_ICON_PACK_MANIFEST_FILE_NAME = 'iconpack.json'
 export const PROJECT_ICON_PACK_SCHEMA_VERSION = '1'
 /** Archive directory holding one file per icon, independent of the project's own folder layout. */

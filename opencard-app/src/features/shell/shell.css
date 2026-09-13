@@ -394,6 +394,11 @@
   opacity: 1;
 }
 
+/* Swapping between siblings of one tooltip group must read as a content change, not a new tooltip. */
+.app-tooltip-layer.instant {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-tooltip-layer {
     transition: none;

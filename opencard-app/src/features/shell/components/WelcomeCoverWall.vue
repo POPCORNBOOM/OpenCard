@@ -14,9 +14,32 @@
               v-for="tile in row"
               :key="`${copyIndex}-${tile.key}`"
               class="welcome-cover-wall__tile"
-              :class="{ 'is-emphasized': isHighlighted(tile) }"
+              :class="{
+                'is-emphasized': isHighlighted(tile),
+                'is-ready': artworkReady,
+              }"
+              :style="tile.coverDelay === undefined
+                ? undefined
+                : { '--welcome-cover-wall-cover-delay': String(tile.coverDelay) }"
             >
-              <img :src="tile.src" alt="" loading="lazy" decoding="async" draggable="false" />
+              <img
+                class="welcome-cover-wall__tile-artwork"
+                :src="tile.src"
+                alt=""
+                decoding="async"
+                draggable="false"
+              />
+              <img
+                v-if="tile.coverSrc"
+                class="welcome-cover-wall__tile-cover"
+                :class="{ 'is-ready': isCoverReady(tile) }"
+                :src="tile.coverSrc"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                draggable="false"
+                @load="markCoverReady(tile.coverSrc, $event)"
+              />
             </span>
           </template>
         </div>
@@ -36,9 +59,14 @@ export type WelcomeCoverWallCover = {
 }
 
 type WelcomeCoverWallTile = {
-  /** 同一行内唯一的瓦片键。 */
+  /** 同一行内唯一的瓦片键；它只由格子位置决定，因此图案不会因为封面变化而重排。 */
   readonly key: string
+  /** 内置封面，始终作为瓦片的底图。 */
   readonly src: string
+  /** 占用这个格子的项目封面；就绪后淡入覆盖在底图之上。 */
+  readonly coverSrc?: string
+  /** 淡入的错峰序号，让封面依次浮现而不是十几格同时换掉。 */
+  readonly coverDelay?: number
   readonly projectKey?: string
 }
 
@@ -89,25 +117,29 @@ const tileAdvance = ref(0)
 const rowPitch = ref(0)
 const documentVisible = ref(true)
 const inViewport = ref(true)
+/**
+ * 内置封面整批解码完成之前不显示瓦片：墙面一次性完整出现，不会一块块补上来。
+ * 项目封面则要经资源协议异步读取，只有它就绪的那个格子才淡入。
+ */
+const artworkReady = ref(false)
+const readyCoverSources = ref<ReadonlySet<string>>(new Set())
 let resizeObserver: ResizeObserver | null = null
 let intersectionObserver: IntersectionObserver | null = null
 
-/** 项目封面优先，其余用内置桌游封面补足。 */
-const contentPool = computed<readonly WelcomeCoverWallTile[]>(() => [
-  ...props.covers.map(cover => ({
-    key: `project:${cover.projectKey}`,
-    src: cover.src,
-    projectKey: cover.projectKey,
-  })),
-  ...WELCOME_COVER_ARTWORK.map(artwork => ({
+/**
+ * 墙面图案只由内置封面决定。
+ * 项目封面要经资源协议异步读取再解码，若把它们算进图案的取图池，封面一到齐整面墙就会重新排布。
+ */
+const artworkPool = computed<readonly WelcomeCoverWallTile[]>(() => (
+  WELCOME_COVER_ARTWORK.map(artwork => ({
     key: `artwork:${artwork.key}`,
     src: artwork.src,
-  })),
-])
+  }))
+))
 
 const highlightedKeys = computed(() => new Set(props.highlightKeys))
 
-const layoutSeed = computed(() => hashText(contentPool.value.map(entry => entry.key).join('|')))
+const layoutSeed = computed(() => hashText(artworkPool.value.map(entry => entry.key).join('|')))
 
 function wrapIndex(value: number, size: number): number {
   return ((value % size) + size) % size
@@ -118,7 +150,7 @@ function wrapIndex(value: number, size: number): number {
  * 图案按 TILES_PER_ROW × ROW_VARIANTS 周期性铺满整面墙，因此也按环绕位置校验边界。
  */
 function buildPattern(): readonly (readonly WelcomeCoverWallTile[])[] {
-  const pool = contentPool.value
+  const pool = artworkPool.value
   const random = createSeededRandom(layoutSeed.value)
   const pattern: (WelcomeCoverWallTile | null)[][] = Array.from(
     { length: ROW_VARIANTS },
@@ -143,11 +175,7 @@ function buildPattern(): readonly (readonly WelcomeCoverWallTile[])[] {
     const allowed = pool.filter(entry => !taken.has(entry.src))
     const candidates = allowed.length > 0 ? allowed : pool
     const entry = candidates[Math.floor(random() * candidates.length)]!
-    return {
-      key: `tile-${row}-${column}`,
-      src: entry.src,
-      ...(entry.projectKey ? { projectKey: entry.projectKey } : {}),
-    }
+    return { key: `tile-${row}-${column}`, src: entry.src }
   }
 
   // 行优先填一遍：每格只避开已经放好的邻居。
@@ -175,6 +203,51 @@ function buildPattern(): readonly (readonly WelcomeCoverWallTile[])[] {
 /** 整面墙以这个图案为周期循环，横向每周 TILES_PER_ROW 格、纵向每周 ROW_VARIANTS 行。 */
 const patternRows = computed(buildPattern)
 
+/**
+ * 项目封面只占用一批固定的“封面格”：行与列都隔一格，任何两个封面格都不相邻，
+ * 因此把底图换成封面之后，“一格与周围八格不同图”的约定依然成立，而其余格子保持原样。
+ * 具体位置用封面自身的 Key 做种子打乱，既有固定间隔又不显得是规则网格。
+ */
+const COVER_SLOT_STRIDE = 2
+/** 封面淡入的错峰档数；实际间隔是 --oc-duration-fast 的若干分之一。 */
+const COVER_FADE_STAGGER_STEPS = 8
+
+const coverSlots = computed<ReadonlyMap<string, { cover: WelcomeCoverWallCover; fadeStep: number }>>(() => {
+  const covers = props.covers
+  if (covers.length === 0) return new Map()
+
+  const lattice: string[] = []
+  for (let row = 0; row < ROW_VARIANTS; row += COVER_SLOT_STRIDE) {
+    for (let column = 0; column < TILES_PER_ROW; column += COVER_SLOT_STRIDE) {
+      lattice.push(`tile-${row}-${column}`)
+    }
+  }
+
+  // 与内置封面保持接近的混入比例：项目封面越多，占用的格子越多。
+  const patternTileCount = ROW_VARIANTS * TILES_PER_ROW
+  const wanted = Math.min(
+    lattice.length,
+    Math.max(
+      covers.length,
+      Math.round(patternTileCount * covers.length / (covers.length + WELCOME_COVER_ARTWORK.length)),
+    ),
+  )
+
+  const random = createSeededRandom(hashText(covers.map(cover => cover.projectKey).join('|')))
+  for (let index = lattice.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1))
+    const held = lattice[index]!
+    lattice[index] = lattice[swap]!
+    lattice[swap] = held
+  }
+
+  // 打乱后的次序同时当作淡入的错峰序号：同一张封面在墙上的各格不会连成一片一起亮起来。
+  return new Map(lattice.slice(0, wanted).map((key, index) => [key, {
+    cover: covers[index % covers.length]!,
+    fadeStep: index % COVER_FADE_STAGGER_STEPS,
+  }]))
+})
+
 const rowCount = computed(() => {
   const pitch = rowPitch.value
   if (!pitch || wallHeight.value === 0) return ROW_VARIANTS * 2
@@ -182,7 +255,18 @@ const rowCount = computed(() => {
 })
 
 const rows = computed(() => (
-  Array.from({ length: rowCount.value }, (_, index) => patternRows.value[index % ROW_VARIANTS]!)
+  Array.from({ length: rowCount.value }, (_, index) => (
+    patternRows.value[index % ROW_VARIANTS]!.map(tile => {
+      const slot = coverSlots.value.get(tile.key)
+      if (!slot) return tile
+      return {
+        ...tile,
+        coverSrc: slot.cover.src,
+        projectKey: slot.cover.projectKey,
+        coverDelay: slot.fadeStep,
+      }
+    })
+  ))
 ))
 
 const copies = computed(() => {
@@ -205,6 +289,38 @@ const running = computed(() => documentVisible.value && inViewport.value)
 
 function isHighlighted(tile: WelcomeCoverWallTile): boolean {
   return Boolean(tile.projectKey) && highlightedKeys.value.has(tile.projectKey!)
+}
+
+function isCoverReady(tile: WelcomeCoverWallTile): boolean {
+  return Boolean(tile.coverSrc) && readyCoverSources.value.has(tile.coverSrc!)
+}
+
+/** 预先解码整批内置封面，墙面第一次出现时就是完整的。 */
+async function warmArtwork(): Promise<void> {
+  await Promise.all(WELCOME_COVER_ARTWORK.map(async artwork => {
+    const image = new Image()
+    image.src = artwork.src
+    try {
+      await image.decode()
+    } catch {
+      // 个别内置封面解不出来也不该拖住整面墙。
+    }
+  }))
+  artworkReady.value = true
+}
+
+/** 项目封面解码完成之后，它占用的格子才淡入显示。 */
+async function markCoverReady(src: string, event: Event): Promise<void> {
+  const image = event.target
+  if (!(image instanceof HTMLImageElement) || readyCoverSources.value.has(src)) return
+  if (typeof image.decode === 'function') {
+    try {
+      await image.decode()
+    } catch {
+      // 解码失败（损坏或不受支持的图片）交给浏览器决定怎么画，不让整块瓦片一直缺席。
+    }
+  }
+  readyCoverSources.value = new Set([...readyCoverSources.value, src])
 }
 
 function handleVisibilityChange(): void {
@@ -234,6 +350,7 @@ function measure(): void {
 onMounted(() => {
   handleVisibilityChange()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  void warmArtwork()
   if (typeof ResizeObserver !== 'undefined' && wallElement.value) {
     resizeObserver = new ResizeObserver(() => measure())
     resizeObserver.observe(wallElement.value)
@@ -296,6 +413,8 @@ onBeforeUnmount(() => {
   width: var(--oc-welcome-cover-tile-width);
   aspect-ratio: var(--oc-welcome-cover-tile-aspect-ratio);
   overflow: hidden;
+  /* 图片可以绘制之前不占画面：否则异步载入的封面会先闪出一块瓦片底色。 */
+  visibility: hidden;
   border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
   background: var(--oc-bg-surface);
@@ -308,11 +427,42 @@ onBeforeUnmount(() => {
     filter var(--oc-duration-normal) var(--oc-ease);
 }
 
+.welcome-cover-wall__tile.is-ready {
+  visibility: visible;
+}
+
 .welcome-cover-wall__tile img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* 项目封面盖在内置封面之上：底图始终在场，封面解码完成后才淡入，因此不会出现空瓦片。 */
+.welcome-cover-wall__tile-cover {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+/*
+ * 用动画而不是过渡：图片常常在插进 DOM 的同一帧就已就绪，没有可过渡的起始画面，
+ * 过渡会被整段跳过（封面就成了“瞬间换掉”）。动画在类生效的那一刻一定会跑。
+ * 各格再按对角线错开一点，封面是依次浮现的。
+ */
+.welcome-cover-wall__tile-cover.is-ready {
+  animation: welcome-cover-wall-cover-in var(--oc-duration-slow) var(--oc-ease) both;
+  animation-delay: calc(var(--welcome-cover-wall-cover-delay, 0) * var(--oc-duration-fast) / 8);
+}
+
+@keyframes welcome-cover-wall-cover-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* 侧栏选中的项目封面：放大并去掉模糊，与其余瓦片形成对比。 */
@@ -345,6 +495,11 @@ onBeforeUnmount(() => {
 
   .welcome-cover-wall__tile {
     transition: none;
+  }
+
+  .welcome-cover-wall__tile-cover.is-ready {
+    animation: none;
+    opacity: 1;
   }
 }
 </style>

@@ -43,15 +43,6 @@ describe('workspace pages', () => {
     expect(wrapper.emitted('open-project')).toHaveLength(1)
   })
 
-  it('shows project activation failures on the welcome page', () => {
-    const wrapper = mount(WelcomeWorkspace, {
-      props: { activationError: 'Project structure could not be loaded.' },
-      ...mountOptions(),
-    })
-
-    expect(wrapper.get('[role="alert"]').text()).toBe('Project structure could not be loaded.')
-  })
-
   it('gates the cover wall and the gravity background from the bottom-left switch', async () => {
     const wrapper = mount(WelcomeWorkspace, {
       props: { backgroundVisible: true },

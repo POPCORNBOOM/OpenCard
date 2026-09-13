@@ -77,10 +77,9 @@
             <CreateProjectWorkspace
               v-if="isCreateProjectMode"
               ref="createProjectWorkspaceRef"
-              :activation-error="projectActivationError"
               :external-busy="isActivatingProject"
               :selected-key="selectedTemplateKey"
-              :selected-icon-pack-keys="selectedIconPackKeys"
+              :attached-resource-packages="attachedResourcePackages"
               @created="handleProjectCreated"
               @update:busy="isCreateProjectOperationBusy = $event"
               @update:selected-key="selectedTemplateKey = $event"
@@ -109,7 +108,6 @@
             />
             <WelcomeWorkspace
               v-else-if="isWelcomeMode"
-              :activation-error="projectActivationError"
               :covers="welcomeCoverWallCovers"
               :highlight-keys="selectedRecentProjectKeys"
               :background-visible="settingsStore.settings.value.workspace.showWelcomeBackground"
@@ -364,19 +362,17 @@ import { useFeedbackDiagnostics } from '../feedback/composables/useFeedbackDiagn
 import { useFeedbackInbox } from '../feedback/composables/useFeedbackInbox'
 import { appOutputEntries, clearAppOutputEntries, publishAppOutput } from '../logging/appOutput'
 import { reportAppError } from '../logging/appErrorCatalog'
+import { reportCatalogWarnings } from '../logging/catalogWarningReporter'
 import type {
+  CreatedProject,
   ProjectTemplate,
   ProjectTemplateKey,
   TemplateExportSelection,
 } from '../project-templates/model/projectTemplate'
 import { resolveProjectTemplateName } from '../project-templates/model/projectTemplate'
 import { useProjectTemplateStore } from '../project-templates/store/projectTemplateStore'
-import {
-  resolveProjectIconPackName,
-  type ProjectIconPackCatalogEntry,
-  type ProjectIconPackCatalogKey,
-} from '../workspace/model/projectIconPackCatalog'
-import { useProjectIconPackStore } from '../workspace/store/projectIconPackStore'
+import type { StoredResourcePackage } from '../workspace/model/storedResourcePackage'
+import { useStoredResourcePackageStore } from '../workspace/store/storedResourcePackageStore'
 import { useSettingsWorkspace } from '../settings/composables/useSettingsWorkspace'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import {
@@ -394,6 +390,7 @@ import type {
 } from '../editor-runtime/model/editorIssue'
 import { CARD_DOCUMENT_SUFFIX, resolveFileType } from '../workspace/model/fileTypes'
 import { resolveInstalledResourcePackageRootPath } from '../workspace/model/resourcePackage'
+import { PROJECT_ICON_REGISTRY_FILE_NAME } from '../workspace/model/projectStructure'
 import { useProjectExport } from './composables/useProjectExport'
 import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue'
 import ResourcePackageBuilderDialog from '../workspace/components/ResourcePackageBuilderDialog.vue'
@@ -467,14 +464,16 @@ const DIFF_BEFORE_ACTION_KEY = 'diff.before'
 const DIFF_AFTER_ACTION_KEY = 'diff.after'
 const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
 const TEMPLATES_LIST_KEY = 'templates'
-const ICON_PACKS_LIST_KEY = 'icon-packs'
+const RESOURCE_PACKAGES_LIST_KEY = 'resource-packages'
 const USER_TEMPLATES_GROUP_KEY = 'template-group:user'
 const TEMPLATE_ENTRIES_LIST_KEY = 'template-entries'
 const TEMPLATE_COVERS_LIST_KEY = 'template-covers'
 const IMPORT_TEMPLATE_ACTION_KEY = 'import-template'
-const IMPORT_ICON_PACK_ACTION_KEY = 'import-icon-pack'
-const REGISTER_ICON_PACK_ACTION_KEY = 'register-icon-pack'
-const REGISTERED_ICON_PACK_ACTION_KEY = 'registered-icon-pack'
+/** 把软件存储里的附加包导入存储、附加到新项目、或从存储里移除。 */
+const IMPORT_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.import'
+const ATTACH_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.attach'
+const ATTACHED_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.attached'
+const REMOVE_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.remove'
 const RECENT_PROJECT_OPEN_ACTION_KEY = 'recent-project.open'
 const BUILD_RESOURCE_PACKAGE_ACTION_KEY = 'file.build-package'
 const RECENT_PROJECT_REVEAL_ACTION_KEY = 'recent-project.reveal'
@@ -546,7 +545,7 @@ watch(
   { immediate: true },
 )
 const templateStore = useProjectTemplateStore()
-const iconPackStore = useProjectIconPackStore()
+const resourcePackageStore = useStoredResourcePackageStore()
 const shellPage = ref<ShellPage>({ type: 'welcome' })
 const isSettingsMode = computed(() => shellPage.value.type === 'settings')
 const isCreateProjectMode = computed(() => shellPage.value.type === 'create-project')
@@ -567,7 +566,10 @@ function showPrimaryShellPage(page: PrimaryShellPage): void {
   shellPage.value = { type: page }
 }
 const selectedTemplateKey = ref<ProjectTemplateKey | null>(null)
-const selectedIconPackKeys = ref<ProjectIconPackCatalogKey[]>([])
+const attachedResourcePackagePaths = ref<string[]>([])
+const attachedResourcePackages = computed(() => attachedResourcePackagePaths.value
+  .map((path) => resourcePackageStore.findPackage(path))
+  .filter((pack): pack is StoredResourcePackage => Boolean(pack)))
 const createProjectWorkspaceRef = ref<InstanceType<typeof CreateProjectWorkspace> | null>(null)
 const exportTemplateWorkspaceRef = ref<InstanceType<typeof ExportTemplateWorkspace> | null>(null)
 const exportTemplateSelection = ref<TemplateExportSelection>({
@@ -577,7 +579,7 @@ const exportTemplateSelection = ref<TemplateExportSelection>({
   covers: [],
 })
 const isCreateProjectOperationBusy = ref(false)
-const isImportingIconPack = ref(false)
+const isImportingResourcePackage = ref(false)
 const isExportTemplateBusy = ref(false)
 const isBottomPanelExpanded = ref(false)
 const isExportPreparing = ref(false)
@@ -645,7 +647,7 @@ const activeBottomTab = ref<WorkspaceBottomTab>('issues')
 const isProjectTemplateBusy = computed(() => (
   isActivatingProject.value
   || isCreateProjectOperationBusy.value
-  || isImportingIconPack.value
+  || isImportingResourcePackage.value
 ))
 const settingsCategoryKey = computed<SettingsCategoryKey>(() =>
   shellPage.value.type === 'settings' ? shellPage.value.categoryKey : 'general'
@@ -778,6 +780,7 @@ const {
 } = useShellProgressTasks()
 const UPDATE_PROGRESS_TASK_KEY = 'app-update'
 const EXPORT_TEMPLATE_PROGRESS_TASK_KEY = 'export-template'
+const RESOURCE_PACKAGE_INSTALL_TASK_KEY = 'create-project-resource-packages'
 watch(isExportTemplateBusy, busy => {
   if (busy) {
     setShellProgressTask({
@@ -1004,11 +1007,10 @@ const {
 
 const {
   isActivating: isActivatingProject,
-  activationError: projectActivationError,
   openProject,
   openRecentProject,
   relocateRecentProject: relocateRecentProjectPath,
-  activateCreatedProject: handleProjectCreated,
+  activateCreatedProject,
   resumeDeferredActivation,
   dropDeferredActivation,
   enterCreateProject,
@@ -1037,6 +1039,60 @@ const {
   shellPage,
   translate: t,
 })
+
+/**
+ * 创建本身就是复制模板加改名，因此附加包装在项目打开之后才安装：
+ * 装包失败只影响那一个包，项目本身照常可用。
+ */
+async function handleProjectCreated(project: CreatedProject): Promise<void> {
+  const activated = await activateCreatedProject(project)
+  if (activated) await installAttachedResourcePackages()
+}
+
+async function installAttachedResourcePackages(): Promise<void> {
+  const packs = attachedResourcePackages.value
+  if (packs.length === 0) return
+  // 一个 Key 在项目里只能存在一份，因此先装进去的那个生效，其余的同 Key 包都跳过。
+  const installedKeys = new Set(
+    [...projectStore.projectResourcePackages.value.keys()].map((key) => key.toLocaleLowerCase()),
+  )
+  const pending = packs.filter((pack) => {
+    const key = pack.key.toLocaleLowerCase()
+    if (installedKeys.has(key)) {
+      notifyWarning(t('projectTemplates.status.resourcePackageAlreadyInstalled', { name: pack.name }))
+      return false
+    }
+    installedKeys.add(key)
+    return true
+  })
+  if (pending.length === 0) return
+
+  let completed = 0
+  const publish = () => setShellProgressTask({
+    key: RESOURCE_PACKAGE_INSTALL_TASK_KEY,
+    title: t('projectTemplates.status.installingResourcePackages'),
+    progress: completed / pending.length,
+    cancellable: false,
+  })
+  publish()
+  try {
+    for (const pack of pending) {
+      try {
+        const installed = await projectStore.installResourcePackageFile(pack.path)
+        notifySuccess(t('resourcePackage.installed', { name: installed.manifest.name }))
+      } catch (cause) {
+        reportUncodedFailure(
+          t('projectTemplates.errors.resourcePackageInstallFailed', { name: pack.name }),
+          cause,
+        )
+      }
+      completed += 1
+      publish()
+    }
+  } finally {
+    removeShellProgressTask(RESOURCE_PACKAGE_INSTALL_TASK_KEY)
+  }
+}
 
 const {
   pendingIntent: pendingCloseIntent,
@@ -1278,7 +1334,7 @@ const templateTreeData = computed<OcNodeCollection>(() => {
     ]),
   }
 })
-const iconPackTreeData = computed<OcNodeCollection>(() => createIconPackTreeData(iconPackStore.packs.value))
+const resourcePackageTreeData = computed<OcNodeCollection>(() => createResourcePackageTreeData(resourcePackageStore.packs.value))
 const recentProjectSnapshots = useRecentProjectSnapshots({
   recentProjects: computed(() => settingsStore.settings.value.projectCreation.recentProjects),
 })
@@ -1317,12 +1373,32 @@ watch(
   { immediate: true },
 )
 watch(
-  () => iconPackStore.packs.value,
+  () => resourcePackageStore.packs.value,
   (packs) => {
-    selectedIconPackKeys.value = selectedIconPackKeys.value.filter((key) => packs.some((pack) => pack.key === key))
+    attachedResourcePackagePaths.value = attachedResourcePackagePaths.value
+      .filter((path) => packs.some((pack) => pack.path === path))
   },
   { immediate: true },
 )
+
+/** 进入新建项目页时读取软件存储里的附加包；被跳过的包只上报一次，具体原因留在输出里。 */
+watch(isCreateProjectMode, (active) => {
+  if (active) void loadStoredResourcePackages()
+}, { immediate: true })
+
+async function loadStoredResourcePackages(): Promise<void> {
+  try {
+    await resourcePackageStore.load()
+    reportCatalogWarnings({
+      warnings: resourcePackageStore.warnings.value,
+      summaryKey: 'projectTemplates.status.unreadableResourcePackages',
+      itemKey: 'projectTemplates.status.unreadableResourcePackage',
+      translate: t,
+    })
+  } catch {
+    notifyError(t('projectTemplates.errors.resourcePackageLibraryUnavailable'))
+  }
+}
 const projectName = computed(() => {
   if (!projectPath.value) return ''
   return projectInformation.value?.name || projectPath.value.split(/[/\\]/).pop() || ''
@@ -1647,24 +1723,24 @@ const sidebarBodyLists = computed<ShellList[]>(() => {
         },
       },
       {
-        key: ICON_PACKS_LIST_KEY,
-        title: t('projectTemplates.sections.iconPacks'),
-        placeholder: iconPackStore.isLoading.value
-          ? t('projectTemplates.status.loadingIconPacks')
-          : t('projectTemplates.status.noIconPacks'),
+        key: RESOURCE_PACKAGES_LIST_KEY,
+        title: t('projectTemplates.sections.resourcePackages'),
+        placeholder: resourcePackageStore.isLoading.value
+          ? t('projectTemplates.status.loadingResourcePackages')
+          : t('projectTemplates.status.noResourcePackages'),
         actions: [{
-          key: IMPORT_ICON_PACK_ACTION_KEY,
+          key: IMPORT_RESOURCE_PACKAGE_ACTION_KEY,
           icon: 'action.import',
-          hoverTip: t('projectTemplates.actions.importIconPack'),
-          disabled: isProjectTemplateBusy.value || iconPackStore.isLoading.value,
+          hoverTip: t('projectTemplates.actions.importResourcePackage'),
+          disabled: isProjectTemplateBusy.value || resourcePackageStore.isLoading.value,
         }],
         content: {
           type: 'tree',
-          data: iconPackTreeData.value,
+          data: resourcePackageTreeData.value,
           role: 'listbox',
           selectionMode: 'none',
           activationMode: 'none',
-          onAction: handleIconPackAction,
+          onAction: handleResourcePackageAction,
         },
       },
     ]
@@ -2303,11 +2379,93 @@ async function handleTemplateAction(event: OcNodeActionEvent): Promise<void> {
   await createProjectWorkspaceRef.value?.beginImport()
 }
 
-function handleIconPackAction(event: OcNodeActionEvent): void {
-  if (event.actionKey !== REGISTER_ICON_PACK_ACTION_KEY) return
-  const key = event.key as ProjectIconPackCatalogKey
-  if (!iconPackStore.findPack(key) || selectedIconPackKeys.value.includes(key)) return
-  selectedIconPackKeys.value = [...selectedIconPackKeys.value, key]
+/**
+ * 附加包列表里的一行同时表达三件事：当前是否附加到新项目、切换附加、以及从软件存储移除。
+ * 节点 Key 就是归档在存储中的路径，因此动作不需要再拼上路径。
+ */
+function handleResourcePackageAction(event: OcNodeActionEvent): void {
+  if (isProjectTemplateBusy.value) return
+  const path = event.key
+  const pack = resourcePackageStore.findPackage(path)
+  if (!pack) return
+  if (event.actionKey === ATTACH_RESOURCE_PACKAGE_ACTION_KEY) {
+    if (!attachedResourcePackagePaths.value.includes(path)) {
+      attachedResourcePackagePaths.value = [...attachedResourcePackagePaths.value, path]
+    }
+    return
+  }
+  if (event.actionKey === ATTACHED_RESOURCE_PACKAGE_ACTION_KEY) {
+    attachedResourcePackagePaths.value = attachedResourcePackagePaths.value
+      .filter((candidate) => candidate !== path)
+    return
+  }
+  if (event.actionKey === REMOVE_RESOURCE_PACKAGE_ACTION_KEY) {
+    void removeStoredResourcePackage(pack)
+  }
+}
+
+function describeCause(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
+}
+
+/** 一次性失败交给即时信息，同时留在输出里，便于事后查看完整原因。 */
+function reportUncodedFailure(message: string, cause: unknown): void {
+  notifyError(message)
+  publishAppOutput({ severity: 'error', message, detail: describeCause(cause) })
+}
+
+/** 导入失败时说清失败发生在导入这一步，具体原因同时留在输出里。 */
+function reportResourcePackageImportFailure(cause: unknown): void {
+  reportUncodedFailure(
+    t('projectTemplates.errors.resourcePackageImportFailed', { message: describeCause(cause) }),
+    cause,
+  )
+}
+
+async function importStoredResourcePackage(): Promise<void> {
+  if (isImportingResourcePackage.value) return
+  isImportingResourcePackage.value = true
+  try {
+    const sourcePath = await resourcePackageStore.pickSourceFile(
+      t('projectTemplates.dialogs.chooseResourcePackage'),
+    )
+    if (!sourcePath) return
+    const imported = await resourcePackageStore.importPackage(sourcePath)
+    notifySuccess(t('projectTemplates.status.resourcePackageImported', { name: imported.name }))
+  } catch (cause) {
+    reportResourcePackageImportFailure(cause)
+  } finally {
+    isImportingResourcePackage.value = false
+  }
+}
+
+/** 没有打开项目时拖入或打开的包进入软件存储，并直接附加到即将新建的项目上。 */
+async function importDroppedResourcePackage(path: string): Promise<void> {
+  const imported = await resourcePackageStore.importPackage(path).catch((cause: unknown) => {
+    reportResourcePackageImportFailure(cause)
+    return null
+  })
+  if (!imported) return
+  notifySuccess(t('projectTemplates.status.resourcePackageImported', { name: imported.name }))
+  if (!isCreateProjectMode.value) enterCreateProject()
+  if (!attachedResourcePackagePaths.value.includes(imported.path)) {
+    attachedResourcePackagePaths.value = [...attachedResourcePackagePaths.value, imported.path]
+  }
+}
+
+async function removeStoredResourcePackage(pack: StoredResourcePackage): Promise<void> {
+  const accepted = await showConfirm(
+    t('projectTemplates.confirmRemoveResourcePackage', { name: pack.name }),
+    { title: t('projectTemplates.sections.resourcePackages'), kind: 'warning' },
+  )
+  if (!accepted) return
+  try {
+    await resourcePackageStore.removePackage(pack.path)
+    attachedResourcePackagePaths.value = attachedResourcePackagePaths.value
+      .filter((candidate) => candidate !== pack.path)
+  } catch (cause) {
+    reportUncodedFailure(t('projectTemplates.errors.resourcePackageRemoveFailed'), cause)
+  }
 }
 
 function handleRecentProjectSelectionChange(event: OcNodeSelectionEvent): void {
@@ -2399,17 +2557,9 @@ async function handleSidebarListAction(listKey: string, actionKey: string): Prom
   }
 
   if (shellPage.value.type !== 'create-project' || isProjectTemplateBusy.value) return
-  if (listKey === ICON_PACKS_LIST_KEY && actionKey === IMPORT_ICON_PACK_ACTION_KEY
-    && !iconPackStore.isLoading.value) {
-    isImportingIconPack.value = true
-    try {
-      const sourcePath = await iconPackStore.pickUserIconPack(t('projectTemplates.dialogs.chooseIconPack'))
-      if (sourcePath) await iconPackStore.importUserIconPack(sourcePath)
-    } catch (error) {
-      notifyAppError('OC-E3013', error, locale.value)
-    } finally {
-      isImportingIconPack.value = false
-    }
+  if (listKey === RESOURCE_PACKAGES_LIST_KEY && actionKey === IMPORT_RESOURCE_PACKAGE_ACTION_KEY
+    && !resourcePackageStore.isLoading.value) {
+    await importStoredResourcePackage()
     return
   }
 }
@@ -2773,7 +2923,8 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
     try {
       if (kind === 'resource-package') {
         if (!projectPath.value) {
-          notifyWarning(t('resourcePackage.openProjectFirst'))
+          // 没有打开项目时，包先进软件存储，之后新建项目就能按需取用。
+          await importDroppedResourcePackage(normalizedPath)
           continue
         }
         const installed = await projectStore.installResourcePackageFile(normalizedPath, {
@@ -2803,9 +2954,13 @@ async function handleExternalOpenPaths(paths: readonly string[]): Promise<void> 
         continue
       }
       if (kind === 'icon-pack') {
-        const imported = await iconPackStore.importUserIconPack(normalizedPath)
-        if (imported) selectedIconPackKeys.value = [...selectedIconPackKeys.value, imported.key]
-        shellPage.value = { type: 'create-project', returnPage: getCurrentPrimaryShellPage() }
+        // 图标集只属于项目，因此打开的图标包交给当前项目的图标页导入。
+        if (!projectPath.value) {
+          notifyWarning(t('projectConfig.icons.openProjectFirst'))
+          continue
+        }
+        await handleProjectManagementSelect([resolveProjectPath(PROJECT_ICON_REGISTRY_FILE_NAME)])
+        showPrimaryShellPage('workbench')
       }
     } catch (error) {
       notifyAppError('OC-E2002', { path: normalizedPath, error }, locale.value)
@@ -3187,31 +3342,38 @@ async function commitVersion(value: { summary: string; description: string }): P
   }
 }
 
-function createIconPackTreeData(packs: readonly ProjectIconPackCatalogEntry[]): OcNodeCollection {
+function createResourcePackageTreeData(packs: readonly StoredResourcePackage[]): OcNodeCollection {
   const items = new Map<string, OcNode>()
   for (const pack of packs) {
-    const isRegistered = selectedIconPackKeys.value.includes(pack.key)
-    items.set(pack.key, {
-      label: resolveProjectIconPackName(pack, locale.value),
-      visual: { type: 'icon', icon: 'file.project-icon' },
-      tail: [isRegistered
-        ? {
-            key: REGISTERED_ICON_PACK_ACTION_KEY,
-            title: t('projectTemplates.status.iconPackRegistered'),
-            icon: 'action.check',
-            iconTone: 'success',
-            disabled: true,
-            disabledReason: t('projectTemplates.status.iconPackRegistered'),
-          }
-        : {
-            key: REGISTER_ICON_PACK_ACTION_KEY,
-            title: t('projectTemplates.actions.registerIconPack'),
-            icon: 'action.add',
-          }],
+    const isAttached = attachedResourcePackagePaths.value.includes(pack.path)
+    items.set(pack.path, {
+      label: pack.name,
+      visual: { type: 'icon', icon: 'file.package' },
+      tail: [
+        pack.version,
+        isAttached
+          ? {
+              key: ATTACHED_RESOURCE_PACKAGE_ACTION_KEY,
+              title: t('projectTemplates.actions.detachResourcePackage'),
+              icon: 'action.check',
+              iconTone: 'success',
+            }
+          : {
+              key: ATTACH_RESOURCE_PACKAGE_ACTION_KEY,
+              title: t('projectTemplates.actions.attachResourcePackage'),
+              icon: 'action.add',
+            },
+        {
+          key: REMOVE_RESOURCE_PACKAGE_ACTION_KEY,
+          title: t('projectTemplates.actions.removeResourcePackage'),
+          icon: 'action.delete',
+          iconTone: 'danger',
+        },
+      ],
     })
   }
   return {
-    rootKeys: packs.map((pack) => pack.key),
+    rootKeys: packs.map((pack) => pack.path),
     items,
     children: new Map(),
   }
@@ -3542,7 +3704,6 @@ onMounted(() => {
   void startFeedbackInbox()
   if (isTauri()) {
     void loadSystemFontFamilies()
-    void iconPackStore.load().catch((error) => reportAppError('OC-E3013', error))
   }
 })
 

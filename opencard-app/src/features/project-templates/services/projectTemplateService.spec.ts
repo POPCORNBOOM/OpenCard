@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { strToU8, zipSync } from 'fflate'
 import type { FileSystemService } from '../../workspace/services/fileSystemService'
 import type { ProjectTemplate } from '../model/projectTemplate'
-import type { ProjectIconPackCatalogEntry } from '../../workspace/model/projectIconPackCatalog'
 import {
   ProjectTemplateService,
   type ProjectTemplatePathService,
@@ -653,49 +652,6 @@ describe('ProjectTemplateService project creation', () => {
     })).rejects.toMatchObject({ code: 'target-exists' })
 
     expect(fs.allPaths().some((path) => path.includes('.Demo.opencard-create-'))).toBe(false)
-  })
-
-  it('installs an icon pack as one file per icon after the project icon folder', async () => {
-    const fs = new MemoryFileSystem()
-    fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
-    fs.putFile('/template/content/main.ocdocument', cardDocument())
-    fs.putFile('/packs/outline.ociconpack', zipSync({
-      'iconpack.json': strToU8(JSON.stringify({
-        type: 'opencard-icon-pack', schemaVersion: '1', name: 'Outline', key: 'outline',
-        icons: [
-          { iconKey: 'warn', name: 'Warn', source: 'icons/warn.svg', tint: 'theme' },
-          { iconKey: 'coin', name: 'Coin', source: 'icons/coin.png', tint: 'original', pixelated: true },
-        ],
-      })),
-      'icons/warn.svg': strToU8('<svg id="warn"/>'),
-      'icons/coin.png': new Uint8Array([9, 9, 9]),
-    }))
-    const pack: ProjectIconPackCatalogEntry = {
-      key: 'builtin:outline', id: 'outline', name: 'Outline', packKey: 'outline',
-      source: 'builtin', path: '/packs/outline.ociconpack', iconCount: 2,
-    }
-
-    await createService(fs).createProject({
-      template: templateFixture(),
-      parentPath: '/projects',
-      projectName: 'Demo',
-      iconPacks: [pack],
-    })
-
-    // 注册表路径取自项目结构常量，而不是模板 spec 中另一处沿用的旧字面量。
-    const registry = JSON.parse(fs.rawFile('/projects/Demo/.opencard/icons/icons.json') as string)
-    expect(registry.iconSeries).toEqual([{
-      name: 'Outline',
-      key: 'outline',
-      icons: [
-        { iconKey: 'warn', name: 'Warn', source: '.opencard/icons/outline/warn.svg', tint: 'theme' },
-        { iconKey: 'coin', name: 'Coin', source: '.opencard/icons/outline/coin.png', tint: 'original', pixelated: true },
-      ],
-    }])
-    const svg = (path: string): string => new TextDecoder().decode(fs.rawFile(path) as Uint8Array)
-    expect(svg('/projects/Demo/.opencard/icons/outline/warn.svg')).toBe('<svg id="warn"/>')
-    expect(fs.rawFile('/projects/Demo/.opencard/icons/outline/coin.png')).toEqual(new Uint8Array([9, 9, 9]))
   })
 
   it('returns a selected candidate entry without persisting it as project metadata', async () => {

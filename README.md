@@ -133,7 +133,6 @@ OpenCard/
 
 - 版本变化：[`opencard-app/RELEASE_NOTES.md`](opencard-app/RELEASE_NOTES.md)
 - 工程约定：[`docs/工程规则.md`](docs/工程规则.md)
-- Custom Block 包与运行时：[`docs/Custom Block 包与运行时.md`](docs/Custom%20Block%20包与运行时.md)
 - 问题反馈：[GitHub Issues](https://github.com/POPCORNBOOM/OpenCard/issues)
 
 ## 许可证与项目状态

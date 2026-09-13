@@ -18,7 +18,6 @@ const emit = defineEmits<{
 }>()
 
 const props = withDefaults(defineProps<{
-  activationError?: string
   /** 最近打开项目的封面；背景封面墙会与内置素材混合展示。 */
   covers?: readonly WelcomeCoverWallCover[]
   /** 侧栏"最近打开的项目"选中的项目 Key，用于突出对应封面。 */
@@ -62,7 +61,6 @@ const { t } = useI18n()
         />
       </h1>
       <p>{{ t('app.welcome.subtitle') }}</p>
-      <p v-if="activationError" class="workspace-empty-state__error" role="alert">{{ activationError }}</p>
       <div class="workspace-empty-state__actions">
         <OcButton icon="action.add" variant="solid" size="lg" @click="emit('new-project')">
           {{ t('app.menu.newProject') }}
@@ -158,10 +156,6 @@ const { t } = useI18n()
   font-size: var(--oc-text-base);
   line-height: 1.5;
   text-shadow: var(--oc-welcome-hero-text-shadow);
-}
-
-.workspace-empty-state .workspace-empty-state__error {
-  color: var(--oc-fg-danger);
 }
 
 .workspace-empty-state__actions {

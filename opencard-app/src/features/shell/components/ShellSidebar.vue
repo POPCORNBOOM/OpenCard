@@ -194,8 +194,8 @@ function onResizePointerDown(event: PointerEvent): void {
     />
     <Transition :name="`shell-sidebar-group-slide-${transitionDirection}`" mode="out-in">
       <div :key="activeTransitionKey" class="shell-sidebar-active-group" :data-transition-key="activeTransitionKey">
-        <div class="shell-sidebar-group shell-sidebar-group-top">
-          <button v-for="button in activeHeadButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('head-button-clicked', button.key)">
+        <div class="shell-sidebar-group shell-sidebar-group-top" data-tooltip-placement="right" data-tooltip-group>
+          <button v-for="button in activeHeadButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="collapsed ? button.hoverTip || button.title : null" @click="emit('head-button-clicked', button.key)">
             <OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span>
           </button>
         </div>
@@ -211,7 +211,7 @@ function onResizePointerDown(event: PointerEvent): void {
         </div>
       </div>
     </Transition>
-    <div class="shell-sidebar-group shell-sidebar-group-bottom"><button v-for="button in tailButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="button.hoverTip || null" @click="emit('tail-button-clicked', button.key)"><OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span></button></div>
+    <div class="shell-sidebar-group shell-sidebar-group-bottom" data-tooltip-placement="right" data-tooltip-group><button v-for="button in tailButtons" :key="button.key" class="shell-sidebar-button" type="button" :disabled="button.disabled" :data-tooltip="collapsed ? button.hoverTip || button.title : null" @click="emit('tail-button-clicked', button.key)"><OcIcon v-if="button.icon" :name="button.icon" size="md" /><span v-if="!collapsed">{{ button.title }}</span></button></div>
     <div v-if="!collapsed" class="shell-sidebar-resizer" @pointerdown.prevent="onResizePointerDown" />
   </aside>
 </template>
