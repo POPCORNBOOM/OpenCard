@@ -12,6 +12,14 @@
 - When editing templates, CSS, or object literals, verify tag, brace, and delimiter pairing in the full affected block. Do not stack corrective patches onto an unverified structural edit.
 - If HMR reports a template, CSS, or transform error, stop subsequent edits and repair that error first. Re-read the complete affected structure after repair.
 
+## Early-Stage Compatibility
+
+- OpenCard is in early development. Backward compatibility is not a requirement: rewrite the rule documents, refactor or replace modules, and change persisted formats outright rather than preserving a second shape for old data.
+- Do not add format-version gates, migration paths, or "this file is from an older version" rejections. Never fail a document for being an older or newer shape.
+- When a persisted JSON format changes, read liberally: ignore extra and unknown fields, and fill in missing ones from the current defaults. Only data that cannot form a usable current projection at all — corrupt JSON, an unsafe archive path, an exceeded resource limit — may fail to load.
+- The same tolerance applies in reverse: writing only the current shape is correct, and a reader that quietly drops what it does not know is behaving as intended.
+- `docs/工程规则.md` owns the detailed projection and tolerance rules; this section is the agent-facing summary.
+
 ## Refactoring Discipline
 
 - Prefer efficient, unified code paths over layered compatibility wrappers, parallel abstractions, and feature-local exceptions.
