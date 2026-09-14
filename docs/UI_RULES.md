@@ -12,33 +12,34 @@
 每个 prop 必须满足：**无需查看实现，仅凭名字 + 可选值就能预测视觉结果**。
 
 ```vue
-<!-- 用户应能直接读懂意图 -->
-<OcPanel tone="glass" border="soft" radius="md" elevation="md" />
-<OcButton variant="primary" size="lg" icon="action.save" />
-<OcText tone="muted" size="label" truncate />
+<OcPanel tone="glass" border="default" radius="md" shadow="md" />
+<OcButton variant="solid" size="lg" icon="action.save" />
+<OcText tone="muted" size="sm" truncate />
 ```
 
 命名规则：
-- 视觉属性用名词：`tone`, `radius`, `elevation`, `border`
+- 视觉属性用名词：`tone`, `radius`, `shadow`, `border`
 - 行为属性用形容词/动词：`disabled`, `truncate`, `collapsed`, `hoverable`
-- 布局属性用物理方向：`orientation`, `gap`, `padding`, `width`, `height`
-- 可选值用自然语义词：`sm/md/lg`, `primary/secondary/ghost`, `panel/glass/elevated`
+- 布局属性用物理方向：`direction`, `gap`, `padding`, `align`, `fill`, `grow`
+- 可选值用自然语义词：`sm/md/lg`, `solid/soft/ghost/outline`, `base/surface/raised/glass`
 
 **禁止** 出现需要猜测的 prop 名。如果名字不够自解释，说明 API 设计有问题。
 
 ### 铁律 2 — 可选值必须封闭枚举，禁止裸字符串
 
+prop 的类型必须是字面量联合，而不是 `string`：
+
 ```ts
 // 正确 — 用户在 IDE 里能看到所有可能值
-variant?: 'primary' | 'secondary' | 'ghost' | 'choice'
-tone?: 'panel' | 'base' | 'elevated' | 'glass' | 'transparent'
+variant?: 'solid' | 'soft' | 'ghost' | 'outline'
+tone?: 'base' | 'surface' | 'raised' | 'glass' | 'accent' | 'transparent'
 
 // 错误 — 用户不知道能写什么
 variant?: string
 tone?: string
 ```
 
-唯一例外：`icon` prop 接受 IconToken 类型（但 IconToken 本身也是有限注册集）。
+唯一例外：`icon` prop 接受 `IconToken` 类型（本身也是有限注册集）。
 
 ### 铁律 3 — 组件签名稳定，新增 prop 只追加不修改
 
@@ -48,20 +49,20 @@ tone?: string
 
 ### 铁律 4 — 每个组件 Props 上限
 
-| 层级 | Props 上限 | 示例 |
-|------|-----------|------|
-| base 原子组件 | ≤ 12 | OcButton, OcText, OcIcon |
-| standard 组合组件 | ≤ 18 | OcTree, OcCard, OcTab |
+| 层级 | Props 上限 | 当前组件 |
+|------|-----------|---------|
+| base 原子组件 | ≤ 12 | `OcPanel` 12、`OcButton` 12、`OcText` 7、`OcIcon` 6 |
+| standard 组合组件 | ≤ 18 | `OcTree` 14、`OcCard` 7、`OcBar` |
 
-超过上限必须拆分。OcPanel 当前 20+ props 是遗留问题，未来按铁律 7 拆分。
+超过上限必须拆分。
 
 ### 铁律 5 — Slot 即组合点，命名即用途
 
 slot 命名必须是名词，表示"这个位置放什么"：
 
 ```vue
-<OcCard title="面板" icon="action.settings">
-  <template #content>主体内容</template>
+<OcCard title="面板" icon="action.settings" :actions="actions" @action="onAction">
+  <OcFieldInput v-model="width" />
 </OcCard>
 
 <OcBar title="文件名">
@@ -87,15 +88,12 @@ slot 命名必须是名词，表示"这个位置放什么"：
 
 ```ts
 // 正确 — 用户 @action="handler" 拿到的是有类型的结构体
-emit('action', { actionKey: 'delete' })
+emit('action', { key: 'delete' })
 emit('update:checked', true)
-emit('select', { nodeKey: 'block-1', node: treeNode })
-
-// 错误 — 把原生 event 暴露出去让用户自己解析
-emit('click', nativeMouseEvent)
+emit('selection-change', selectionEvent)
 ```
 
-唯一例外：纯透传的交互事件（如 OcButton 的 `click`）可以传 MouseEvent。
+规则的边界：交互结果用结构化 payload；只有纯透传的原生交互事件（如 `OcButton` 的 `click`）才可以传 `MouseEvent`。
 
 ---
 
@@ -103,32 +101,30 @@ emit('click', nativeMouseEvent)
 
 ### 铁律 7 — 视觉效果只通过 Token 枚举表达
 
-用户在 template 中写的 prop 值，全部来自预定义的 token 枚举。Agent 内部负责将 token 映射到具体 CSS 值。
+用户在 template 中写的 prop 值，全部来自组件声明的封闭枚举。Agent 内部负责将 token 映射到具体 CSS 值。
 
-**当前有效 Token 表（用户需要记住的）：**
+**枚举的定义位置就是唯一来源，本文档不再复制取值列表**（复制会过期；铁律 2 保证 IDE 能列出全部取值）：
 
-| 维度 | Token 值 | 适用组件 |
-|------|----------|----------|
-| **tone** (背景) | `base`, `panel`, `elevated`, `input`, `transparent`, `glass`, `accent`, `active` | OcPanel |
-| **border** | `none`, `transparent`, `soft`, `black`, `accent` | OcPanel |
-| **radius** | `none`, `sm`, `md`, `lg` | OcPanel, OcButton |
-| **elevation** | `none`, `sm`, `md`, `lg` | OcPanel |
-| **size** (控件) | `sm`, `md`, `lg` | OcButton, OcFieldInput |
-| **variant** (按钮) | `primary`, `secondary`, `ghost`, `choice` | OcButton |
-| **tone** (文本) | `primary`, `secondary`, `muted`, `label`, `info` | OcText |
-| **gap** | `none`, `space-1` ~ `space-6` | OcPanel |
-| **padding** | `none`, `compact`, `standard` | OcPanel |
-| **orientation** | `horizontal`, `vertical` | OcPanel |
-| **width/height** | `auto`, `content`, `full`, `screen`, `size-xs` ~ `size-2xl` | OcPanel |
+| 维度 | 归属 prop | 定义位置 |
+|------|-----------|----------|
+| `tone`（背景） | `OcPanel.tone` | `components/base/OcPanel.vue` → `OC_PANEL_TONES` |
+| `border` | `OcPanel.border` | `OC_PANEL_BORDERS` |
+| `radius` | `OcPanel.radius`、`OcButton.radius`、`OcCard.radius` | `OC_PANEL_RADII` |
+| `shadow` | `OcPanel.shadow` | `OC_PANEL_SHADOWS` |
+| `gap` / `padding` / `align` / `direction` / `overflow` | `OcPanel` | `OC_PANEL_GAPS` 等同名常量 |
+| `variant`（按钮） | `OcButton.variant` | `ButtonVariant` |
+| `size`（控件） | `OcButton.size`、`OcFieldInput.size`、`OcIcon.size` | `ButtonSize`、`OcIconSize` |
+| `tone`（文本） | `OcText.tone` | `OcTextTone` |
+| 主题色值 | — | `shared/ui/foundation/themes.ts` → `OC_THEME_REGISTRY`、`OC_SHARED_THEME_TOKENS` |
 
-Agent 新增 token 时，必须同步更新此表。
+Agent 新增 token 时，必须在该组件的枚举常量中定义，并同步更新上表的「定义位置」列；**不得在本文档里另抄一份取值清单**。
 
 ### 铁律 8 — Token 值必须跨组件一致
 
 同一个 token 名在不同组件中必须表达相同语义：
 - `sm` 永远表示"紧凑"，`lg` 永远表示"宽松"
-- `primary` 在按钮中 = 强调操作，在文本中 = 默认主色
 - `accent` 在 border = 主题色边框，在 tone = 主题色填充
+- `variant` 在 `OcButton` 与 `OcActionButton` 中取值相同（`solid/soft/ghost/outline`）
 
 **禁止** 同一 token 名在不同组件中含义不同。
 
@@ -142,15 +138,20 @@ Agent 新增 token 时，必须同步更新此表。
 
 ```vue
 <!-- 声明式组合：用户只关心"是什么"，不关心"怎么排" -->
-<OcPanel tone="panel" border="soft" radius="md" padding="standard"
-         orientation="vertical" gap="space-2">
+<OcPanel direction="vertical" gap="2" padding="3" tone="surface" border="default">
   <OcBar title="Block Properties" icon="editor.properties" />
-  <OcPropertyRow label="Width">
-    <OcFieldInput v-model="width" full-width monospace />
-  </OcPropertyRow>
-  <OcPropertyRow label="Height">
-    <OcFieldInput v-model="height" full-width monospace />
-  </OcPropertyRow>
+  <label>
+    <span>Width</span>
+    <OcFieldFrame>
+      <OcFieldInput v-model="width" variant="plain" full-width mono />
+    </OcFieldFrame>
+  </label>
+  <label>
+    <span>Height</span>
+    <OcFieldFrame>
+      <OcFieldInput v-model="height" variant="plain" full-width mono />
+    </OcFieldFrame>
+  </label>
 </OcPanel>
 ```
 
@@ -160,7 +161,7 @@ Agent 实现新组件时，内部布局对用户不可见。用户只需知道"�
 
 ```vue
 <!-- 正确 — 用户不需要知道内部是 flex 还是 grid -->
-<OcPanel orientation="horizontal" gap="space-2">
+<OcPanel direction="horizontal" gap="2">
 
 <!-- 错误 — 暴露了 CSS 实现细节 -->
 <OcPanel display="flex" flex-direction="row" css-gap="8px">
@@ -174,8 +175,8 @@ Prop 名表达"我想要什么效果"，不表达"用什么技术实现"。
 
 ```
 推荐深度：
-Layer 1: 区域容器 (OcPanel / OcCard / OcSidebarFrame)
-Layer 2: 内容结构 (OcBar / OcPropertyRow / OcTree)
+Layer 1: 区域容器 (OcPanel / OcCard)
+Layer 2: 内容结构 (OcBar / OcTree / OcActionRail)
 Layer 3: 原子控件 (OcButton / OcFieldInput / OcText / OcIcon)
 ```
 
@@ -203,9 +204,12 @@ Layer 3: 原子控件 (OcButton / OcFieldInput / OcText / OcIcon)
 
 用户看到这句话就知道该组件解决什么问题。
 
-### 铁律 14 — index.ts 导出 = 公开 API
+### 铁律 14 — 公开组件与内部辅助组件分离
 
-只有从 `components/base/index.ts` 或 `components/standard/index.ts` 导出的组件才是用户可以使用的。Agent 的内部辅助组件 **不得** 出现在 index 中。
+- 组件文件本身就是它的公开单位：调用方按路径直接 import，组件声明的 props / emits / slots 就是它的公开 API。
+- 只有 `base/`、`standard/` 下的组件是全体调用方可以使用的共享组件。
+- Agent 的内部辅助组件必须与被服务组件同目录、同前缀（如 `OcPanel` 的辅助件），**不得**被别的 feature 直接引用；发现跨 feature 引用内部件时应上移为共享组件或改为 props/slot 表达。
+- 不得新增集中式 barrel（`index.ts`）来重新导出组件；共享组件的公开面由组件自身定义。
 
 ---
 
@@ -213,7 +217,7 @@ Layer 3: 原子控件 (OcButton / OcFieldInput / OcText / OcIcon)
 
 ### 铁律 15 — 相同 props 在任何上下文中效果相同
 
-`<OcButton variant="primary" size="sm" />` 无论放在 OcCard header 里还是独立使用，视觉效果必须完全一致。
+`<OcButton variant="solid" size="sm" />` 无论放在 OcCard header 里还是独立使用，视觉效果必须完全一致。
 
 **禁止** 组件根据祖先上下文改变自身外观（除非通过显式的 CSS 变量覆盖机制）。
 
@@ -227,7 +231,6 @@ Layer 3: 原子控件 (OcButton / OcFieldInput / OcText / OcIcon)
 ### 铁律 17 — v-model 双向绑定遵循 Vue 约定
 
 ```vue
-<!-- 用户预期这样使用 -->
 <OcFieldInput v-model="value" />
 <OcCheckbox v-model:checked="isChecked" />
 ```
@@ -240,11 +243,11 @@ Agent 实现时必须使用 `update:modelValue` 或 `update:{propName}` 事件�
 
 ### 铁律 18 — dark/light 自动适配，用户无需关心
 
-用户写 `<OcPanel tone="panel">` 就会得到正确的深色/浅色外观。Agent 负责在 theme token 中为每个语义 token 提供两套值。
+用户写 `<OcPanel tone="surface">` 就会得到正确的深色/浅色外观。Agent 负责在 theme token 中为每个语义 token 提供两套值。
 
 ### 铁律 19 — 新增视觉变体时必须同时提供两套主题值
 
-Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightThemeTokens` 必须同步添加，缺一不可。
+Agent 在 `shared/ui/foundation/themes.ts` 中新增语义 token 时，`OC_THEME_REGISTRY` 覆盖的每个 `OcThemeId`（当前 `dark` / `light`）都必须显式定义该 token，缺一不可。跨主题共用的值放在 `OC_SHARED_THEME_TOKENS`。
 
 ### 铁律 20 — 组件不接受原始颜色值
 
@@ -269,7 +272,7 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 - `px` 尺寸字面量（`0`, `1px` border, `100%` 除外）
 - 裸数字 duration（如 `0.12s`）
 
-全部引用 `--oc-*` CSS 变量。
+全部引用 `--oc-*` CSS 变量，且不使用 `var(--oc-x, #hex)` 形式的颜色兜底。
 
 把字面量改名成局部常量或 CSS 自定义属性**不算**设计 token。缺少所需语义值时，先把它加到 foundation/theme 体系、对所有适用主题显式定义，再由使用方引用该 token。
 
@@ -351,18 +354,18 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 ### 布局容器
 
 ```vue
-<!-- 垂直堆叠，间距 8px -->
-<OcPanel orientation="vertical" gap="space-2" padding="standard">
+<!-- 垂直堆叠 -->
+<OcPanel direction="vertical" gap="2" padding="3">
   ...
 </OcPanel>
 
 <!-- 水平排列，占满宽度 -->
-<OcPanel orientation="horizontal" gap="space-2" width="full">
+<OcPanel direction="horizontal" gap="2" fill>
   ...
 </OcPanel>
 
 <!-- 毛玻璃浮层 -->
-<OcPanel tone="glass" border="soft" radius="md" elevation="md">
+<OcPanel tone="glass" border="default" radius="md" shadow="md">
   ...
 </OcPanel>
 ```
@@ -370,47 +373,48 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 ### 按钮
 
 ```vue
-<OcButton variant="primary" size="md">保存</OcButton>
+<OcButton variant="solid" size="md">保存</OcButton>
 <OcButton variant="ghost" icon="action.close" icon-only />
-<OcButton variant="secondary" icon="action.add" icon-position="left">新增</OcButton>
-<OcButton variant="choice" :active="isSelected">选项 A</OcButton>
+<OcButton variant="outline" icon="action.add" icon-side="left">新增</OcButton>
+<OcButton variant="soft" :active="isSelected">选项 A</OcButton>
 ```
 
 ### 文本
 
 ```vue
-<OcText tone="primary">正文</OcText>
-<OcText tone="muted" size="label" truncate>次要说明可能很长...</OcText>
+<OcText tone="default">正文</OcText>
+<OcText tone="muted" size="sm" truncate>次要说明可能很长...</OcText>
 ```
 
 ### 卡片
 
+内容走默认 slot；头部操作通过 `actions` + `@action`，payload 是 `{ key }`。
+
 ```vue
-<OcCard title="属性" icon="editor.properties" variant="panel"
+<OcCard title="属性" icon="editor.properties" variant="surface"
         :actions="[{ key: 'reset', icon: 'action.refresh', title: '重置' }]"
         @action="handleAction">
-  <template #content>
-    <OcPropertyRow label="宽度">
-      <OcFieldInput v-model="width" full-width monospace />
-    </OcPropertyRow>
-  </template>
+  <OcFieldInput v-model="width" full-width mono />
 </OcCard>
 ```
 
 ### 树
 
+`OcTree` 不接收标题，也不接收 `enable-*` 开关：重命名、拖放、操作按钮全部由上层的 Action definition 与事件编排（见 `docs/工程规则.md` 的 `OcTree` 契约）。
+
 ```vue
-<OcTree title="Blocks" :data="treeNodes" :selected-keys="[selectedId]"
-        enable-drag enable-rename enable-actions
-        @select="onSelect" @action="onAction" @rename="onRename" />
+<OcTree :data="treeNodes" :selected-keys="[selectedId]" selection-mode="single"
+        external-drop
+        @selection-change="onSelectionChange" @action="onAction"
+        @rename-commit="onRenameCommit" @move="onMove" />
 ```
 
 ### 输入
 
 ```vue
 <OcFieldInput v-model="value" full-width />
-<OcFieldInput as="textarea" resize="vertical" monospace />
-<OcFieldInput variant="plain" density="compact" size="sm" />
+<OcFieldInput v-model="text" as="textarea" resize="vertical" mono />
+<OcFieldInput v-model="name" variant="plain" size="sm" />
 ```
 
 ### 复选
@@ -438,6 +442,7 @@ Agent 在 `themes.ts` 中新增 token 值时，`darkThemeTokens` 和 `lightTheme
 | X11 | 自建模态 Teleport / backdrop / 焦点陷阱 | 绕过 OcDialog 的统一模态契约 |
 | X12 | 把字面量改名成常量或 CSS 变量就当作 token | 并未建立语义来源 |
 | X13 | 用透明边框或隐藏来"消除"嵌入几何 | 仍占据布局空间 |
+| X14 | 在本文档里复制组件枚举的取值清单 | 会与代码脱钩，枚举的唯一来源是组件自身 |
 
 ---
 
@@ -461,4 +466,4 @@ Agent 完成 UI 组件代码后，必须自检：
 - [ ] 仅图标控件具备 `aria-label`（含义自明的控件不必再加 tooltip）？
 - [ ] 同级连续操作的区域声明了 `data-tooltip-group`，且热窗口内方向保持一致？
 - [ ] 对应 .spec.ts 已更新？
-- [ ] 如涉及新 token，铁律文档 Token 表已更新？
+- [ ] 如涉及新 token，组件枚举与本文档的「定义位置」列已更新？

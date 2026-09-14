@@ -133,6 +133,8 @@ OpenCard/
 
 - 版本变化：[`opencard-app/RELEASE_NOTES.md`](opencard-app/RELEASE_NOTES.md)
 - 工程约定：[`docs/工程规则.md`](docs/工程规则.md)
+- UI 组件规范：[`docs/UI_RULES.md`](docs/UI_RULES.md)
+- 架构与数据流：[`docs/架构.md`](docs/架构.md)
 - 问题反馈：[GitHub Issues](https://github.com/POPCORNBOOM/OpenCard/issues)
 
 ## 许可证与项目状态

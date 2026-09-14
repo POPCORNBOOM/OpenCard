@@ -4,7 +4,10 @@
 /.codex/
 /.playwright-cli/
 /output/
-/AGENTS.md
+
+# Local run output and logs (debug dumps, screenshots, test reports)
+/artifacts/
+*.log
 
 # Ignore OpenCard cache files at any directory level
 .opencard-cache
