@@ -8,6 +8,7 @@ import {
   type CardRenderParseIssueType,
 } from './cardPipelineIssue'
 import { getRenderFieldContract, type RenderFieldContract } from './renderFieldContracts'
+import { parseResourceReference, type ResourceReferenceKind } from '../workspace/services/resourceReference'
 import type {
   RenderParseResult,
   RenderReadyBaseBlock,
@@ -34,14 +35,6 @@ type IssueContext = {
 export type ParseRenderDocumentOptions = {
   instanceId?: string | null
 }
-
-export type ParseRenderBlockOptions = {
-  documentId: string
-  instanceId?: string | null
-  faceKey?: CardFaceKey
-  allowTypedLiterals?: boolean
-}
-
 
 type RenderParseFailure =
   | 'invalid-type'
@@ -563,7 +556,8 @@ function parseRenderField(
       stringValue,
       contract.extensions,
       contract.allowRemote,
-    )) {
+    )
+    && !isAcceptedResourceReference(stringValue, contract.acceptsReferences)) {
     return invalidRenderField('invalid-file-path')
   }
   const converted = contract.kind === 'css-length' ? normalizeRenderCssLength(stringValue) : stringValue
@@ -600,7 +594,6 @@ function isValidRenderFilePath(
   allowRemote = false,
 ): boolean {
   const normalized = value.replace(/\\/g, '/')
-  if (/^(?:[a-z0-9._-]+@|@)?icon:[^/\s]+\/[^/\s]+$/i.test(value.trim())) return true
   if (allowRemote && /^https:\/\/[^\s]+$/i.test(value.trim())) return true
   if (normalized.includes('\0') || /(^|\/)\.\.(?:\/|$)/.test(normalized) || /[<>:"|?*]/.test(normalized)) {
     return false
@@ -608,6 +601,20 @@ function isValidRenderFilePath(
   if (!extensions?.length || normalized.endsWith('/')) return true
   const extension = normalized.split('.').pop()?.toLocaleLowerCase()
   return Boolean(extension && extensions.some(candidate => candidate.toLocaleLowerCase() === extension))
+}
+
+/**
+ * A path field may declare that it also accepts resource references. A reference names a resource by
+ * key (`icon:collection/icon`, `pack@icon:collection/icon`) and resolves to a path afterwards, so the
+ * contract, not the path validator, decides whether a field accepts it.
+ */
+function isAcceptedResourceReference(
+  value: string,
+  accepted: readonly ResourceReferenceKind[] | undefined,
+): boolean {
+  if (!accepted?.length) return false
+  const parsed = parseResourceReference(value)
+  return parsed.reference !== null && accepted.includes(parsed.reference.kind)
 }
 
 function resolveBlockType(

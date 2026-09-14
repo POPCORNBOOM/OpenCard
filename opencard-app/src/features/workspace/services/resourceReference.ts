@@ -267,24 +267,6 @@ export function parseResourceReferenceList(
   }).filter(token => token.source.length > 0)
 }
 
-export function parseEmbeddedResourceReferences(source: string): ParsedResourceReferenceToken[] {
-  const tokens: ParsedResourceReferenceToken[] = []
-  const canonicalPattern = /\[\[([a-z0-9._-]+@)?icon:([^\]]+)\]\]/gi
-  for (const match of source.matchAll(canonicalPattern)) {
-    const token = `${match[1] ?? ''}icon:${match[2] ?? ''}`
-    const parsed = parseResourceReference(token)
-    tokens.push({ source: match[0] ?? token, reference: parsed.reference, diagnostics: parsed.diagnostics })
-  }
-  if (typeof DOMParser === 'undefined') return tokens
-  const documentNode = new DOMParser().parseFromString(source, 'text/html')
-  for (const element of Array.from(documentNode.body.querySelectorAll('[data-oc-icon-path]'))) {
-    const path = element.getAttribute('data-oc-icon-path') ?? ''
-    const parsed = parseResourceReference(`icon:${path}`)
-    tokens.push({ source: path, reference: parsed.reference, diagnostics: parsed.diagnostics })
-  }
-  return tokens
-}
-
 export function buildResourceFontCatalog(
   environment: ProjectResourceEnvironment,
 ): readonly FontCatalogEntry[] {

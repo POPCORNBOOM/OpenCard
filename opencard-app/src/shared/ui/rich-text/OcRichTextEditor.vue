@@ -163,9 +163,11 @@ import { ProjectIconNode } from './projectIconNode'
 import {
   createProjectIconStyle,
   createProjectIconPreviewStyle,
+  findProjectIcon,
   type ProjectIconCatalog,
   type ProjectIconCatalogEntry,
 } from '../../../features/workspace/services/projectIconCatalog'
+import { parseProjectIconPath } from '../../rich-text/projectIconReference'
 import { readProjectIconSize } from '../../../features/workspace/services/projectIconDimensionResolver'
 import {
   projectIconRecentIdentity,
@@ -187,6 +189,11 @@ const props = defineProps<{
   modelValue: string
   bindingCompletion?: RichTextBindingCompletionProvider
   projectIconCatalog?: ProjectIconCatalog
+  /**
+   * Resolves an icon reference that may name an icon owned by a package. Falls back to the host
+   * project catalog, which only knows current-project icons.
+   */
+  resolveProjectIcon?: (reference: string) => ProjectIconCatalogEntry | null
   fontOptions?: readonly RichTextFontOption[]
   baseStyle?: {
     fontFamily?: string
@@ -515,7 +522,7 @@ const editor = useEditor({
       completion: request => props.bindingCompletion?.(request) ?? null,
     }),
     ProjectIconNode.configure({
-      catalog: () => props.projectIconCatalog,
+      resolve: reference => props.resolveProjectIcon?.(reference) ?? resolveHostProjectIcon(reference),
     }),
   ],
   editorProps: {
@@ -675,6 +682,13 @@ function insertBinding(): void {
 
 function projectIconActionKey(entry: Pick<ProjectIconCatalogEntry, 'seriesKey' | 'iconKey'>): string {
   return `project-icon:${entry.seriesKey}/${entry.iconKey}`
+}
+
+/** Host fallback for icon resolution: only the current project's catalog is visible here. */
+function resolveHostProjectIcon(reference: string): ProjectIconCatalogEntry | null {
+  const parsed = parseProjectIconPath(reference)
+  if (!parsed || parsed.packageKey) return null
+  return findProjectIcon(props.projectIconCatalog, parsed.seriesKey, parsed.iconKey)
 }
 
 function selectedProjectIconEntry(): ProjectIconCatalogEntry | null {

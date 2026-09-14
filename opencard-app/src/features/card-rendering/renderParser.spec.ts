@@ -98,10 +98,35 @@ describe('renderParser', () => {
     }))
   })
 
-  it('rejects project and package icon references for image sources', () => {
+  it('accepts every image source form: path, package path, remote url, and icon reference', () => {
+    const accepted = [
+      'assets/portrait.png',
+      'theme@assets/portrait.png',
+      'https://images.example.com/portrait.png',
+      'icon:status/warning',
+      'theme@icon:status/warning',
+    ]
+
+    for (const source of accepted) {
+      const document = createDocument()
+      document.faces.front.children[0]!.block = createImageBlock({
+        id: 'image', name: 'Image', source,
+      })
+
+      const result = parseRenderDocument(document)
+
+      expect(result.document.faces.front.children[0]!.block).toMatchObject({ type: 'image-block', source })
+      expect(result.issues).not.toContainEqual(expect.objectContaining({
+        type: 'card-designer.render-parse.invalid-file-path',
+        location: expect.objectContaining({ blockId: 'image', fieldKey: 'source' }),
+      }))
+    }
+  })
+
+  it('rejects an icon reference that does not name both a collection and an icon', () => {
     const document = createDocument()
     document.faces.front.children[0]!.block = createImageBlock({
-      id: 'image', name: 'Icon image', source: 'theme@icon:status/warning',
+      id: 'image', name: 'Broken icon', source: 'icon:status',
     })
 
     const result = parseRenderDocument(document)

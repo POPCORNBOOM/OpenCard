@@ -1,5 +1,6 @@
 import { defineComponent, h, type PropType, type VNodeChild } from 'vue'
 import type { RichTextNode } from '../../../shared/rich-text/richTextHtml'
+import { formatProjectIconPath } from '../../../shared/rich-text/projectIconReference'
 import type { RenderReadyTextBlock } from '../render.types'
 import type { PreparedRichText } from '../prepareRichText'
 import { useCardEditorContext } from './cardEditorContext'
@@ -17,7 +18,15 @@ export default defineComponent({
     function renderNode(node: RichTextNode): VNodeChild {
       if (node.type === 'text') return node.value
       if (node.type === 'icon') {
-        const entry = context.resources.resolveIcon(`icon:${node.seriesKey}/${node.iconKey}`, props.ownerBlock.id, 'content')
+        const entry = context.resources.resolveIcon(
+          formatProjectIconPath({
+            packageKey: node.packageKey,
+            seriesKey: node.seriesKey,
+            iconKey: node.iconKey,
+          }),
+          props.ownerBlock.id,
+          'content',
+        )
         return entry
           ? h(ProjectIconGraphic, {
               class: 'project-inline-icon',

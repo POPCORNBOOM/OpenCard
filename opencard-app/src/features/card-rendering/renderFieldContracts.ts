@@ -1,3 +1,5 @@
+import type { ResourceReferenceKind } from '../workspace/services/resourceReference'
+
 export type RenderFieldKind =
   | 'string'
   | 'number'
@@ -17,6 +19,12 @@ export type RenderFieldContract = {
   options?: readonly string[]
   extensions?: readonly string[]
   allowRemote?: boolean
+  /**
+   * Resource reference kinds this path field also accepts, for example `pack@icon:collection/icon`.
+   * A reference names an image by key instead of by path; it resolves to a path, so everything
+   * downstream of resolution is identical to a literal path.
+   */
+  acceptsReferences?: readonly ResourceReferenceKind[]
   itemShape?: 'root-child'
   displayFieldKey?: string
 }
@@ -99,6 +107,7 @@ const contractsByType: Readonly<Record<string, Readonly<Record<string, RenderFie
       defaultValue: '',
       extensions: imageExtensions,
       allowRemote: true,
+      acceptsReferences: ['icon'],
     },
     fit: { kind: 'option', defaultValue: 'cover', required: true, options: ['cover', 'contain', 'fill'] },
   },

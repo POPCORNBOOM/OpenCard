@@ -1,4 +1,5 @@
 import { parseResourceReference } from '../../features/workspace/services/resourceReference'
+import { parseProjectIconPath } from './projectIconReference'
 
 const allowedTags = new Set([
   'B', 'BR', 'COL', 'COLGROUP', 'EM', 'I', 'LI', 'MARK', 'OL', 'P', 'S', 'SPAN',
@@ -33,7 +34,13 @@ export type RichTextElementNode = {
   attributes: Readonly<Record<string, string>>
   children: readonly RichTextNode[]
 }
-export type RichTextIconNode = { type: 'icon', seriesKey: string, iconKey: string }
+export type RichTextIconNode = {
+  type: 'icon'
+  /** Package the icon belongs to. `null` means the current project. */
+  packageKey: string | null
+  seriesKey: string
+  iconKey: string
+}
 export type RichTextNode = RichTextTextNode | RichTextElementNode | RichTextIconNode
 export type RichTextDocument = { html: string, children: readonly RichTextNode[] }
 export type RichTextParseResult = {
@@ -85,13 +92,10 @@ export function parseRichTextHtml(source: string): RichTextParseResult {
     if (node instanceof Text) return { type: 'text', value: node.data }
     if (!(node instanceof Element) || !allowedTags.has(node.tagName)) return null
     if (node.tagName === 'SPAN' && node.hasAttribute('data-oc-icon-path')) {
-      const parsed = parseResourceReference(`icon:${node.getAttribute('data-oc-icon-path') ?? ''}`)
-      const reference = parsed.reference?.kind === 'icon' ? {
-        seriesKey: parsed.reference.key.split('/')[0] ?? '',
-        iconKey: parsed.reference.key.split('/')[1] ?? '',
-      } : null
+      const reference = parseProjectIconPath(node.getAttribute('data-oc-icon-path') ?? '')
       return {
         type: 'icon',
+        packageKey: reference?.packageKey ?? null,
         seriesKey: reference?.seriesKey ?? '',
         iconKey: reference?.iconKey ?? '',
       }
@@ -188,8 +192,7 @@ function sanitizeBindingExpression(value: string | null): string | null {
 }
 function sanitizeIconPath(value: string | null): string | null {
   const path = value?.trim() ?? ''
-  const parsed = parseResourceReference(`icon:${path}`)
-  return parsed.reference?.kind === 'icon' || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path) ? path : null
+  return path && (parseProjectIconPath(path) || /^\{\{\s*[^{}]+?\s*\}\}$/.test(path)) ? path : null
 }
 export function normalizeRichTextHtml(source: string): string {
   if (source === '') return '<p></p>'

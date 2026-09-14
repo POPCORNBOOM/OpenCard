@@ -8,12 +8,13 @@ import {
   type ProjectIconCatalog,
   type ProjectIconDimensionReader,
 } from '../../workspace/services/projectIconCatalog'
+import { formatProjectIconPath, parseProjectIconPath } from '../../../shared/rich-text/projectIconReference'
 
 const IMAGE_ATTRIBUTE_NAMES = new Set(['width', 'height', 'fit', 'align'])
 const CSS_LENGTH_PATTERN = /^(?:auto|0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|%|em|rem|vw|vh|vmin|vmax|ch|ex|cm|mm|in|pt|pc))$/i
 const IMAGE_FIT_VALUES = new Set(['contain', 'cover', 'fill'])
 const IMAGE_ALIGN_VALUES = new Set(['start', 'center', 'end'])
-const PROJECT_ICON_TOKEN_PATTERN = /^\[\[icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]$/
+const PROJECT_ICON_TOKEN_PATTERN = /^\[\[(?:([a-z0-9._-]+)@)?icon:([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)\]\]$/
 
 const markdown = new MarkdownIt({
   html: false,
@@ -27,8 +28,8 @@ markdown.use(markdownItAttrs, {
 })
 
 markdown.inline.ruler.before('emphasis', 'opencard_project_icon', (state, silent) => {
-  if (!state.src.startsWith('[[icon:', state.pos)) return false
-  const end = state.src.indexOf(']]', state.pos + 7)
+  if (!state.src.startsWith('[[', state.pos)) return false
+  const end = state.src.indexOf(']]', state.pos + 2)
   if (end < 0) return false
   const source = state.src.slice(state.pos, end + 2)
   const match = PROJECT_ICON_TOKEN_PATTERN.exec(source)
@@ -36,7 +37,13 @@ markdown.inline.ruler.before('emphasis', 'opencard_project_icon', (state, silent
   if (!silent) {
     const token = state.push('opencard_project_icon', '', 0)
     token.content = source
-    token.meta = { seriesKey: match[1]!, iconKey: match[2]! }
+    token.meta = {
+      reference: formatProjectIconPath({
+        packageKey: match[1] ?? null,
+        seriesKey: match[2]!,
+        iconKey: match[3]!,
+      }),
+    }
   }
   state.pos = end + 2
   return true
@@ -76,16 +83,15 @@ type MarkdownEnvironment = {
 
 markdown.renderer.rules.opencard_project_icon = (tokens, index, _options, environment) => {
   const token = tokens[index]
-  const reference = token?.meta as { seriesKey?: string; iconKey?: string } | undefined
-  const source = reference?.seriesKey && reference.iconKey
-    ? `icon:${reference.seriesKey}/${reference.iconKey}`
-    : ''
+  const source = (token?.meta as { reference?: string } | undefined)?.reference ?? ''
+  const reference = source ? parseProjectIconPath(source) : null
   const markdownEnvironment = environment as MarkdownEnvironment
-  const entry = source && markdownEnvironment.resolveIconReference
-    ? markdownEnvironment.resolveIconReference(source)
-    : reference?.seriesKey && reference.iconKey
-      ? findProjectIcon(markdownEnvironment.projectIconCatalog, reference.seriesKey, reference.iconKey)
-      : null
+  const entry = reference
+    ? markdownEnvironment.resolveIconReference?.(source)
+      ?? (reference.packageKey
+        ? null
+        : findProjectIcon(markdownEnvironment.projectIconCatalog, reference.seriesKey, reference.iconKey))
+    : null
   if (!entry) {
     const label = markdown.utils.escapeHtml(
       markdownEnvironment.missingProjectIconLabel ?? 'Project icon unavailable',

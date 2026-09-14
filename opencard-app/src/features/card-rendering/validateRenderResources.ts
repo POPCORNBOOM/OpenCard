@@ -162,7 +162,8 @@ function validatePackageAssetReference(
   const value = source.trim()
   const at = value.indexOf('@')
   if (at <= 0 || at !== value.lastIndexOf('@')) return
-  if (/^[a-z0-9._-]+@(?:font|icon):/i.test(value)) return
+  // A resource reference is validated as a reference; only literal package asset paths reach the checks below.
+  if (parseResourceReference(value).reference) return
   const packageKey = normalizeKeySlug(value.slice(0, at))
   if (!packageKey) return
   const environment = resolveCardResourceEnvironment(resources, blockId, fieldKey)
