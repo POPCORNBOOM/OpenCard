@@ -1,5 +1,0 @@
-
-> opencard-app@0.4.7 lint:naming
-> node scripts/lint-naming.mjs --check
-
-[naming] pass

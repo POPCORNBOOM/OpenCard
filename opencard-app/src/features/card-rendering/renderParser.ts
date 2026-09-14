@@ -42,24 +42,6 @@ export type ParseRenderBlockOptions = {
   allowTypedLiterals?: boolean
 }
 
-export function parseRenderBlock(
-  block: CardBlock,
-  options: ParseRenderBlockOptions,
-): { block: RenderReadyCardBlock; issues: CardPipelineIssue[] } {
-  const issues: CardPipelineIssue[] = []
-  return {
-    block: parseBlock(
-      block,
-      '',
-      options.documentId,
-      options.instanceId ?? null,
-      options.faceKey ?? 'front',
-      issues,
-      options.allowTypedLiterals ?? false,
-    ),
-    issues,
-  }
-}
 
 type RenderParseFailure =
   | 'invalid-type'

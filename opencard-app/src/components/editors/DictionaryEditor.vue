@@ -166,7 +166,7 @@ import { useI18n } from 'vue-i18n'
 import { notifyAppError, notifyError } from '../../features/notifications/titlebarNotices'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
-import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/history.types'
 import { parseProjectDictionaryText, serializeProjectDictionary, type ProjectDictionary } from '../../features/workspace/model/projectDictionary'
 import {
   DICTIONARY_BASE_COLUMN_KEY,

@@ -1,6 +1,5 @@
 export const VIEWPORT_MIN_SCALE = 0.2
 export const VIEWPORT_MAX_SCALE = 4
-export const VIEWPORT_ZOOM_STEP = 1.25
 export const VIEWPORT_WHEEL_ZOOM_SENSITIVITY = 0.0015
 export const VIEWPORT_ZOOM_ANIMATION_SMOOTHING = 0.25
 export const VIEWPORT_ZOOM_ANIMATION_EPSILON = 0.001
@@ -25,13 +24,6 @@ export type ViewportSafeRegion = {
 const VIEWPORT_WHEEL_LINE_HEIGHT = 16
 const VIEWPORT_MAX_WHEEL_DELTA_PX = 240
 
-export function clampViewportScale(
-  value: number,
-  minimum = VIEWPORT_MIN_SCALE,
-  maximum = VIEWPORT_MAX_SCALE,
-): number {
-  return Math.min(maximum, Math.max(minimum, value))
-}
 
 export function normalizeViewportWheelDelta(
   deltaY: number,

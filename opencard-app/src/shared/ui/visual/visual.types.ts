@@ -29,10 +29,4 @@ export type OcImageVisual = {
 
 export type OcVisual = OcIconVisual | OcStyledVisual | OcImageVisual
 
-export function isOcIconVisual(visual: OcVisual): visual is OcIconVisual {
-  return visual.type === 'icon'
-}
 
-export function isOcImageVisual(visual: OcVisual): visual is OcImageVisual {
-  return visual.type === 'image'
-}

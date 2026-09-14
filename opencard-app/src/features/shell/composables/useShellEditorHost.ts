@@ -25,7 +25,7 @@ import type {
 import type { ProjectProfile } from '../../workspace/model/projectMetadata'
 import { notifyAppError, notifySuccess, notifyWarning } from '../../notifications/titlebarNotices'
 import { editorHistoryManager } from '../../editor-runtime/history/editorHistoryManager'
-import type { HistoryOperationMeta } from '../../editor-runtime/history/structuredHistory'
+import type { HistoryOperationMeta } from '../../editor-runtime/history/history.types'
 import type { CardFaceKey } from '../../../entities/card/model'
 import type { PreparedCardRender } from '../../card-rendering/renderPipeline'
 import type { EditorComparisonInput } from '../../editor-runtime/registry/editorRegistry'

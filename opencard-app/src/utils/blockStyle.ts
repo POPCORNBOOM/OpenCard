@@ -1,7 +1,4 @@
-import type {
-    RenderReadyBaseBlock,
-    RenderReadySimpleContainerLocation,
-} from '../features/card-rendering/render.types'
+import type { RenderReadyBaseBlock } from '../features/card-rendering/render.types'
 
 type BlockStyleOptions = {
     disableTransform: boolean
@@ -12,51 +9,6 @@ function isZeroCssValue(value: string): boolean {
     return normalized === '' || normalized === '0' || normalized === '0px' || normalized === '0%'
 }
 
-export function getAbsolutePositionStyles(position: RenderReadySimpleContainerLocation): string {
-    const styles: string[] = []
-
-    const x = position.x
-    const y = position.y
-    let translateX = '0px', translateY = '0px'
-
-    switch (position.anchor) {
-        case 'lt':
-            styles.push(`left: ${x}`, `top: ${y}`)
-            break
-        case 'ct':
-            styles.push(`left: calc(50% + ${x})`, `top: ${y}`)
-            translateX = '-50%'
-            break
-        case 'rt':
-            styles.push(`right: ${x}`, `top: ${y}`)
-            break
-        case 'lc':
-            styles.push(`left: ${x}`, `top: calc(50% + ${y})`)
-            translateY = '-50%'
-            break
-        case 'cc':
-            styles.push(`left: calc(50% + ${x})`, `top: calc(50% + ${y})`)
-            translateX = '-50%'
-            translateY = '-50%'
-            break
-        case 'rc':
-            styles.push(`right: ${x}`, `top: calc(50% + ${y})`)
-            translateY = '-50%'
-            break
-        case 'lb':
-            styles.push(`left: ${x}`, `bottom: ${y}`)
-            break
-        case 'cb':
-            styles.push(`left: calc(50% + ${x})`, `bottom: ${y}`)
-            translateX = '-50%'
-            break
-        case 'rb':
-            styles.push(`right: ${x}`, `bottom: ${y}`)
-            break
-    }
-    styles.push(`transform: translate(${translateX}, ${translateY})`)
-    return styles.join('; ')
-}
 
 export function getBlockBoxStyles(comp: RenderReadyBaseBlock, options: BlockStyleOptions): string {
     const styles: string[] = []
@@ -99,7 +51,3 @@ export function getBlockBoxStyles(comp: RenderReadyBaseBlock, options: BlockStyl
     return styles.join('; ') + (!options.disableTransform && customCss ? '; ' + customCss : '')
 }
 
-export function getPositionStyles(comp: RenderReadyBaseBlock, options: BlockStyleOptions): string {
-    const baseStyles = getBlockBoxStyles(comp, options)
-    return ['position: absolute', baseStyles].filter(Boolean).join('; ')
-}

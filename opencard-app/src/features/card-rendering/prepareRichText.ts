@@ -25,7 +25,7 @@ function hostIssue(documentId: string, block: CardBlock, faceKey: CardFaceKey, i
   })
 }
 
-export function prepareRichTextForBlockTree(options: {
+function prepareRichTextForBlockTree(options: {
   root: CardBlock
   documentId: string
   instanceId?: string | null

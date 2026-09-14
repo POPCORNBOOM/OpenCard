@@ -6,7 +6,7 @@ import {
   type ContentHistoryOperationMeta,
   type ContentHistoryPort,
 } from './contentHistory'
-import type { HistoryOperationMeta } from './structuredHistory'
+import type { HistoryOperationMeta } from './history.types'
 
 export type EditorHistoryKind = 'structured' | 'monaco' | 'none'
 

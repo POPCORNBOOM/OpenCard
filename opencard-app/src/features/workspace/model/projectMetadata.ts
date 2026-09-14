@@ -140,9 +140,6 @@ export function toProjectInformation(profile: ProjectProfile): ProjectInformatio
   }
 }
 
-export function createDefaultProjectInformation(name = ''): ProjectInformation {
-  return { name, description: '', version: '' }
-}
 
 export function getProjectFieldDefinition(fieldKey: string): EditorPropertyDefinition | undefined {
   return projectPropertySchema[fieldKey as keyof typeof projectPropertySchema]

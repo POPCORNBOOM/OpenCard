@@ -46,7 +46,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
-import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/history.types'
 import type { ContentHistoryOperationMeta } from '../../features/editor-runtime/history/contentHistory'
 import type { ShellWorkspaceAction } from '../../features/shell/shell.types'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'

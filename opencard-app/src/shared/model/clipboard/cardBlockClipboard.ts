@@ -8,12 +8,12 @@ import { parseStoredCardBlock } from '../../../entities/card/storage'
 import { isBlockContainer } from '../../../entities/card/tree'
 
 export const OC_CLIPBOARD_MIME = 'application/x-opencard-clipboard+json'
-export const OC_CLIPBOARD_PROTOCOL = 'opencard.clipboard'
-export const OC_CLIPBOARD_VERSION = 1
+const OC_CLIPBOARD_PROTOCOL = 'opencard.clipboard'
+const OC_CLIPBOARD_VERSION = 1
 const MAX_CLIPBOARD_BYTES = 2 * 1024 * 1024
 
-export type OcClipboardKind = 'card-block' | 'card-blocks'
-export type CardBlockLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
+type OcClipboardKind = 'card-block' | 'card-blocks'
+type CardBlockLocation = SimpleContainerLocationInfo | FlowContainerLocationInfo
 
 export type CardBlockPayload = {
   block: CardBlock
@@ -92,7 +92,7 @@ export function createCardBlocksClipboard(
   }
 }
 
-export function parseOcClipboard(value: unknown): OcClipboardEnvelope | null {
+function parseOcClipboard(value: unknown): OcClipboardEnvelope | null {
   if (!isRecord(value)
     || value.protocol !== OC_CLIPBOARD_PROTOCOL
     || value.version !== OC_CLIPBOARD_VERSION

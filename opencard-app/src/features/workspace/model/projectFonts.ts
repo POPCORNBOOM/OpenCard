@@ -10,15 +10,6 @@ import { projectFontSources } from './projectFontRegistry'
 export const DEFAULT_PROJECT_FONT_DIRECTORY = 'fonts'
 export const projectFontIdPattern = /^[a-z0-9][a-z0-9._-]*$/
 
-export function normalizeProjectFontDirectory(value: string): string | null {
-  const directory = value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
-  const segments = directory.split('/')
-  if (!directory || /^[a-z]:\//i.test(directory) || directory.startsWith('//')
-    || segments.some(segment => segment === '.' || segment === '..' || /[\u0000-\u001f\u007f]/.test(segment))) {
-    return null
-  }
-  return directory
-}
 
 export type FontCatalogEntry = {
   value: string
@@ -189,9 +180,6 @@ export function unicodeRangeContains(ranges: readonly UnicodeRange[] | undefined
   return ranges === undefined || ranges.some(range => codePoint >= range.start && codePoint <= range.end)
 }
 
-export function splitFontReferences(value: string): string[] {
-  return parseResourceReferenceList(value, 'font').map(token => token.source)
-}
 
 function splitCssFontFamilies(value: string): string[] {
   const families: string[] = []

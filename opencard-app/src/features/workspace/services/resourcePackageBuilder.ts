@@ -81,10 +81,3 @@ export async function buildResourcePackageArchive(
   if (outputPath && !options.fs) throw new Error('A file system service is required when outputPath is provided')
   return { manifest, files, archive, ...(outputPath ? { outputPath } : {}) }
 }
-
-export async function exportResourcePackage(
-  options: ResourcePackageBuildOptions & { fs: Pick<FileSystemService, 'writeBinaryFile'>, outputPath: string },
-): Promise<string> {
-  const result = await buildResourcePackageArchive(options)
-  return result.outputPath!
-}

@@ -24,9 +24,6 @@ export function normalizeKeySlug(value: string): string | null {
   return normalized && toKeySlug(normalized, '') === normalized ? normalized : null
 }
 
-export function isKeySlug(value: string): boolean {
-  return normalizeKeySlug(value) !== null
-}
 
 /** 身份短哈希：FNV-1a 32 位取 6 位十六进制，跨平台与语言环境结果一致。 */
 function shortKeyHash(identity: string): string {

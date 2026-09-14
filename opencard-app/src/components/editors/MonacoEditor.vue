@@ -17,7 +17,7 @@ import OcText from '../base/OcText.vue'
 import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundation'
 import { registerOcMonacoTheme } from '../../features/editor-runtime/services/monacoTheme'
 import { editorHistoryManager } from '../../features/editor-runtime/history/editorHistoryManager'
-import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/history.types'
 import type { EditorComparisonInput } from '../../features/editor-runtime/registry/editorRegistry'
 
 type MonacoApi = typeof import('monaco-editor')

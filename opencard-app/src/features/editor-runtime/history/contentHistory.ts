@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef } from 'vue'
-import type { HistoryMergeIdentity, HistoryOperationMeta } from './structuredHistory'
+import type { HistoryMergeIdentity, HistoryOperationMeta } from './history.types'
 
 const MERGE_DELAY_MS = 300
 const DEFAULT_BYTE_LIMIT = 32 * 1024 * 1024

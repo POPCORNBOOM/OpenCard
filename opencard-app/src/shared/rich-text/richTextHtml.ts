@@ -145,13 +145,7 @@ export function parseRichTextHtml(source: string): RichTextParseResult {
   }
 }
 
-export function serializeRichTextHtml(document: RichTextDocument): string {
-  return normalizeRichTextHtml(document.html)
-}
 
-export function renderRichTextDocument(document: RichTextDocument): RichTextRenderDocument {
-  return { ...document, html: serializeRichTextHtml(document) }
-}
 
 export function sanitizeRichTextHtml(source: string): string {
   const documentNode = new DOMParser().parseFromString(source, 'text/html')

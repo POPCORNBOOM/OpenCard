@@ -18,7 +18,7 @@ import type { OcThemeColorOverrides, OcThemeId } from '../../shared/ui/foundatio
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import MonacoEditor from './MonacoEditor.vue'
-import type { HistoryOperationMeta } from '../../features/editor-runtime/history/structuredHistory'
+import type { HistoryOperationMeta } from '../../features/editor-runtime/history/history.types'
 
 defineProps<{
   modelValue: string

@@ -18,7 +18,6 @@ import type { OcThemeColorOverrides, OcThemeId } from '../../../shared/ui/founda
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 import type { ProjectInformation } from '../../workspace/model/projectMetadata'
 import type { ProjectIconCatalog } from '../../workspace/services/projectIconCatalog'
-import type { EditorHistoryKind } from '../history/editorHistoryManager'
 import type { ContentHistoryOperationMeta } from '../history/contentHistory'
 
 export interface EditorProps {
@@ -89,7 +88,6 @@ export interface IEditor {
   name: string
   // Vue 组件引用
   component: Component
-  history: EditorHistoryKind
   // 是否支持预览
   hasPreview?: boolean
   supportsDiff?: boolean
@@ -136,7 +134,6 @@ editorRegistry.register({
   id: 'monaco',
   name: 'Monaco Editor',
   component: MonacoEditor,
-  history: 'monaco',
   hasPreview: false,
   supportsDiff: true,
 })
@@ -145,7 +142,6 @@ editorRegistry.register({
   id: 'card-designer',
   name: 'Card Designer',
   component: CardDesignEditor,
-  history: 'structured',
   hasPreview: false,
   supportsDiff: true,
 })
@@ -154,7 +150,6 @@ editorRegistry.register({
   id: 'image-preview',
   name: 'Image Preview',
   component: ImagePreviewEditor,
-  history: 'none',
   hasPreview: false,
   supportsDiff: true,
 })
@@ -163,7 +158,6 @@ editorRegistry.register({
   id: 'project-config',
   name: 'Project Configuration',
   component: ProjectConfigEditor,
-  history: 'structured',
   hasPreview: false,
 })
 
@@ -171,7 +165,6 @@ editorRegistry.register({
   id: 'font-registry',
   name: 'Project Font Set',
   component: ProjectFontRegistryFileEditor,
-  history: 'structured',
   hasPreview: false,
   supportsDiff: true,
 })
@@ -180,7 +173,6 @@ editorRegistry.register({
   id: 'icon-registry',
   name: 'Project Icon Registry',
   component: ProjectIconRegistryFileEditor,
-  history: 'structured',
   hasPreview: false,
   supportsDiff: true,
 })
@@ -189,7 +181,6 @@ editorRegistry.register({
   id: 'package-manager',
   name: 'Package Manager',
   component: PackageManagerEditor,
-  history: 'none',
   hasPreview: false,
 })
 
@@ -197,7 +188,6 @@ editorRegistry.register({
   id: 'package-manifest',
   name: 'Package Manifest',
   component: PackageManifestEditor,
-  history: 'none',
   hasPreview: false,
 })
 
@@ -205,7 +195,6 @@ editorRegistry.register({
   id: 'font-preview',
   name: 'Font Preview',
   component: FontPreviewEditor,
-  history: 'none',
   hasPreview: false,
   supportsDiff: true,
 })
@@ -214,7 +203,6 @@ editorRegistry.register({
   id: 'unsupported-file',
   name: 'Unsupported File',
   component: UnsupportedFileEditor,
-  history: 'none',
   hasPreview: false,
 })
 
@@ -222,6 +210,5 @@ editorRegistry.register({
   id: 'dictionary',
   name: 'Dictionary',
   component: DictionaryEditor,
-  history: 'structured',
   hasPreview: false,
 })

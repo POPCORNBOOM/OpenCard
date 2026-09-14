@@ -111,7 +111,7 @@ export function visitCardBlockTree(
     traverse(root, 0)
 }
 
-export type LocatedCardBlock = {
+type LocatedCardBlock = {
     block: CardBlock
     faceKey: CardFaceKey
 }
@@ -170,16 +170,6 @@ export function buildParentLookup(document: CardDocument): ParentLookup {
     }
 
     return lookup
-}
-
-function createDefaultLocationForContainer(
-    container: BlockContainer,
-): SimpleContainerLocationInfo | FlowContainerLocationInfo {
-    if (container.type === 'flow-container-block') {
-        return createDefaultFlowContainerLocation(container)
-    }
-
-    return createDefaultSimpleContainerLocation()
 }
 
 function normalizeLocationForContainer(
@@ -270,20 +260,3 @@ export function removeBlockFromContainer(
     return removedChild.block
 }
 
-export function moveBlockBetweenContainers(
-    sourceContainer: BlockContainer,
-    targetContainer: BlockContainer,
-    childBlockId: string,
-    parentLookup?: ParentLookup,
-    location?: SimpleContainerLocationInfo | FlowContainerLocationInfo,
-    insertionIndex?: number,
-): CardBlock | null {
-    const block = removeBlockFromContainer(sourceContainer, childBlockId, parentLookup)
-    if (!block) {
-        return null
-    }
-
-    const nextLocation = location ?? createDefaultLocationForContainer(targetContainer)
-    addBlockToContainer(targetContainer, block, parentLookup, nextLocation, insertionIndex)
-    return block
-}

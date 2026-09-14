@@ -8,7 +8,7 @@ import {
   stringifyCardDocument,
 } from '../../entities/card/storage'
 import { notifyAppError } from '../notifications/titlebarNotices'
-import type { HistoryOperationMeta } from '../editor-runtime/history/structuredHistory'
+import type { HistoryOperationMeta } from '../editor-runtime/history/history.types'
 
 export type CdeDocumentChangeMode = 'typing' | 'action'
 

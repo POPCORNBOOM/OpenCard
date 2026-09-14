@@ -15,6 +15,3 @@ export function rememberRecentProjectIcon(seriesKey: string, iconKey: string): v
     .slice(0, RECENT_PROJECT_ICON_LIMIT)
 }
 
-export function clearRecentProjectIcons(): void {
-  identities.value = []
-}

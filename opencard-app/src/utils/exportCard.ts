@@ -29,14 +29,3 @@ export async function exportCardAsImage(
   })
 }
 
-/**
- * 下载图片到本地
- * @param dataUrl 图片的 data URL
- * @param filename 文件名
- */
-export function downloadImage(dataUrl: string, filename: string) {
-  const link = document.createElement('a')
-  link.download = filename
-  link.href = dataUrl
-  link.click()
-}

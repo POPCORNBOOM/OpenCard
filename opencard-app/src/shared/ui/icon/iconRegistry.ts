@@ -14,8 +14,6 @@ import {
   type IconResolvable,
 } from './iconResolver'
 
-export type IconName = IconToken
-export type IconDefinition = IconGlyph
 export type { IconToken, IconGlyph, IconResolvable }
 
 export type IconTone =
