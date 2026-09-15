@@ -106,13 +106,11 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
   const selectedManagementKeys = ref<string[]>([])
   const openedEditorSelectedKeys = ref<string[]>([])
   const collapsedProjectManagementKeys = ref<ReadonlySet<string>>(new Set())
-  const managedRegisteredFontSources = computed(() => new Set(
-    (options.registeredFontSources?.value ?? []).map((source) => {
-      const normalized = normalizeShellPath(source).replace(/^\/+/, '')
-      return (normalized.startsWith(`${PROJECT_INTERNAL_DIRECTORY_NAME}/`)
-        ? normalized
-        : `${PROJECT_INTERNAL_DIRECTORY_NAME}/${normalized}`).toLocaleLowerCase()
-    }),
+  /** Registered sources are project-relative; `resolveEntryIcon` matches them in that same space. */
+  const registeredFontSourceSet = computed(() => new Set(
+    (options.registeredFontSources?.value ?? []).map(source => (
+      normalizeShellPath(source).replace(/^\/+/, '')
+    )),
   ))
 
   function setSelectedKeys(target: Ref<string[]>, nextKeys: string[]): void {
@@ -160,7 +158,7 @@ export function useShellFileTree(options: UseShellFileTreeOptions) {
       entry.isDirectory,
       entry.isExpanded,
       options.projectPath.value,
-      managedRegisteredFontSources.value,
+      registeredFontSourceSet.value,
     )
     const rename: OcNodeAction = {
       key: PROJECT_ENTRY_RENAME_ACTION_KEY,

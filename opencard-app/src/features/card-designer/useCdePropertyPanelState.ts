@@ -161,11 +161,6 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
         .filter(([fieldKey]) => isInstanceBlockFieldOverridable(fieldKey)))
     return resolveNulls(block.type, { ...block, ...blockOverrides }) as Record<string, unknown> & { type?: string }
   })
-  const selectedBlockPropertySchema = computed(() => {
-    const block = options.selectedBlock.value
-    if (!block) return { fields: {}, labels: {}, customKeys: new Set<string>() }
-    return { fields: getTypePropertyEditorSchema(block.type), labels: {}, customKeys: new Set<string>() }
-  })
   const blockInputOverride = computed<Record<string, Partial<EditorPropertyDefinition>> | undefined>(() => {
     options.documentRevision.value
     const block = options.selectedBlock.value
@@ -173,9 +168,9 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     const instanceBlockData = options.selectedCardId.value !== options.blueprintCardId
       ? options.selectedCard.value?.data[block.id]
       : undefined
-    const schemaFields = selectedBlockPropertySchema.value.fields
+    // Every key in the instance data is an override — a native field or an additional field
+    // alike — and each one can be reset back to the blueprint value.
     const overrideEntries = Object.keys(instanceBlockData ?? {})
-      .filter(fieldKey => !schemaFields[fieldKey])
       .map(fieldKey => [fieldKey, { resettable: true }] as const)
     return overrideEntries.length > 0 ? Object.fromEntries(overrideEntries) : undefined
   })
