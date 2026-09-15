@@ -3,7 +3,9 @@ import type { Editor } from '@tiptap/core'
 import { nextTick } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import OcOptionGroup from '../../../../components/standard/OcOptionGroup.vue'
+import { EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
 import OcRichTextEditor from '../../rich-text/OcRichTextEditor.vue'
+import RichTextPreview from '../../rich-text/RichTextPreview.vue'
 import RichTextStringPropertyField from './RichTextStringPropertyField.vue'
 
 afterEach(() => {
@@ -77,6 +79,38 @@ describe('RichTextStringPropertyField', () => {
     await nextTick()
 
     expect(wrapper.getComponent(OcRichTextEditor).props('fontOptions')).toEqual(fontOptions)
+    wrapper.unmount()
+  })
+
+  /**
+   * The host catalog alone cannot resolve a package icon: without the sources the toolbar offers no
+   * package groups, and a stored package icon renders as a placeholder instead of the icon.
+   */
+  it('passes the package icon sources to both the preview and the editor', async () => {
+    const packageIconSources = [{
+      packageKey: 'starter-pack',
+      label: 'Starter Pack',
+      catalog: EMPTY_PROJECT_ICON_CATALOG,
+    }]
+    const wrapper = mount(RichTextStringPropertyField, {
+      attachTo: document.body,
+      props: {
+        definition: {
+          title: 'Content',
+          fieldType: 'string',
+          richText: true,
+          projectIcon: { sources: packageIconSources },
+        },
+        value: '<p>Original</p>',
+      },
+    })
+
+    expect(wrapper.getComponent(RichTextPreview).props('packageIconSources')).toEqual(packageIconSources)
+
+    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    await nextTick()
+
+    expect(wrapper.getComponent(OcRichTextEditor).props('packageIconSources')).toEqual(packageIconSources)
     wrapper.unmount()
   })
 

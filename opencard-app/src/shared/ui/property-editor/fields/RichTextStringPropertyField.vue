@@ -3,12 +3,14 @@
     <button v-if="!definition.isReadonly" type="button" class="rich-text-string-field__preview"
       :aria-expanded="open" @click="openEditor">
       <RichTextPreview v-if="stringValue" class="rich-text-string-field__content"
-        :html="stringValue" :project-icon-catalog="definition.projectIcon?.catalog" />
+        :html="stringValue" :project-icon-catalog="definition.projectIcon?.catalog"
+        :package-icon-sources="definition.projectIcon?.sources" />
       <span v-else class="rich-text-string-field__empty">-</span>
     </button>
     <div v-else class="rich-text-string-field__preview rich-text-string-field__preview--readonly">
       <RichTextPreview v-if="stringValue" class="rich-text-string-field__content"
-        :html="stringValue" :project-icon-catalog="definition.projectIcon?.catalog" />
+        :html="stringValue" :project-icon-catalog="definition.projectIcon?.catalog"
+        :package-icon-sources="definition.projectIcon?.sources" />
       <span v-else class="rich-text-string-field__empty">-</span>
     </div>
 
@@ -19,6 +21,7 @@
             <OcRichTextEditor v-if="editorMode === 'rich'" ref="richTextEditor" :model-value="draftValue"
               :binding-completion="definition.binding?.provider"
 		              :project-icon-catalog="definition.projectIcon?.catalog"
+              :package-icon-sources="definition.projectIcon?.sources"
               :field-mode-labels="fieldModeLabels"
               :font-options="definition.fontOptions"
               :base-style="definition.richTextBaseStyle"

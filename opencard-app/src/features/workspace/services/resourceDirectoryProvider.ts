@@ -3,6 +3,11 @@ import type { FileSystemService } from './fileSystemService'
 import { resolveResourcePath } from '../model/scopedResourcePath'
 import type { ProjectResourceEnvironment } from './projectResourceEnvironment'
 
+/** `pkg@` with nothing after it: the one place inside a package where an icon reference can start. */
+function isPackageRoot(directory: string): boolean {
+  return /^[^/]+@$/.test(directory)
+}
+
 export function createResourceDirectoryProvider(
   rootPath: string,
   sourceFilePath: string,
@@ -30,12 +35,20 @@ export function createResourceDirectoryProvider(
     if (!resolved.ok) return []
     const entries = (await fs.readDirectoryEntries(resolved.value.slice(0, -'/__oc_browse__'.length), 1))
       .filter(entry => !options.hideDotFiles || !entry.name.split(/[\\/]/).some(segment => segment.startsWith('.')))
-    if (prefix) return entries
+    // Selecting `icon:` writes the prefix without a separator, and the field's icon completion
+    // takes over from there.
+    const iconEntry = {
+      name: 'icon:',
+      label: options.iconEntryLabel,
+      isDirectory: true,
+      icon: 'file.project-icon' as const,
+    }
+    // A package root offers it as well, so `pkg@` can continue into `pkg@icon:` and reach the icons
+    // the package ships. Deeper paths inside a package have no icon scope, so they get no entry.
+    if (prefix) return isPackageRoot(prefix) ? [...entries, iconEntry] : entries
     return [
       ...entries,
-      // Selecting this writes the `icon:` prefix without a separator, and the field's icon
-      // completion takes over from there.
-      { name: 'icon:', label: options.iconEntryLabel, isDirectory: true, icon: 'file.project-icon' as const },
+      iconEntry,
       ...[...(current?.packages ?? [])].filter(([, pkg]) => !pkg.unavailable).map(([key, pkg]) => ({
         name: `${key}@`, label: pkg.manifest.name, isDirectory: true, icon: 'file.package' as const,
       })),

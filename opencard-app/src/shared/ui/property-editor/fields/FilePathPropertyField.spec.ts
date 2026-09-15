@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import OcAutocompletePopover from '../../../../components/standard/OcAutocompletePopover.vue'
 import FilePathPropertyField from './FilePathPropertyField.vue'
 import { createResourceDirectoryProvider } from '../../../../features/workspace/services/resourceDirectoryProvider'
-import { EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
+import { buildProjectIconCatalog, EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
+import { createProjectIconCompletionProvider } from '../../../../features/workspace/services/projectIconCompletion'
 import { normalizeResourcePackageManifest } from '../../../../features/workspace/model/resourcePackage'
 
 vi.mock('vue-i18n', () => ({
@@ -40,16 +41,93 @@ describe('FilePathPropertyField', () => {
       await flushPromises()
       expect(readDirectoryEntries).toHaveBeenLastCalledWith('/project/.opencard/packages/theme', 1)
       const menu = wrapper.getComponent(OcAutocompletePopover)
-      expect(menu.props('items').map(item => item.label)).toEqual(['image.png', '..'])
+      expect(menu.props('items').map(item => item.label)).toEqual(['icon:', 'image.png', '..'])
       menu.vm.$emit('select', menu.props('items').find(item => item.label === '..')!.key)
       await flushPromises()
       expect(input.element.value).toBe('')
       expect(menu.props('items').map(item => item.label)).toContain('Theme Pack')
       menu.vm.$emit('select', menu.props('items').find(item => item.label === 'Theme Pack')!.key)
       await flushPromises()
-      await input.trigger('keydown', { key: 'Enter' })
+      // Select the file explicitly: the highlighted item is no longer a reliable way to name a file,
+      // because a package root now offers `icon:` first, exactly as the project root does.
+      menu.vm.$emit('select', menu.props('items').find(item => item.label === 'image.png')!.key)
       await flushPromises()
       expect(input.element.value).toBe('theme@image.png')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  /**
+   * An image source can name an icon a package ships, as `pkg@icon:collection/icon`. Nothing used to
+   * offer the `icon:` step at a package root, so typing `pkg@` could only browse the package files —
+   * which is exactly where the icons are not, because the icon set lives in the hidden `.opencard/`.
+   */
+  it('continues from a package qualifier into the icons that package ships', async () => {
+    const readDirectoryEntries = vi.fn(async (path: string) => path === '/project'
+      ? [] : [{ name: 'image.png', isDirectory: false, isFile: true, isSymlink: false }])
+    const environment = {
+      kind: 'project' as const, namespace: 'project', rootPath: '/project',
+      fonts: {}, fontDocument: {}, iconDocument: {}, iconCatalog: EMPTY_PROJECT_ICON_CATALOG, issues: [],
+      packages: new Map([['theme', {
+        manifest: { ...normalizeResourcePackageManifest({}, 'theme').manifest, name: 'Theme Pack' },
+        rootPath: '/project/.opencard/packages/theme', cover: null, issues: [],
+      }]]),
+    }
+    const packageCatalog = buildProjectIconCatalog([{
+      name: 'MDI icons',
+      key: 'mdi',
+      icons: [{ iconKey: 'home', name: 'Home', source: 'icons/home.svg', tint: 'theme' }],
+    }], source => `asset://${source}`)
+    const wrapper = mount(FilePathPropertyField, {
+      props: {
+        definition: {
+          title: 'Image',
+          fieldType: 'filePath',
+          directoryProvider: createResourceDirectoryProvider(
+            '/project', 'card.ocdocument', environment, { readDirectoryEntries },
+          ),
+          completion: {
+            provider: createProjectIconCompletionProvider([
+              { packageKey: null, label: 'Project', catalog: EMPTY_PROJECT_ICON_CATALOG },
+              { packageKey: 'theme', label: 'Theme Pack', catalog: packageCatalog },
+            ], { mode: 'reference' }),
+          },
+        },
+        value: '',
+        'onUpdate:value': (value: string) => { void wrapper.setProps({ value }) },
+      },
+    })
+    try {
+      const input = wrapper.get('input')
+      await input.trigger('focus')
+      await flushPromises()
+
+      const rootMenu = wrapper.getComponent(OcAutocompletePopover)
+      rootMenu.vm.$emit('select', rootMenu.props('items').find(item => item.label === 'Theme Pack')!.key)
+      await flushPromises()
+      expect(input.element.value).toBe('theme@')
+
+      const packageMenu = wrapper.getComponent(OcAutocompletePopover)
+      const iconEntry = packageMenu.props('items').find(item => item.label === 'icon:')
+      expect(iconEntry).toBeTruthy()
+      packageMenu.vm.$emit('select', iconEntry!.key)
+      await flushPromises()
+      expect(input.element.value).toBe('theme@icon:')
+
+      const seriesMenu = wrapper.getComponent(OcAutocompletePopover)
+      const collection = seriesMenu.props('items').find(item => item.label === 'MDI icons')
+      expect(collection).toBeTruthy()
+      seriesMenu.vm.$emit('select', collection!.key)
+      await flushPromises()
+      expect(input.element.value).toBe('theme@icon:mdi/')
+
+      const iconMenu = wrapper.getComponent(OcAutocompletePopover)
+      const icon = iconMenu.props('items').find(item => item.label === 'Home')
+      expect(icon).toBeTruthy()
+      iconMenu.vm.$emit('select', icon!.key)
+      await flushPromises()
+      expect(input.element.value).toBe('theme@icon:mdi/home')
     } finally {
       wrapper.unmount()
     }
