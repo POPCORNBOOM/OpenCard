@@ -206,7 +206,6 @@ const resolvedDictionary = ref<ResolvedProjectDictionary | null>(null)
 const dictionaryError = ref<string | null>(null)
 const projectResourcePackages = shallowRef<ProjectResourcePackageCatalog>(new Map())
 const projectPackageManifests = shallowRef<ReadonlyMap<string, RequiredPackage>>(new Map())
-const resourceEnvironmentSnapshot = shallowRef<ProjectResourceEnvironment | null>(null)
 const projectResourceEnvironments = shallowRef<ReadonlyMap<string, ProjectResourceEnvironment>>(new Map())
 const projectResourceEnvironmentIssues = shallowRef<readonly ProjectResourceEnvironmentIssue[]>([])
 let resourceEnvironmentReloadVersion = 0
@@ -487,7 +486,6 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
   if (!expectedProjectPath) {
     projectResourcePackages.value = new Map()
     projectPackageManifests.value = new Map()
-    resourceEnvironmentSnapshot.value = null
     projectResourceEnvironments.value = new Map()
     projectResourceEnvironmentIssues.value = []
     return false
@@ -510,7 +508,6 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
     projectResourcePackages.value = environment.packages ?? new Map()
     projectPackageManifests.value = new Map(Object.entries(packageIndex.packages))
-    resourceEnvironmentSnapshot.value = { ...environment, packageIndex, issues }
     projectResourceEnvironments.value = environment.packageEnvironments ?? new Map()
     projectResourceEnvironmentIssues.value = issues
     return true
@@ -518,7 +515,6 @@ async function reloadProjectResourceEnvironment(): Promise<boolean> {
     if (expectedVersion !== resourceEnvironmentReloadVersion || expectedProjectPath !== projectPath.value) return false
     projectResourcePackages.value = new Map()
     projectPackageManifests.value = new Map()
-    resourceEnvironmentSnapshot.value = null
     projectResourceEnvironments.value = new Map()
     projectResourceEnvironmentIssues.value = [{ resource: 'packages', path: `${expectedProjectPath}/.opencard/packages`, message: error instanceof Error ? error.message : String(error) }]
     reportAppError('OC-E3016', { path: `${expectedProjectPath}/.opencard/packages`, error })
@@ -735,12 +731,6 @@ async function readDirectoryEntries(path: string = '', depth: number = PROJECT_T
   await refreshIndexedEntries()
 }
 
-async function listProjectDirectoryEntries(path: string = '') {
-  const relativePath = toRelativeProjectPath(path)
-  const directoryPath = relativePath ? resolveProjectPath(relativePath) : ensureProjectOpen()
-  return await fileSystemService.readDirectoryEntries(directoryPath, 1, relativePath)
-}
-
 function setDirectoryExpanded(path: string, expanded: boolean) {
   const relativePath = toRelativeProjectPath(path)
   if (!relativePath) {
@@ -774,10 +764,6 @@ function resolveAssetSrc(path: string): string {
   }
 
   return convertFileSrc(resolveProjectPath(path))
-}
-
-async function loadFiles() {
-  await readDirectoryEntries('', Number.POSITIVE_INFINITY)
 }
 
 async function startWatching() {
@@ -941,22 +927,6 @@ async function readFile(path: string) {
 }
 
 async function saveFile(relativePath: string, content: string) {
-  await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
-  await refreshIndexedEntries()
-}
-
-async function createFolder(relativePath: string) {
-  if (isProjectInternalRelativePath(toRelativeProjectPath(relativePath))) {
-    throw new Error('Managed project directories cannot be created through ordinary file operations')
-  }
-  await fileSystemService.createDirectory(resolveProjectPath(relativePath))
-  await refreshIndexedEntries()
-}
-
-async function createFile(relativePath: string, content: string = '') {
-  if (isProjectInternalRelativePath(toRelativeProjectPath(relativePath))) {
-    throw new Error('Managed project files cannot be created through ordinary file operations')
-  }
   await fileSystemService.writeFile(resolveProjectPath(relativePath), content)
   await refreshIndexedEntries()
 }
@@ -1192,10 +1162,6 @@ async function addRequiredPackages(entries: readonly RequiredPackageInput[]): Pr
   projectPackageManifests.value = next
 }
 
-async function addRequiredPackage(packageKey: string, version: string, source?: string | null): Promise<void> {
-  await addRequiredPackages([{ key: packageKey, version, source }])
-}
-
 async function installMissingRemotePackages(
   entries: readonly { key: string; version: string; source?: string | null }[],
   onProgress?: (completed: number, total: number) => void,
@@ -1331,69 +1297,6 @@ async function trashFile(relativePath: string) {
   await refreshIndexedEntries()
 }
 
-async function trashUnusedProjectFontFiles(
-  paths: readonly string[],
-  registeredSources: readonly string[],
-): Promise<void> {
-  await trashUnusedProjectAssetFiles(
-    paths,
-    registeredSources,
-    DEFAULT_PROJECT_FONT_DIRECTORY,
-    PROJECT_FONT_EXTENSIONS,
-    'font',
-  )
-}
-
-async function trashUnusedProjectIconFiles(
-  paths: readonly string[],
-  registeredSources: readonly string[],
-): Promise<void> {
-  await trashUnusedProjectAssetFiles(
-    paths,
-    registeredSources,
-    DEFAULT_PROJECT_ICON_DIRECTORY,
-    PROJECT_ICON_EXTENSIONS,
-    'icon',
-  )
-}
-
-async function trashUnusedProjectAssetFiles(
-  paths: readonly string[],
-  registeredSources: readonly string[],
-  directory: string,
-  extensions: ReadonlySet<string>,
-  assetKind: 'font' | 'icon',
-): Promise<void> {
-  const registered = new Set(registeredSources
-    .map(source => normalizePath(source).replace(/^\/+/, '').toLocaleLowerCase()))
-  const directoryPrefix = `${resolveProjectInternalRelativePath(directory)}/`
-  const candidates = [...new Set(paths.map(path => normalizePath(toRelativeProjectPath(path))))]
-
-  for (const relativePath of candidates) {
-    const normalizedIdentity = relativePath.toLocaleLowerCase()
-    if (relativePath.split('/').some(segment => segment === '.' || segment === '..')) {
-      throw new Error(`Unsafe project ${assetKind} path`)
-    }
-    if (!normalizedIdentity.startsWith(directoryPrefix.toLocaleLowerCase())) {
-      throw new Error(`Only managed project ${assetKind} files can be cleaned up`)
-    }
-    const source = relativePath
-    const extension = source.split('.').pop()?.toLocaleLowerCase() ?? ''
-    if (!extensions.has(extension)) throw new Error(`Unsupported project ${assetKind} file`)
-    if (registered.has(source.toLocaleLowerCase())) throw new Error(`Project ${assetKind} file is still registered: ${source}`)
-  }
-
-  let changed = false
-  try {
-    for (const relativePath of candidates) {
-      await fileSystemService.trashFile(resolveProjectPath(relativePath))
-      changed = true
-    }
-  } finally {
-    if (changed) await refreshIndexedEntries()
-  }
-}
-
 async function revealEntryInFileManager(path: string) {
   await fileSystemService.revealInFileManager(resolveProjectPath(path))
 }
@@ -1485,33 +1388,6 @@ function resolveFileTreeDestination({ key, targetKey, position }: WorkspaceEntry
     draggedIsDirectory: Boolean(draggedEntry.isDirectory),
     targetPath,
   }
-}
-
-function canMoveEntryByDrop(payload: WorkspaceEntryMoveRequest) {
-  const destination = resolveFileTreeDestination(payload)
-  if (!destination) {
-    return false
-  }
-
-  const { draggedPath, destinationDirectory, destinationPath, draggedIsDirectory, targetPath } = destination
-
-  if (targetPath && draggedPath === targetPath) {
-    return false
-  }
-
-  if (targetPath && isSameOrDescendantPath(targetPath, draggedPath)) {
-    return false
-  }
-
-  if (draggedIsDirectory && isSameOrDescendantPath(destinationDirectory, draggedPath)) {
-    return false
-  }
-
-  if (destinationPath === draggedPath) {
-    return false
-  }
-
-  return true
 }
 
 function remapRelativePath(path: string, oldPrefix: string, newPrefix: string): string {
@@ -1781,9 +1657,7 @@ export function useProjectStore() {
     clearProjectIconRegistry,
     clearProjectDictionary,
     setProjectPath,
-    loadFiles,
     readDirectoryEntries,
-    listProjectDirectoryEntries,
     setDirectoryExpanded,
     isDirectoryExpanded,
     resolveAssetSrc,
@@ -1792,12 +1666,9 @@ export function useProjectStore() {
     resolveResourceAssetSrcFromFile,
     readFile,
     saveFile,
-    createFolder,
-    createFile,
     importProjectFontFiles,
     getProjectFontImportConflict,
     installResourcePackageFile,
-    addRequiredPackage,
     addRequiredPackages,
     installMissingRemotePackages,
     removeRequiredPackage,
@@ -1805,12 +1676,9 @@ export function useProjectStore() {
     checkResourcePackage,
     createEntryWithAvailableName,
     trashFile,
-    trashUnusedProjectFontFiles,
-    trashUnusedProjectIconFiles,
     revealEntryInFileManager,
     getRelativeProjectPath,
     getRelativeProjectPathIfInside,
-    canMoveEntryByDrop,
     moveEntry,
     moveEntryByDrop,
     copyExternalEntriesIntoProject,
