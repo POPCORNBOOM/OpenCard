@@ -10,6 +10,7 @@ import {
 } from '../workspace/services/resourceReference'
 import { resolveCardResourceEnvironment, type CardRenderResourceContext } from './cardRenderResources'
 import { createCardPipelineIssue, type CardPipelineIssue } from './cardPipelineIssue'
+import { joinBlockPath } from './renderBlockPath'
 import type { RenderReadyCardBlock, RenderReadyCardDocument } from './render.types'
 
 type PackageResourceIssueType = 'card-designer.resource.package-missing' | 'card-designer.resource.file-missing'
@@ -243,9 +244,4 @@ function isHttpsUrl(value: string): boolean {
   } catch {
     return false
   }
-}
-
-function joinBlockPath(parentPath: string, blockName: string): string {
-  if (!blockName) return parentPath
-  return parentPath ? `${parentPath}.${blockName}` : blockName
 }

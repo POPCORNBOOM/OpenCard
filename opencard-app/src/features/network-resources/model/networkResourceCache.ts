@@ -1,3 +1,5 @@
+import { isRecord } from '../../../shared/model/record'
+
 export type NetworkResourceCacheEntry = {
   uid: string
   extension: string
@@ -14,10 +16,6 @@ export type NetworkResourceProjectManifest = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const EXTENSION_PATTERN = /^\.[a-z0-9]{1,10}$/i
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 export function normalizeNetworkResourceProjectPath(path: string): string | null {
   const normalized = path.trim().replace(/\\/g, '/').replace(/\/+$/, '')

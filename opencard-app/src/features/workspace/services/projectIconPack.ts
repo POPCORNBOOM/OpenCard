@@ -1,6 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import type { FileSystemService } from './fileSystemService'
 import { parseProjectIconSeries, type ProjectIcon, type ProjectIconSeries } from '../model/projectIcons'
+import { isRecord } from '../../../shared/model/record'
 
 export const PROJECT_ICON_PACK_EXTENSION = 'ociconpack'
 export const PROJECT_ICON_PACK_SUFFIX = `.${PROJECT_ICON_PACK_EXTENSION}`
@@ -40,10 +41,6 @@ function parseLocalizedText(value: unknown): ProjectIconPackLocalizedText | null
   const entries = Object.entries(value)
   if (entries.some(([locale, text]) => !locale || typeof text !== 'string' || !text.trim())) return null
   return Object.fromEntries(entries.map(([locale, text]) => [locale, (text as string).trim()]))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function normalizeArchivePath(value: string): string | null {

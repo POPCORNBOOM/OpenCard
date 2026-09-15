@@ -1,3 +1,4 @@
+import { normalizePath } from '../../../shared/model/filePath'
 import { resolveAppStoragePath } from '../../../shared/storage/appStoragePaths'
 import type { HistoryResourceLifecycle } from '../../editor-runtime/history/contentHistory'
 import { fileSystemService, type FileSystemService } from './fileSystemService'
@@ -91,10 +92,6 @@ async function transferFiles(
 
 async function removeDirectoryIfPresent(path: string, fs: FileSystemService): Promise<void> {
   if (await fs.fileExists(path)) await fs.deleteFile(path)
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 function basename(path: string, label: string): string {

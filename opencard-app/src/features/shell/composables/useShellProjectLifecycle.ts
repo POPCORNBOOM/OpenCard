@@ -1,4 +1,5 @@
 import { readonly, ref, type Ref } from 'vue'
+import { normalizePath } from '../../../shared/model/filePath'
 import type { CreatedProject } from '../../project-templates/model/projectTemplate'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import { notifyError } from '../../notifications/titlebarNotices'
@@ -31,10 +32,6 @@ type ProjectLifecycleOptions = {
   }
   shellPage: Ref<ShellPage>
   translate: (key: string) => string
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {

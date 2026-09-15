@@ -1,3 +1,4 @@
+import { isRecord } from '../../../shared/model/record'
 export { PROJECT_DICTIONARY_FILE_NAME } from './projectStructure'
 
 export type ProjectDictionary = {
@@ -15,10 +16,6 @@ export type DictionaryResolution = {
 
 export const dictionaryRecordKeyPattern = /^(?![0-9])[A-Za-z0-9_.-]+$/
 export const dictionaryLanguageKeyPattern = /^[A-Za-z]{2,8}(?:[-_][A-Za-z0-9]{2,8})*$/
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function hasCaseInsensitiveDuplicates(keys: readonly string[]): boolean {
   const identities = keys.map(key => key.toLocaleLowerCase())

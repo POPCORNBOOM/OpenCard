@@ -18,6 +18,7 @@ import type {
   RenderReadyFlowContainerLocation,
   RenderReadySimpleContainerLocation,
 } from './render.types'
+import { joinBlockPath } from './renderBlockPath'
 
 type SourceRecord = Record<string, unknown>
 type BlockType = CardBlock['type']
@@ -680,12 +681,6 @@ function formatIssueValue(value: unknown): string {
   if (typeof value === 'string') return value || '""'
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
   return JSON.stringify(value) ?? String(value)
-}
-
-
-function joinBlockPath(parentPath: string, blockName: string): string {
-  if (!blockName) return parentPath
-  return parentPath ? `${parentPath}.${blockName}` : blockName
 }
 
 function primitiveString(value: unknown): string {

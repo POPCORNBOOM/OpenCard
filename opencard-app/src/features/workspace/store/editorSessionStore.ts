@@ -5,6 +5,7 @@
  * - 只管理会话真相 不处理文件系统目录索引
  */
 import { computed, nextTick, readonly, ref } from 'vue'
+import { getPathBasename, isSameOrDescendantPath, normalizePath } from '../../../shared/model/filePath'
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 import {
   CARD_DOCUMENT_SUFFIX,
@@ -113,22 +114,6 @@ type CreateDraftSessionOptions = {
 
 const sessions = ref<EditorSession[]>([])
 const activeSessionId = ref<string>('')
-
-function normalizePath(path: string) {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function getPathBasename(path: string) {
-  const normalizedPath = normalizePath(path)
-  const lastSlashIndex = normalizedPath.lastIndexOf('/')
-  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1)
-}
-
-function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {
-  const normalizedTargetPath = normalizePath(targetPath)
-  const normalizedAncestorPath = normalizePath(ancestorPath)
-  return normalizedTargetPath === normalizedAncestorPath || normalizedTargetPath.startsWith(`${normalizedAncestorPath}/`)
-}
 
 function isPathInsideProject(path: string, projectPath: string) {
   if (!projectPath) {

@@ -317,6 +317,7 @@ import OcButton from '../../components/base/OcButton.vue'
 import OcFieldInput from '../../components/base/OcFieldInput.vue'
 import OcDialog from '../../components/standard/OcDialog.vue'
 import { normalizeNodeTail } from '../../shared/ui/node/node.types'
+import { getPathDirectory } from '../../shared/model/filePath'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
 import type {
   OcNode,
@@ -1163,12 +1164,6 @@ const localizedOpenedEditorItems = computed(() => openedEditorItems.value.map((i
   ...item,
   label: formatSessionTitle({ name: item.label, title: item.title, resourceKind: item.resourceKind }),
 })))
-
-function getPathDirectory(path: string): string {
-  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+$/, '')
-  const separatorIndex = normalizedPath.lastIndexOf('/')
-  return separatorIndex > 0 ? normalizedPath.slice(0, separatorIndex) : ''
-}
 
 const {
   issueTreeData,

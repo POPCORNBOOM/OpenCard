@@ -1,3 +1,4 @@
+import { normalizePath } from '../../../shared/model/filePath'
 import type { ProjectRemoteResourcePolicy } from '../../workspace/model/projectMetadata'
 
 export function isRemoteResourceAllowed(
@@ -32,10 +33,6 @@ export function getEditorResourceRelativePath(rootPath: string | null, path: str
   const rootPrefix = `${normalizedRoot}/`
   if (!normalizedPath.toLowerCase().startsWith(rootPrefix.toLowerCase())) return null
   return normalizedPath.slice(rootPrefix.length)
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 function isAbsolutePath(path: string): boolean {

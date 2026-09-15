@@ -1,4 +1,5 @@
 import type { EditorPropertyDefinition } from '../../../entities/card/schema'
+import { isRecord } from '../../../shared/model/record'
 import { normalizeProjectRelativeCoverPath } from './projectCover'
 export { PROJECT_PROFILE_FILE_NAME } from './projectStructure'
 
@@ -38,10 +39,6 @@ export const projectPropertySchema = {
   description: { fieldType: 'string', multiline: true, categoryId: 'general', acceptsBinding: false },
   version: { fieldType: 'string', categoryId: 'general', acceptsBinding: false },
 } as const satisfies Record<string, EditorPropertyDefinition>
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 export function normalizeProjectAllowedHost(value: string): string | null {
   const host = value.trim().toLowerCase().replace(/\.$/, '')

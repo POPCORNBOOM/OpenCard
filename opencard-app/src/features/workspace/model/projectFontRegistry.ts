@@ -1,4 +1,5 @@
 export { PROJECT_FONT_REGISTRY_FILE_NAME } from './projectStructure'
+import { isRecord } from '../../../shared/model/record'
 import { resolveResourcePath } from './scopedResourcePath'
 
 export const projectFontKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
@@ -55,10 +56,6 @@ export type ProjectFontRegistry = Readonly<Record<string, ProjectFontRegistryEnt
 const MAX_UNICODE_CODE_POINT = 0x10ffff
 const SURROGATE_START = 0xd800
 const SURROGATE_END = 0xdfff
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function normalizeKey(value: unknown): string | null {
   return typeof value === 'string' && projectFontKeyPattern.test(value) ? value : null

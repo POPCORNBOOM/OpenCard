@@ -1,4 +1,5 @@
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
+import { isRecord } from '../../../shared/model/record'
 
 export const PROJECT_PACKAGE_MANIFEST_TYPE = 'opencard-project-packages' as const
 
@@ -13,10 +14,6 @@ export type RequiredPackage = {
 
 export type ProjectPackageManifestIssue = { readonly path: string; readonly message: string }
 export type ProjectPackageManifestReadResult = { readonly manifest: ProjectPackageManifest; readonly issues: readonly ProjectPackageManifestIssue[] }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 export function normalizeProjectPackageManifest(value: unknown): ProjectPackageManifestReadResult {
   const issues: ProjectPackageManifestIssue[] = []

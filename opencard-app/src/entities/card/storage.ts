@@ -1,8 +1,5 @@
+import { isRecord } from '../../shared/model/record'
 import type { CardBlock, CardDocument } from './model'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 export function parseCardDocument(value: unknown): CardDocument {
   if (!isRecord(value)) throw new Error('Card document must be a JSON object')

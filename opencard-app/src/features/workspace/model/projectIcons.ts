@@ -1,4 +1,5 @@
 import { createAvailableKey } from '../../../shared/model/keySlug'
+import { isRecord } from '../../../shared/model/record'
 import { resolveResourcePath } from './scopedResourcePath'
 export const projectIconKeyPattern = /^[a-z0-9][a-z0-9._-]*$/
 /** Every standalone icon file format a set may hold: vector sources and raster sources alike. */
@@ -53,10 +54,6 @@ export type ProjectIconSeries = {
 export type ProjectIconKeyConflict =
   | { kind: 'series'; seriesIndex: number; key: string }
   | { kind: 'icon'; seriesIndex: number; iconIndex: number; key: string }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function isProjectIconRotation(value: unknown): value is ProjectIconRotation {
   return PROJECT_ICON_ROTATIONS.includes(value as ProjectIconRotation)

@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
 import { LazyStore } from '@tauri-apps/plugin-store'
+import { isRecord } from '../../../shared/model/record'
 import { resolveAppStoragePath } from '../../../shared/storage/appStoragePaths'
 import type { FeedbackKind, FeedbackSubmission } from '../model/feedback'
 import type { FeedbackStatus, FeedbackStatusResult, FeedbackSubmitResult } from './feedbackService'
@@ -243,10 +244,6 @@ function scheduleAt(
   const baseTimestamp = Date.parse(baseTime)
   const jitteredDelay = Math.min(delayMs * (0.8 + random() * 0.4), maximumDelayMs)
   return new Date((Number.isNaN(baseTimestamp) ? Date.now() : baseTimestamp) + jitteredDelay).toISOString()
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function isFeedbackKind(value: unknown): value is FeedbackKind {

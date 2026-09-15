@@ -39,6 +39,7 @@ import {
   type CardBindingIssueType,
   type CardPipelineIssue,
 } from './cardPipelineIssue'
+import { joinBlockPath } from './renderBlockPath'
 
 const templateTokenPatternSource = String.raw`\{\{\s*([^{}]+?)\s*\}\}`
 const singleTemplateTokenPattern = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/
@@ -776,9 +777,4 @@ function resolveReferenceGraph(
   }
 
   return { document: targetDocument, block: targetBlock, issues }
-}
-
-function joinBlockPath(parentPath: string, blockName: string): string {
-  if (!blockName) return parentPath
-  return parentPath ? `${parentPath}.${blockName}` : blockName
 }

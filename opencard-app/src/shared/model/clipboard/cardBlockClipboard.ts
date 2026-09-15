@@ -6,6 +6,7 @@ import type {
 } from '../../../entities/card/model'
 import { parseStoredCardBlock } from '../../../entities/card/storage'
 import { isBlockContainer } from '../../../entities/card/tree'
+import { isRecord } from '../../../shared/model/record'
 
 export const OC_CLIPBOARD_MIME = 'application/x-opencard-clipboard+json'
 const OC_CLIPBOARD_PROTOCOL = 'opencard.clipboard'
@@ -30,10 +31,6 @@ export type OcClipboardEnvelope = {
   kind: OcClipboardKind
   source?: { documentId?: string; sessionId?: string; faceKey?: CardFaceKey }
   payload: CardBlockPayload | CardBlocksPayload
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function clone<T>(value: T): T {

@@ -1,4 +1,5 @@
 import { normalizeKeySlug } from '../../../shared/model/keySlug'
+import { isRecord } from '../../../shared/model/record'
 import { normalizeProjectRelativeCoverPath } from './projectCover'
 import { PROJECT_INTERNAL_DIRECTORY_NAME, PROJECT_PACKAGE_DIRECTORY } from './projectStructure'
 
@@ -66,10 +67,6 @@ export type ResourcePackageManifestNormalization = {
 
 const semanticVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const hashPattern = /^[0-9a-f]{64}$/i
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 function addIssue(issues: ResourcePackageManifestIssue[], path: string, message: string): void {
   issues.push({ path, message })

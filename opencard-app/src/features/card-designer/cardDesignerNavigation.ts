@@ -1,5 +1,6 @@
 import type { EditorNavigationResult } from '../editor-runtime/model/editorIssue'
 import type { CardFaceKey } from '../../entities/card/model'
+import { isRecord } from '../../shared/model/record'
 
 export type CardDesignerNavigationOwner = 'document' | 'face' | 'instance' | 'block' | 'location'
 
@@ -31,10 +32,6 @@ function isJsonSerializable(value: unknown, seen = new Set<object>()): boolean {
       && Object.values(value).every((item) => isJsonSerializable(item, seen))
   seen.delete(value)
   return valid
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 export function isCardDesignerNavigationToken(

@@ -1,4 +1,5 @@
 import { computed, ref, type Ref } from 'vue'
+import { normalizePath } from '../../../shared/model/filePath'
 import {
   type EditorSession,
   type SessionSaveResult,
@@ -36,10 +37,6 @@ type UseUnsavedSessionGuardOptions = {
   fileExists: (path: string) => Promise<boolean>
   saveSession: (sessionId: string, targetPath?: string) => Promise<SessionSaveResult>
   completeClose: (intent: UnsavedCloseIntent) => Promise<void>
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 function ensureFileExtension(name: string, extension: string | undefined): string {

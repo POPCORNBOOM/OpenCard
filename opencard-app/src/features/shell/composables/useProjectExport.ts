@@ -6,6 +6,7 @@
  */
 import { nextTick, readonly, ref, shallowRef, type Ref } from 'vue'
 import { parseCardDocument } from '../../../entities/card/storage'
+import { normalizePath } from '../../../shared/model/filePath'
 import { prepareExportTask } from '../../exporting/exportPlanner'
 import { runExportPlan } from '../../exporting/exportRunner'
 import { ExportRenderDiagnosticsError } from '../../exporting/exportRenderingError'
@@ -46,10 +47,6 @@ type UseProjectExportOptions = {
   resolveProjectPath: (relativePath: string) => string
   getRelativeProjectPath: (path: string) => string
   translate: (key: string, params?: Record<string, unknown>) => string
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {

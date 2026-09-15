@@ -52,6 +52,7 @@ import { useAppSettingsStore } from '../../settings/store/appSettingsStore'
 import { findProjectWorkspaceState, updateProjectWorkspaceState } from '../../settings/model/workspaceState'
 import { taskScheduler } from '../../../utils/taskScheduler'
 import type { OcNodeDropPosition } from '../../../shared/ui/node/node.types'
+import { getPathBasename, normalizePath } from '../../../shared/model/filePath'
 import { reportAppError } from '../../logging/appErrorCatalog'
 import {
   clearProjectFonts,
@@ -256,10 +257,6 @@ let projectManagementStructurePromise: Promise<void> | null = null
 
 /** Sizes are read from the project files, once per icon, only when an icon is painted. */
 setProjectIconDimensionLoader(loadProjectIconDimensions)
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
 
 function pathIdentity(path: string): string {
   const normalized = normalizePath(path)
@@ -1424,12 +1421,6 @@ function getPathDirname(path: string) {
   }
 
   return normalizedPath.slice(0, lastSlashIndex)
-}
-
-function getPathBasename(path: string) {
-  const normalizedPath = normalizePath(path)
-  const lastSlashIndex = normalizedPath.lastIndexOf('/')
-  return lastSlashIndex === -1 ? normalizedPath : normalizedPath.slice(lastSlashIndex + 1)
 }
 
 function isSameOrDescendantPath(targetPath: string, ancestorPath: string) {

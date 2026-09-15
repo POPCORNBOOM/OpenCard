@@ -1,5 +1,6 @@
 /** Coordinates guarded close requests without owning session or resource truth. */
 import type { Ref } from 'vue'
+import { isSameOrDescendantPath } from '../../../shared/model/filePath'
 import type {
   EditorSession,
   SessionSaveResult,
@@ -29,16 +30,6 @@ type UseShellCloseCoordinatorOptions = {
   fileExists: (path: string) => Promise<boolean>
   saveSession: (sessionId: string, targetPath?: string) => Promise<SessionSaveResult>
   completions: ShellCloseCompletions
-}
-
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
-}
-
-function isSameOrDescendantPath(path: string, ancestor: string): boolean {
-  const normalizedPath = normalizePath(path)
-  const normalizedAncestor = normalizePath(ancestor)
-  return normalizedPath === normalizedAncestor || normalizedPath.startsWith(`${normalizedAncestor}/`)
 }
 
 export function useShellCloseCoordinator(options: UseShellCloseCoordinatorOptions) {

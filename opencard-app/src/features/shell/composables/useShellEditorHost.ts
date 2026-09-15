@@ -2,6 +2,7 @@
 import { computed, ref, watch, type Component, type DeepReadonly, type Ref } from 'vue'
 import UnsupportedFileEditor from '../../../components/editors/UnsupportedFileEditor.vue'
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
+import { getPathDirectory } from '../../../shared/model/filePath'
 import { getOcTheme } from '../../../shared/ui/foundation'
 import type { AppSettings } from '../../settings/model/appSettings'
 import type {
@@ -82,12 +83,6 @@ type PendingViewportTransform = {
   sessionId: string
   editorId: 'card-designer' | 'image-preview'
   value: EditorViewportTransform
-}
-
-function getPathDirectory(path: string): string {
-  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+$/, '')
-  const separatorIndex = normalizedPath.lastIndexOf('/')
-  return separatorIndex > 0 ? normalizedPath.slice(0, separatorIndex) : ''
 }
 
 function resolveSessionFileType(session: Pick<EditorSession, 'fileTypeId' | 'path'>) {

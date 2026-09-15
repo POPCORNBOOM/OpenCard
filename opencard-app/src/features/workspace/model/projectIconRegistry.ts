@@ -1,12 +1,9 @@
+import { isRecord } from '../../../shared/model/record'
 import { parseProjectIconSeries, type ProjectIconSeries } from './projectIcons'
 export { PROJECT_ICON_REGISTRY_FILE_NAME } from './projectStructure'
 
 export type ProjectIconRegistryDocument = {
   iconSeries?: readonly ProjectIconSeries[]
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 export function parseProjectIconRegistry(value: unknown): ProjectIconRegistryDocument | null {
