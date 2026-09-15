@@ -10,6 +10,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, type CSSProperties } from 'vue'
+import { prefersReducedMotion } from '../../../shared/ui/foundation'
 
 const props = withDefaults(defineProps<{
   progress?: number
@@ -195,7 +196,7 @@ onMounted(() => {
   const base = gl.getUniformLocation(program, 'u_base')
   const surface = gl.getUniformLocation(program, 'u_surface')
   const dot = gl.getUniformLocation(program, 'u_dot')
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const reducedMotion = prefersReducedMotion()
   let accentColor: [number, number, number] = [0.49, 0.42, 1]
   let baseColor: [number, number, number] = [0.07, 0.07, 0.08]
   let surfaceColor: [number, number, number] = [0.15, 0.15, 0.15]

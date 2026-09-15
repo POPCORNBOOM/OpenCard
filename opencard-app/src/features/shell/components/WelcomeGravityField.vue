@@ -7,6 +7,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { hexToRgba } from '../../../components/standard/colorModel'
+import { reducedMotionQuery } from '../../../shared/ui/foundation'
 
 defineOptions({ name: 'WelcomeGravityField' })
 
@@ -370,9 +371,9 @@ onMounted(() => {
   }
   writeBlobData()
 
-  motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  reducedMotion = motionQuery.matches
-  motionQuery.addEventListener('change', handleMotionChange)
+  motionQuery = reducedMotionQuery()
+  reducedMotion = motionQuery?.matches ?? false
+  motionQuery?.addEventListener('change', handleMotionChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   themeObserver = new MutationObserver(() => {
     uploadColor()

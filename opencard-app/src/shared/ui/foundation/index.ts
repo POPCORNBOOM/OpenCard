@@ -9,7 +9,7 @@ export {
   setOcPhaseImageSpeedMultiplier,
   setOcTheme,
 } from './theme'
-export { prefersReducedMotion } from './prefersReducedMotion'
+export { prefersReducedMotion, reducedMotionQuery } from './prefersReducedMotion'
 export { DEFAULT_OC_THEME, OC_THEME_REGISTRY } from './themes'
 export { OC_EDITABLE_THEME_COLOR_KEYS } from './themeTokens'
 export type {

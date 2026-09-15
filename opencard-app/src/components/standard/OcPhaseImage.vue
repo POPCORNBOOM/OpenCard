@@ -13,6 +13,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { reducedMotionQuery } from '../../shared/ui/foundation'
 
 type OcPhaseImageDirection = 'forward' | 'reverse'
 type OcPhaseImageFit = 'contain' | 'cover' | 'fill'
@@ -527,9 +528,9 @@ onMounted(() => {
     renderFailed.value = true
     return
   }
-  motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  reducedMotion = motionQuery.matches
-  motionQuery.addEventListener('change', handleMotionChange)
+  motionQuery = reducedMotionQuery()
+  reducedMotion = motionQuery?.matches ?? false
+  motionQuery?.addEventListener('change', handleMotionChange)
   document.addEventListener('visibilitychange', handleVisibilityChange)
   themeObserver = new MutationObserver(() => {
     updateSpeedMultiplier()
