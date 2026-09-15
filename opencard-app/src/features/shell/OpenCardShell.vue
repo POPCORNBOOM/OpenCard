@@ -431,10 +431,7 @@ import {
 } from './services/externalOpenService'
 import { fileSystemService } from '../workspace/services/fileSystemService'
 import type {
-  ShellButton,
   ShellAction,
-  ShellList,
-  ShellListGroup,
   ShellWorkspaceAction,
   ShellTitleBarAppAction,
   ShellTitleBarMenuGroup,
@@ -447,30 +444,29 @@ import {
   type PrimaryShellPage,
   type ShellPage,
 } from './shellPage'
-import { isRepositorySidebarReady, SHELL_SIDEBAR_COLLAPSE_THRESHOLD } from './shellSidebarConfig'
+import { useShellSidebarLists } from './composables/useShellSidebarLists'
+import {
+  IMPORT_RESOURCE_PACKAGE_ACTION_KEY,
+  isRepositorySidebarReady,
+  PROJECT_FILES_LIST_KEY,
+  PROJECT_NEW_FOLDER_ACTION_KEY,
+  PROJECT_NEW_OPENCARD_ACTION_KEY,
+  PROJECT_REVEAL_ACTION_KEY,
+  RESOURCE_PACKAGES_LIST_KEY,
+  SHELL_SIDEBAR_COLLAPSE_THRESHOLD,
+  TIMELINE_LIST_KEY,
+  TIMELINE_REFRESH_ACTION_KEY,
+  USER_TEMPLATES_GROUP_KEY,
+} from './shellSidebarConfig'
 import { TIMELINE_COMPARE_WITH_DISK_ACTION_KEY, useProjectTimeline } from '../version-control/useProjectTimeline'
 import { useOcdocumentDiffSession } from '../version-control/useOcdocumentDiffSession'
 import { createCommit, initializeRepository, stageAll } from '../version-control/gitService'
 
 const { t, locale } = useI18n()
-const PROJECT_FILES_LIST_KEY = 'project-files'
-const PROJECT_MANAGEMENT_LIST_KEY = 'project-management'
-const OPENED_EDITORS_LIST_KEY = 'opened-editors'
-const RECENT_PROJECTS_LIST_KEY = 'recent-projects'
-const TIMELINE_LIST_KEY = 'timeline'
-const TIMELINE_REFRESH_ACTION_KEY = 'timeline.refresh'
 const DIFF_EXIT_ACTION_KEY = 'diff.exit'
 const DIFF_BEFORE_ACTION_KEY = 'diff.before'
 const DIFF_AFTER_ACTION_KEY = 'diff.after'
-const SETTINGS_CATEGORIES_LIST_KEY = 'settings-categories'
-const TEMPLATES_LIST_KEY = 'templates'
-const RESOURCE_PACKAGES_LIST_KEY = 'resource-packages'
-const USER_TEMPLATES_GROUP_KEY = 'template-group:user'
-const TEMPLATE_ENTRIES_LIST_KEY = 'template-entries'
-const TEMPLATE_COVERS_LIST_KEY = 'template-covers'
 const IMPORT_TEMPLATE_ACTION_KEY = 'import-template'
-/** 把软件存储里的附加包导入存储、附加到新项目、或从存储里移除。 */
-const IMPORT_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.import'
 const ATTACH_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.attach'
 const ATTACHED_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.attached'
 const REMOVE_RESOURCE_PACKAGE_ACTION_KEY = 'resource-package.remove'
@@ -487,10 +483,6 @@ const TEMPLATE_ENTRY_ADD_ACTION_KEY = 'template.entry.add'
 const TEMPLATE_ENTRY_REMOVE_ACTION_KEY = 'template.entry.remove'
 const TEMPLATE_ENTRY_TREE_PREFIX = 'template-entry:'
 const TEMPLATE_COVER_TREE_PREFIX = 'template-cover:'
-const PROJECT_NEW_FILE_ACTION_KEY = 'project.new-file'
-const PROJECT_NEW_OPENCARD_ACTION_KEY = 'project.new-file.ocdocument'
-const PROJECT_NEW_FOLDER_ACTION_KEY = 'project.new-folder'
-const PROJECT_REVEAL_ACTION_KEY = 'project.reveal'
 const CARD_DESIGNER_MODE_ACTION_KEY = 'card-designer.toggle-mode'
 const CARD_DATA_TABLE_IMPORT_ACTION_KEY = 'card-designer.data-table.import'
 const CARD_DATA_TABLE_EXPORT_ACTION_KEY = 'card-designer.data-table.export'
@@ -1619,368 +1611,78 @@ const windowControls = computed<ShellTitleBarWindowControl[]>(() => [
   ] satisfies ShellTitleBarWindowControl[] : []),
 ])
 
-const sidebarHeadButtons = computed<ShellButton[]>(() => {
-  if (isCreateProjectMode.value || isExportTemplateMode.value) {
-    return [{
-      key: 'return-primary-page',
-      icon: 'nav.arrow-left',
-      title: t('projectTemplates.actions.back'),
-      disabled: isProjectTemplateBusy.value || isExportTemplateBusy.value,
-    }]
-  }
-  if (isSettingsMode.value) {
-    return [{ key: 'return-primary-page', icon: 'nav.arrow-left', title: t('settings.actions.back', 'Back') }]
-  }
-  if (isAboutMode.value) {
-    return [{ key: 'return-primary-page', icon: 'nav.arrow-left', title: t('app.about.back') }]
-  }
-  if (isWelcomeMode.value) {
-    return [
-      { key: 'new-project', icon: 'action.folder-plus', title: t('app.menu.newProject') },
-      { key: 'open-project', icon: 'status.folder-open', title: t('sidebar.openProject') },
-    ]
-  }
-  return []
+const { sidebarTailButtons, sidebarBodyGroups } = useShellSidebarLists({
+  translate: t,
+  shellPage,
+  isSettingsMode,
+  isCreateProjectMode,
+  isExportTemplateMode,
+  isWelcomeMode,
+  isAboutMode,
+  isAuxiliaryMode,
+  isProjectTemplateBusy,
+  isExportTemplateBusy,
+  isCommittingVersion,
+  isInitializingRepository,
+  projectOpen,
+  projectPath,
+  projectFolderName,
+  repositoryReady,
+  repositoryNeedsInitialization,
+  projectTreeRef,
+  settingsCategoryKey,
+  settingsCategoryTreeData,
+  selectedTemplateKey,
+  templateTreeData,
+  resourcePackageStore,
+  resourcePackageTreeData,
+  exportTemplateTreeData,
+  exportTemplateExpandedKeys,
+  exportTemplateEntryTreeData,
+  exportTemplateCoverTreeData,
+  recentProjectTreeData,
+  selectedRecentProjectKeys,
+  openedEditorTreeData,
+  openedEditorSelectedKeys,
+  projectManagementTreeData,
+  selectedManagementKeys,
+  projectManagementExpandedKeys,
+  projectTreeData,
+  selectedProjectEntryKeys,
+  projectExpandedKeys,
+  timelinePlaceholder,
+  timelineFilePath,
+  timelineLoading,
+  timelineTreeData,
+  timelineProjectTreeData,
+  changesTreeData,
+  versionGraphExpandedKeys,
+  handleSettingsCategorySelectionChange,
+  handleTemplateSelectionChange,
+  handleTemplateAction,
+  handleResourcePackageAction,
+  handleExportTemplateAction,
+  handleExportSelectionAction,
+  handleRecentProjectSelectionChange,
+  handleRecentProjectNodeActivate,
+  handleRecentProjectAction,
+  handleOpenedEditorSelectionChange,
+  handleOpenedEditorAction,
+  handleOpenedEditorAuxClick,
+  handleProjectManagementSelectionChange,
+  handleProjectManagementExpansionChange,
+  handleProjectManagementAction,
+  handleProjectSelectionChange,
+  handleProjectExpansionChange,
+  handleProjectRenameCommit,
+  handleProjectMove,
+  handleProjectExternalDrop,
+  handleProjectAction,
+  handleProjectNodeActivate,
+  handleTimelineAction,
+  handleVersionGraphExpansionChange,
+  handleVersionGraphExpansionSync,
 })
-
-const sidebarTailButtons = computed<ShellButton[]>(() => {
-  if (isAuxiliaryMode.value) return []
-  return [{ key: 'open-settings', icon: 'tool.settings', title: t('settings.title', 'Settings') }]
-})
-
-function captureProjectTreeInstance(instance: unknown): void {
-  const tree = instance as { beginRename?: (key: string) => Promise<void> } | null
-  projectTreeRef.value = typeof tree?.beginRename === 'function'
-    ? { beginRename: tree.beginRename.bind(tree) }
-    : null
-}
-
-const sidebarBodyLists = computed<ShellList[]>(() => {
-  if (isAboutMode.value) return []
-
-  if (isSettingsMode.value) {
-    return [{
-      key: SETTINGS_CATEGORIES_LIST_KEY,
-      title: t('settings.title', 'Settings'),
-      placeholder: '',
-      actions: [],
-      content: {
-        type: 'tree',
-        data: settingsCategoryTreeData.value,
-        selectedKeys: [settingsCategoryKey.value],
-        role: 'listbox',
-        selectionMode: 'single',
-        activationMode: 'none',
-        onSelectionChange: handleSettingsCategorySelectionChange,
-      },
-    }]
-  }
-
-  if (isCreateProjectMode.value) {
-    return [
-      {
-        key: TEMPLATES_LIST_KEY,
-        title: t('projectTemplates.sections.templates'),
-        placeholder: '',
-        actions: [],
-        content: {
-          type: 'tree',
-          data: templateTreeData.value,
-          selectedKeys: selectedTemplateKey.value ? [selectedTemplateKey.value] : [],
-          expandedKeys: [USER_TEMPLATES_GROUP_KEY],
-          role: 'tree',
-          selectionMode: 'single',
-          activationMode: 'none',
-          onSelectionChange: handleTemplateSelectionChange,
-          onAction: handleTemplateAction,
-        },
-      },
-      {
-        key: RESOURCE_PACKAGES_LIST_KEY,
-        title: t('projectTemplates.sections.resourcePackages'),
-        placeholder: resourcePackageStore.isLoading.value
-          ? t('projectTemplates.status.loadingResourcePackages')
-          : t('projectTemplates.status.noResourcePackages'),
-        actions: [{
-          key: IMPORT_RESOURCE_PACKAGE_ACTION_KEY,
-          icon: 'action.import',
-          hoverTip: t('projectTemplates.actions.importResourcePackage'),
-          disabled: isProjectTemplateBusy.value || resourcePackageStore.isLoading.value,
-        }],
-        content: {
-          type: 'tree',
-          data: resourcePackageTreeData.value,
-          role: 'listbox',
-          selectionMode: 'none',
-          activationMode: 'none',
-          onAction: handleResourcePackageAction,
-        },
-      },
-    ]
-  }
-
-  if (isExportTemplateMode.value) {
-    const projectContent = {
-      type: 'tree' as const,
-      data: exportTemplateTreeData.value,
-      selectedKeys: selectedProjectEntryKeys.value,
-      expandedKeys: exportTemplateExpandedKeys.value,
-      role: 'tree' as const,
-      selectionMode: 'single' as const,
-      activationMode: 'none' as const,
-      onAction: handleExportTemplateAction,
-      captureInstance: captureProjectTreeInstance,
-    }
-    return [
-      {
-        key: PROJECT_FILES_LIST_KEY,
-        title: projectFolderName.value || t('sidebar.files'),
-        placeholder: t('sidebar.emptyProject', 'Folder is empty'),
-        actions: [],
-        content: projectContent,
-      },
-      {
-        key: TEMPLATE_ENTRIES_LIST_KEY,
-        title: t('projectTemplates.fields.entry'),
-        placeholder: t('templateExport.noSelectedEntries'),
-        actions: [],
-        content: {
-          type: 'tree',
-          data: exportTemplateEntryTreeData.value,
-          selectedKeys: [],
-          role: 'listbox',
-          selectionMode: 'none',
-          activationMode: 'none',
-          onAction: handleExportSelectionAction,
-        },
-      },
-      {
-        key: TEMPLATE_COVERS_LIST_KEY,
-        title: t('projectTemplates.fields.covers'),
-        placeholder: t('templateExport.noSelectedCovers'),
-        actions: [],
-        content: {
-          type: 'tree',
-          data: exportTemplateCoverTreeData.value,
-          selectedKeys: [],
-          role: 'listbox',
-          selectionMode: 'none',
-          activationMode: 'none',
-          onAction: handleExportSelectionAction,
-        },
-      },
-    ]
-  }
-
-  if (isWelcomeMode.value) {
-    return [{
-      key: RECENT_PROJECTS_LIST_KEY,
-      title: t('sidebar.recentProjects'),
-      placeholder: t('sidebar.noRecentProjects'),
-      actions: [],
-      content: {
-        type: 'tree',
-        data: recentProjectTreeData.value,
-        selectedKeys: selectedRecentProjectKeys.value,
-        role: 'listbox',
-        selectionMode: 'single',
-        activationMode: 'double-click',
-        onSelectionChange: handleRecentProjectSelectionChange,
-        onNodeActivate: handleRecentProjectNodeActivate,
-        onAction: handleRecentProjectAction,
-      },
-    }]
-  }
-
-  const lists: ShellList[] = [
-    {
-      key: OPENED_EDITORS_LIST_KEY,
-      title: t('sidebar.openedEditors'),
-      placeholder: t('sidebar.noOpenedEditors', 'No open editors'),
-      actions: [],
-      content: {
-        type: 'tree',
-        data: openedEditorTreeData.value,
-        selectedKeys: openedEditorSelectedKeys.value,
-        role: 'listbox',
-        selectionMode: 'single',
-        activationMode: 'none',
-        onSelectionChange: handleOpenedEditorSelectionChange,
-        onAction: handleOpenedEditorAction,
-        onAuxclick: handleOpenedEditorAuxClick,
-      },
-    },
-    {
-      key: PROJECT_MANAGEMENT_LIST_KEY,
-      title: t('sidebar.projectManagement'),
-      placeholder: '',
-      actions: [],
-      content: {
-        type: 'tree',
-        data: projectManagementTreeData.value,
-        selectedKeys: selectedManagementKeys.value,
-        expandedKeys: projectManagementExpandedKeys.value,
-        role: 'tree',
-        selectionMode: 'single',
-        activationMode: 'none',
-        onSelectionChange: handleProjectManagementSelectionChange,
-        onExpansionChange: handleProjectManagementExpansionChange,
-        onAction: handleProjectManagementAction,
-      },
-    },
-    {
-      key: PROJECT_FILES_LIST_KEY,
-      title: projectFolderName.value || t('sidebar.files'),
-      placeholder: projectPath.value
-        ? t('sidebar.emptyProject', 'Folder is empty')
-        : t('sidebar.openProject', 'Open Project Folder'),
-      actions: [
-        {
-          key: PROJECT_REVEAL_ACTION_KEY,
-          icon: 'status.folder-open',
-          hoverTip: t('sidebar.fileActions.reveal'),
-          disabled: !projectPath.value,
-        },
-        {
-          key: PROJECT_NEW_FILE_ACTION_KEY,
-          icon: 'action.file-plus',
-          hoverTip: t('sidebar.fileActions.newFile'),
-          disabled: !projectPath.value,
-          children: [{
-            key: PROJECT_NEW_OPENCARD_ACTION_KEY,
-            title: t('sidebar.fileActions.newOpenCard'),
-            icon: 'file.opencard',
-          }],
-        },
-        {
-          key: PROJECT_NEW_FOLDER_ACTION_KEY,
-          icon: 'action.folder-plus',
-          hoverTip: t('sidebar.fileActions.newFolder'),
-          disabled: !projectPath.value,
-        },
-      ],
-      content: {
-        type: 'tree',
-        data: projectTreeData.value,
-        selectedKeys: selectedProjectEntryKeys.value,
-        expandedKeys: projectExpandedKeys.value,
-        role: 'tree',
-        selectionMode: 'single',
-        activationMode: 'double-click',
-        onSelectionChange: handleProjectSelectionChange,
-        onExpansionChange: handleProjectExpansionChange,
-        onRenameCommit: handleProjectRenameCommit,
-        onMove: handleProjectMove,
-        onExternalDrop: handleProjectExternalDrop,
-        externalDrop: projectOpen.value,
-        onAction: handleProjectAction,
-        onNodeActivate: handleProjectNodeActivate,
-        captureInstance: captureProjectTreeInstance,
-      },
-    },
-  ]
-  if (repositoryReady.value) {
-    lists.push({
-      key: TIMELINE_LIST_KEY,
-      title: t('sidebar.timeline'),
-      placeholder: timelinePlaceholder.value,
-      actions: [{
-        key: TIMELINE_REFRESH_ACTION_KEY,
-        icon: 'action.refresh',
-        hoverTip: t('sidebar.timelineRefresh'),
-        disabled: !timelineFilePath.value || timelineLoading.value,
-      }],
-      content: {
-        type: 'tree',
-        data: timelineTreeData.value,
-        selectedKeys: [],
-        role: 'tree',
-        selectionMode: 'none',
-        activationMode: 'none',
-        onAction: handleTimelineAction,
-      },
-    })
-  }
-  return lists
-})
-
-const sidebarBodyGroups = computed<ShellListGroup[]>(() => {
-  if (isSettingsMode.value || isCreateProjectMode.value || isExportTemplateMode.value || isWelcomeMode.value || isAboutMode.value) {
-    return [{
-      key: 'primary',
-      transitionKey: `page:${shellPage.value.type}`,
-      title: '',
-      headButtons: sidebarHeadButtons.value,
-      lists: sidebarBodyLists.value,
-    }];
-  }
-  const lists = sidebarBodyLists.value;
-  const groups: ShellListGroup[] = [
-    {
-      key: 'workspace',
-      title: t('sidebar.workspaceGroup', 'Workspace'),
-      icon: 'status.folder-open',
-      headButtons: [{ key: 'new-open-card', icon: 'action.file-plus', title: t('app.menu.newOpenCard') }],
-      lists,
-    },
-    {
-      key: 'version-control',
-      title: t('sidebar.versionControlGroup', 'Version Control'),
-      icon: 'file.git',
-      headButtons: repositoryNeedsInitialization.value
-        ? [{
-            key: 'initialize-repository',
-            icon: 'file.git',
-            title: t('sidebar.initializeRepository', 'Initialize repository'),
-            disabled: isInitializingRepository.value,
-          }]
-        : repositoryReady.value
-          ? [{
-              key: 'publish-version',
-              icon: 'action.publish',
-              title: t('sidebar.commitVersion', 'Commit version'),
-              disabled: changesTreeData.value.rootKeys.length === 0 || isCommittingVersion.value,
-            }]
-          : [],
-      lists: repositoryReady.value
-        ? [
-            {
-              key: 'changes',
-              title: t('sidebar.changes', 'Changes'),
-              placeholder: t('sidebar.changesEmpty', 'Uncommitted project files appear here'),
-              actions: [],
-              content: {
-                type: 'tree',
-                data: changesTreeData.value,
-                selectedKeys: [],
-                role: 'tree',
-                selectionMode: 'none',
-                activationMode: 'none',
-              },
-            },
-            {
-              key: 'version-graph',
-              title: t('sidebar.versionGraph', 'Version graph'),
-              placeholder: t('sidebar.versionGraphEmpty', 'Project commits appear here'),
-              actions: [],
-              content: {
-                type: 'tree',
-                data: timelineProjectTreeData.value,
-                selectedKeys: [],
-                expandedKeys: versionGraphExpandedKeys.value,
-                role: 'tree',
-                selectionMode: 'none',
-                activationMode: 'none',
-                onExpansionChange: handleVersionGraphExpansionChange,
-                onExpansionSync: handleVersionGraphExpansionSync,
-              },
-            },
-          ]
-        : [],
-    },
-  ];
-  return groups;
-});
 
 const developerModeMenuActions = computed<readonly OcActionMenuEntry[]>(() => (
   import.meta.env.DEV
