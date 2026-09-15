@@ -831,17 +831,41 @@ export default {
     treeActions: {
       package: '打包',
       unpackage: '解包',
+      copyBlock: '复制块',
+      pasteBlock: '粘贴块',
+      rename: '重命名',
+      duplicate: '复制',
+      delete: '删除',
+      addChild: '添加子块',
+      show: '显示',
+      hide: '隐藏',
+      more: '更多操作',
     },
     layout: {
       resizeLeftSidebar: '调整左侧栏宽度',
       resizeRightSidebar: '调整右侧栏宽度',
       resizeSidebarTooltip: '{label}[br]双击快速切换展开折叠',
+      resizeLeftSplit: '调整卡牌树与预览高度',
+      resizeRightSplit: '调整结构树与属性高度',
     },
     panels: {
       cardTree: '卡牌树',
       preview: '预览',
       structureTree: '结构树',
       properties: '属性',
+    },
+    panelActions: {
+      expand: '展开',
+      collapse: '收起',
+    },
+    canvas: {
+      controls: '卡牌画布控制',
+      moveViewport: '移动画布视口',
+    },
+    blockActions: {
+      addRoot: '添加',
+      duplicateSelected: '复制选中',
+      deleteSelected: '删除选中',
     },
     blockNames: {
       'text-block': '文本块',
@@ -967,6 +991,9 @@ export default {
       selectFocused: '选中聚焦平面',
       adjustZIndex: '调整 zIndex',
       switchExistingLayer: '切换到已有层',
+    },
+    document: {
+      parseFailed: '无法解析 .ocdocument 文件',
     },
   },
   propertyEditor: {

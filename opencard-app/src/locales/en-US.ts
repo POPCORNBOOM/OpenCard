@@ -831,17 +831,41 @@ export default {
     treeActions: {
       package: 'Package',
       unpackage: 'Unpackage',
+      copyBlock: 'Copy Block',
+      pasteBlock: 'Paste Block',
+      rename: 'Rename',
+      duplicate: 'Duplicate',
+      delete: 'Delete',
+      addChild: 'Add Child Block',
+      show: 'Show',
+      hide: 'Hide',
+      more: 'More Actions',
     },
     layout: {
       resizeLeftSidebar: 'Resize left sidebar',
       resizeRightSidebar: 'Resize right sidebar',
       resizeSidebarTooltip: '{label}[br]Double-click to quickly toggle expand or collapse',
+      resizeLeftSplit: 'Resize cards and preview height',
+      resizeRightSplit: 'Resize structure and properties height',
     },
     panels: {
       cardTree: 'Cards',
       preview: 'Preview',
       structureTree: 'Structure',
       properties: 'Properties',
+    },
+    panelActions: {
+      expand: 'Expand',
+      collapse: 'Collapse',
+    },
+    canvas: {
+      controls: 'Card canvas controls',
+      moveViewport: 'Move canvas viewport',
+    },
+    blockActions: {
+      addRoot: 'Add',
+      duplicateSelected: 'Duplicate selected',
+      deleteSelected: 'Delete selected',
     },
     blockNames: {
       'text-block': 'Text Block',
@@ -967,6 +991,9 @@ export default {
       selectFocused: 'Select the focused plane',
       adjustZIndex: 'Adjust zIndex',
       switchExistingLayer: 'Switch to an existing layer',
+    },
+    document: {
+      parseFailed: 'Unable to parse the .ocdocument file',
     },
   },
   propertyEditor: {

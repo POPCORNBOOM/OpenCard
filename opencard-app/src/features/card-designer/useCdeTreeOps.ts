@@ -58,40 +58,40 @@ type BlockActionSet = {
   packagedContainerMore: OcNodeAction
 }
 
-const BLOCK_ADD_ACTION_DEFINITIONS: readonly { key: string; type: CardBlock['type']; title: string }[] = [
-  { key: 'add-text-block', type: 'text-block', title: '文本块' },
-  { key: 'add-markdown-text-block', type: 'markdown-text-block', title: 'Markdown 文本块' },
-  { key: 'add-image-block', type: 'image-block', title: '图片块' },
-  { key: 'add-qrcode-block', type: 'qrcode-block', title: '二维码' },
-  { key: 'add-shape-block', type: 'shape-block', title: '形状' },
-  { key: 'add-simple-container-block', type: 'simple-container-block', title: '简单容器' },
-  { key: 'add-flow-container-block', type: 'flow-container-block', title: '流式容器' },
+const BLOCK_ADD_ACTION_DEFINITIONS: readonly { key: string; type: CardBlock['type'] }[] = [
+  { key: 'add-text-block', type: 'text-block' },
+  { key: 'add-markdown-text-block', type: 'markdown-text-block' },
+  { key: 'add-image-block', type: 'image-block' },
+  { key: 'add-qrcode-block', type: 'qrcode-block' },
+  { key: 'add-shape-block', type: 'shape-block' },
+  { key: 'add-simple-container-block', type: 'simple-container-block' },
+  { key: 'add-flow-container-block', type: 'flow-container-block' },
 ]
 
-export function createBlockAddActions(): OcNodeAction[] {
-  return BLOCK_ADD_ACTION_DEFINITIONS.map(({ key, type, title }) => ({
+export function createBlockAddActions(translate: (messageKey: string) => string): OcNodeAction[] {
+  return BLOCK_ADD_ACTION_DEFINITIONS.map(({ key, type }) => ({
     key,
-    title,
+    title: translate(`cardDesigner.blockNames.${type}`),
     ...getBlockPresentation(type),
   }))
 }
 
 function createBlockActions(translate: (messageKey: string) => string): BlockActionSet {
-  const copyBlock = cdeNodeAction('copy-block', 'action.copy', '复制块', { shortcut: 'block.copy' })
-  const pasteBlock = cdeNodeAction('paste-block', 'action.copy', '粘贴块', { shortcut: 'block.paste' })
-  const rename = cdeNodeAction('rename', 'action.edit', '重命名', { shortcut: 'block.rename' })
-  const duplicate = cdeNodeAction('duplicate', 'action.copy', '复制', { shortcut: 'block.duplicate' })
-  const remove = cdeNodeAction('delete', 'action.delete', '删除', { shortcut: 'block.delete' })
-  const add = cdeNodeAction('add', 'action.add', '添加子块', { children: createBlockAddActions() })
+  const copyBlock = cdeNodeAction('copy-block', 'action.copy', translate('cardDesigner.treeActions.copyBlock'), { shortcut: 'block.copy' })
+  const pasteBlock = cdeNodeAction('paste-block', 'action.copy', translate('cardDesigner.treeActions.pasteBlock'), { shortcut: 'block.paste' })
+  const rename = cdeNodeAction('rename', 'action.edit', translate('cardDesigner.treeActions.rename'), { shortcut: 'block.rename' })
+  const duplicate = cdeNodeAction('duplicate', 'action.copy', translate('cardDesigner.treeActions.duplicate'), { shortcut: 'block.duplicate' })
+  const remove = cdeNodeAction('delete', 'action.delete', translate('cardDesigner.treeActions.delete'), { shortcut: 'block.delete' })
+  const add = cdeNodeAction('add', 'action.add', translate('cardDesigner.treeActions.addChild'), { children: createBlockAddActions(translate) })
   const pack = cdeNodeAction('package', 'entity.block-package', translate('cardDesigner.treeActions.package'))
   const unpack = cdeNodeAction('unpackage', 'entity.block-package', translate('cardDesigner.treeActions.unpackage'))
   const more = (key: string, children: readonly OcNodeAction[]): OcNodeAction => (
-    cdeNodeAction(key, 'nav.more', '更多操作', { children })
+    cdeNodeAction(key, 'nav.more', translate('cardDesigner.treeActions.more'), { children })
   )
 
   return {
-    show: cdeNodeAction('show-block', 'status.eye-off', '显示'),
-    hide: cdeNodeAction('hide-block', 'status.eye', '隐藏'),
+    show: cdeNodeAction('show-block', 'status.eye-off', translate('cardDesigner.treeActions.show')),
+    hide: cdeNodeAction('hide-block', 'status.eye', translate('cardDesigner.treeActions.hide')),
     copyBlock,
     pasteBlock,
     rename,

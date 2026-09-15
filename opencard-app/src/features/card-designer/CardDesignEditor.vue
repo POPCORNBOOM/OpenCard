@@ -88,7 +88,7 @@
                     </span>
                   </template>
                 </CardViewport>
-                <OcEmpty v-else>无法解析 .ocdocument 文件</OcEmpty>
+                <OcEmpty v-else>{{ t('cardDesigner.document.parseFailed') }}</OcEmpty>
               </template>
             </OcPanel>
           </div>
@@ -118,7 +118,7 @@
           :responsive-min-stage-width="overlayResponsiveWidth" :split-gap="overlaySplitGap"
           :width-label="t('cardDesigner.layout.resizeLeftSidebar')" :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
             label: t('cardDesigner.layout.resizeLeftSidebar'),
-          })" split-label="调整卡牌树与预览高度" @update:extent="updateDockExtent('left', $event)"
+          })" :split-label="t('cardDesigner.layout.resizeLeftSplit')" @update:extent="updateDockExtent('left', $event)"
           @update:top-size="updateDockTopSize('left', $event)" @toggle-collapse="toggleDockCollapsed('left')"
           @resize-start="handleDockResizeStart" @resize-end="handleDockResizeEnd('left', $event)">
           <template #top>
@@ -147,7 +147,7 @@
                     <button v-if="transformPreviewFrameStyle" type="button"
                       class="card-design-editor__transform-preview-frame"
                       :class="{ 'is-visible': isTransformPreviewFrameVisible, 'is-dragging': isPreviewViewportDragging }"
-                      :style="transformPreviewFrameStyle" aria-label="移动画布视口"
+                      :style="transformPreviewFrameStyle" :aria-label="t('cardDesigner.canvas.moveViewport')"
                       :aria-hidden="!isTransformPreviewFrameVisible || undefined"
                       :tabindex="isTransformPreviewFrameVisible ? 0 : -1" @keydown="handlePreviewViewportKeydown"
                       @pointerdown="startPreviewViewportDrag" @pointermove="handlePreviewViewportDrag"
@@ -169,7 +169,7 @@
           :responsive-min-stage-width="overlayResponsiveWidth" :split-gap="overlaySplitGap"
           :width-label="t('cardDesigner.layout.resizeRightSidebar')" :width-tooltip="t('cardDesigner.layout.resizeSidebarTooltip', {
             label: t('cardDesigner.layout.resizeRightSidebar'),
-          })" split-label="调整结构树与属性高度" @update:extent="updateDockExtent('right', $event)"
+          })" :split-label="t('cardDesigner.layout.resizeRightSplit')" @update:extent="updateDockExtent('right', $event)"
           @update:top-size="updateDockTopSize('right', $event)" @toggle-collapse="toggleDockCollapsed('right')"
           @resize-start="handleDockResizeStart" @resize-end="handleDockResizeEnd('right', $event)">
           <template #top>
@@ -209,7 +209,7 @@
         </CdeOverlayDock>
 
         <OcOverlayToolbar v-if="viewFace" class="card-design-editor__face-tools"
-          :class="{ 'is-resizing': isDockResizing }" orientation="vertical" :style="faceToolsStyle" label="卡牌画布控制"
+          :class="{ 'is-resizing': isDockResizing }" orientation="vertical" :style="faceToolsStyle" :label="t('cardDesigner.canvas.controls')"
           :items="props.mode === 'diff' ? diffFaceToolbarItems : faceToolbarItems" @select="handleFaceToolbarSelect" />
       </div>
     </div>
@@ -787,7 +787,7 @@ function createPanelToggleAction(key: string, expanded: boolean): OcCardAction {
   return {
     key,
     icon: expanded ? 'nav.chevron-down' : 'nav.chevron-up',
-    title: expanded ? '收起' : '展开',
+    title: expanded ? t('cardDesigner.panelActions.collapse') : t('cardDesigner.panelActions.expand'),
   }
 }
 
@@ -1108,18 +1108,18 @@ const instanceCardActions = computed<OcCardAction[]>(() => [
   {
     key: 'add-instance',
     icon: 'action.add',
-    title: '新建实例',
+    title: t('cardDesigner.dataTable.addInstance'),
   },
   {
     key: 'duplicate-instance',
     icon: 'action.copy',
-    title: '复制实例',
+    title: t('cardDesigner.dataTable.duplicateInstance'),
     disabled: !canMutateSelectedInstance.value,
   },
   {
     key: 'delete-instance',
     icon: 'action.delete',
-    title: '删除实例',
+    title: t('cardDesigner.dataTable.deleteInstance'),
     disabled: !canMutateSelectedInstance.value,
   },
   createPanelToggleAction('toggle-instance-panel', isInstancePanelExpanded.value),
@@ -1309,20 +1309,20 @@ const structureTreeCardActions = computed<OcCardAction[]>(() => [
   {
     key: 'add-root',
     icon: 'action.add',
-    title: '添加',
-    children: createBlockAddActions(),
+    title: t('cardDesigner.blockActions.addRoot'),
+    children: createBlockAddActions(messageKey => t(messageKey)),
   },
   {
     key: 'duplicate-selected',
     icon: 'action.copy',
-    title: '复制选中',
+    title: t('cardDesigner.blockActions.duplicateSelected'),
     shortcut: getCdeShortcutParts('block.duplicate'),
     disabled: !selectedBlock.value,
   },
   {
     key: 'delete-selected',
     icon: 'action.delete',
-    title: '删除选中',
+    title: t('cardDesigner.blockActions.deleteSelected'),
     shortcut: getCdeShortcutParts('block.delete'),
     disabled: selectedBlockKeys.value.length === 0,
   },
