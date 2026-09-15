@@ -130,7 +130,6 @@ export function useCdePropertyEditorProjection(options: UseCdePropertyEditorProj
           record: input.record,
           referenceContext,
           fontCatalog,
-          iconSeries: projectContext.iconSeries,
           projectIconCatalog: projectContext.projectIconCatalog,
           resourceEnvironment: projectContext.resourceEnvironment,
           project: projectContext.information,

@@ -26,6 +26,12 @@ export type PropertyCompletionItem = {
   thumbnailLabel?: string
   labelStyle?: Readonly<Record<string, string>>
   insertText: string
+  /**
+   * Range this item replaces when the result's range does not fit it: an item that rewrites the
+   * whole token (rather than the part after a fixed prefix) carries its own range.
+   */
+  replaceStart?: number
+  replaceEnd?: number
   value?: unknown
   keepOpen?: boolean
 }

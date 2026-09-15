@@ -1,8 +1,6 @@
 import type { PropertyCompletionItem, PropertyCompletionProvider } from '../../../shared/ui/property-editor/propertyEditor.types'
-import type { ProjectIconSeries } from '../model/projectIcons'
 import {
   createProjectIconStyle,
-  projectIconIdentity,
   type ProjectIconCatalog,
   type ProjectIconDimensionReader,
 } from './projectIconCatalog'
@@ -15,7 +13,6 @@ import { readProjectIconSize } from './projectIconDimensionResolver'
 export type ProjectIconSource = {
   packageKey: string | null
   label: string
-  series: readonly ProjectIconSeries[]
   catalog: ProjectIconCatalog
 }
 
@@ -30,25 +27,33 @@ export type ProjectIconCompletionOptions = {
   readDimensions?: ProjectIconDimensionReader
 }
 
-/** Where the cursor sits inside the reference being edited. */
-type TokenState =
-  /** Before `icon:` is written: the caller is choosing a collection or a source. */
-  | { stage: 'prefix', query: string, bodyStart: number, bodyEnd: number, tokenStart: number, tokenEnd: number }
-  /** After `[package@]icon:`: the caller is choosing a collection. */
-  | { stage: 'series', packageKey: string | null, query: string, bodyStart: number, bodyEnd: number, tokenStart: number, tokenEnd: number }
-  /** After `[package@]icon:collection/`: the caller is choosing an icon. */
-  | { stage: 'icon', packageKey: string | null, seriesKey: string, query: string, tokenStart: number, tokenEnd: number }
+type Range = { start: number, end: number }
 
-type PreparedSource = {
+/** A completion item plus the extra names it can be filtered by; `searchKeys` never reaches the menu. */
+type PreparedIcon = PropertyCompletionItem & { searchKeys: string[] }
+
+/**
+ * Where the cursor sits and which span each kind of choice replaces:
+ * - a collection replaces the text after `[package@]icon:`
+ * - a package qualifier replaces the reference, dropping the collection it had
+ * - a finished reference replaces the whole token, brackets included
+ */
+type TokenState = {
+  stage: 'prefix' | 'series' | 'icon'
   packageKey: string | null
-  label: string
-  searchKey: string
-  searchLabel: string
-  series: readonly ProjectIconSeries[]
+  query: string
+  body: Range
+  reference: Range
+  token: Range
+  seriesKey?: string
 }
 
 const QUALIFIED_REFERENCE_PATTERN = /^(?:([a-z0-9._-]+)@)?icon:(.*)$/i
 const PACKAGE_QUALIFIER_PATTERN = /([a-z0-9._-]+)@$/
+
+function within(range: Range, item: PropertyCompletionItem): PropertyCompletionItem {
+  return { ...item, replaceStart: range.start, replaceEnd: range.end }
+}
 
 function locateRichTextToken(value: string, cursor: number): TokenState | null {
   const closedAtCursor = value.slice(Math.max(0, cursor - 2), cursor) === ']]'
@@ -57,25 +62,30 @@ function locateRichTextToken(value: string, cursor: number): TokenState | null {
   if (start < 0 || value.slice(0, contentEnd).lastIndexOf(']]') > start) return null
   const contentStart = start + 2
   const content = value.slice(contentStart, contentEnd)
+  const inner = { start: contentStart, end: contentEnd }
+  const token = {
+    start,
+    end: closedAtCursor ? cursor : (value.slice(cursor, cursor + 2) === ']]' ? cursor + 2 : cursor),
+  }
   const matched = QUALIFIED_REFERENCE_PATTERN.exec(content)
   if (!matched) {
-    return { stage: 'prefix', query: content, bodyStart: contentStart, bodyEnd: contentEnd, tokenStart: start, tokenEnd: contentEnd }
+    return { stage: 'prefix', packageKey: null, query: content, body: inner, reference: inner, token }
   }
   const rest = matched[2]!
   const packageKey = matched[1] ?? null
-  // The body starts where `[package@]icon:` ends, measured from the content start.
-  const bodyStart = contentEnd - rest.length
+  const body = { start: contentEnd - rest.length, end: contentEnd }
   const slash = rest.indexOf('/')
   if (slash < 0) {
-    return { stage: 'series', packageKey, query: rest, bodyStart, bodyEnd: contentEnd, tokenStart: start, tokenEnd: contentEnd }
+    return { stage: 'series', packageKey, query: rest, body, reference: inner, token }
   }
   return {
     stage: 'icon',
     packageKey,
     seriesKey: rest.slice(0, slash),
     query: rest.slice(slash + 1),
-    tokenStart: start,
-    tokenEnd: closedAtCursor ? cursor : (value.slice(cursor, cursor + 2) === ']]' ? cursor + 2 : cursor),
+    body,
+    reference: inner,
+    token,
   }
 }
 
@@ -85,21 +95,23 @@ function locateReferenceToken(value: string, cursor: number): TokenState | null 
   if (iconAt < 0) return null
   const qualifier = PACKAGE_QUALIFIER_PATTERN.exec(head.slice(0, iconAt))
   const packageKey = qualifier?.[1] ?? null
-  const tokenStart = qualifier ? iconAt - qualifier[1]!.length - 1 : iconAt
-  const rest = value.slice(iconAt + 'icon:'.length)
+  const start = qualifier ? iconAt - qualifier[1]!.length - 1 : iconAt
+  const whole = { start, end: value.length }
   const bodyStart = iconAt + 'icon:'.length
+  const rest = value.slice(bodyStart)
+  const body = { start: bodyStart, end: value.length }
   const slash = rest.indexOf('/')
-  // A path field owns the whole value, so every replacement extends to its end.
   if (slash < 0) {
-    return { stage: 'series', packageKey, query: rest, bodyStart, bodyEnd: value.length, tokenStart, tokenEnd: value.length }
+    return { stage: 'series', packageKey, query: rest, body, reference: whole, token: whole }
   }
   return {
     stage: 'icon',
     packageKey,
     seriesKey: rest.slice(0, slash),
     query: rest.slice(slash + 1),
-    tokenStart,
-    tokenEnd: value.length,
+    body,
+    reference: whole,
+    token: whole,
   }
 }
 
@@ -114,86 +126,74 @@ export function createProjectIconCompletionProvider(
   const richText = (options.mode ?? 'rich-text') === 'rich-text'
   const readDimensions = options.readDimensions ?? readProjectIconSize
 
-  const preparedSources: PreparedSource[] = sources.map(source => ({
-    packageKey: source.packageKey,
-    label: source.label,
-    searchKey: (source.packageKey ?? '').toLocaleLowerCase(),
-    searchLabel: source.label.toLocaleLowerCase(),
-    series: source.series,
-  }))
   const catalogByPackage = new Map<string, ProjectIconCatalog>(
     sources.map(source => [source.packageKey ?? '', source.catalog]),
   )
-  const preparedIconsByCollection = new Map<string, Array<{
-    key: string
-    label: string
-    detail: string
-    insertText: string
-    searchKeys: string[]
-    thumbnailStyle?: Record<string, string>
-    thumbnailLabel?: string
-  }>>()
+  const preparedIconsByCollection = new Map<string, PreparedIcon[]>()
 
-  function sourceFor(packageKey: string | null): PreparedSource | null {
-    const searchKey = (packageKey ?? '').toLocaleLowerCase()
-    return preparedSources.find(source => source.searchKey === searchKey) ?? null
+  function catalogFor(packageKey: string | null): ProjectIconCatalog | null {
+    return catalogByPackage.get(packageKey ?? '') ?? null
+  }
+
+  function findCollection(packageKey: string | null, seriesKey: string) {
+    const needle = seriesKey.toLocaleLowerCase()
+    return catalogFor(packageKey)?.series.find(series => series.key.toLocaleLowerCase() === needle) ?? null
   }
 
   function collectionItems(packageKey: string | null, query: string): PropertyCompletionItem[] {
-    const source = sourceFor(packageKey)
-    if (!source) return []
+    const catalog = catalogFor(packageKey)
+    if (!catalog) return []
     const needle = query.toLocaleLowerCase()
-    return source.series
+    return catalog.series
       .filter(series => !needle
         || series.key.toLocaleLowerCase().startsWith(needle)
         || series.name.toLocaleLowerCase().includes(needle))
       .map(series => ({
-        key: `project-icon-series:${packageKey ?? ''}:${series.key}`,
+        key: `project-icon-collection:${packageKey ?? ''}:${series.key}`,
         label: series.name,
-        detail: series.key,
         insertText: `${series.key}/`,
         keepOpen: true,
       }))
   }
 
   /** Packages that ship icons, offered while the caller has not named a package yet. */
-  function sourceItems(query: string): PropertyCompletionItem[] {
+  function packageItems(query: string): PropertyCompletionItem[] {
     const needle = query.toLocaleLowerCase()
-    return preparedSources
+    return sources
       .filter(source => source.packageKey !== null)
-      .filter(source => !needle || source.searchKey.startsWith(needle) || source.searchLabel.includes(needle))
+      .filter(source => !needle
+        || (source.packageKey ?? '').toLocaleLowerCase().startsWith(needle)
+        || source.label.toLocaleLowerCase().includes(needle))
       .map(source => ({
-        key: `project-icon-source:${source.packageKey}`,
+        key: `project-icon-package:${source.packageKey}`,
         label: source.label,
-        detail: source.packageKey ?? '',
+        icon: 'file.package' as const,
         insertText: qualify(source.packageKey, 'icon:'),
         keepOpen: true,
       }))
   }
 
   function iconItems(packageKey: string | null, seriesKey: string, query: string): PropertyCompletionItem[] {
-    const source = sourceFor(packageKey)
-    const catalog = catalogByPackage.get(packageKey ?? '')
-    const series = source?.series.find(candidate => candidate.key.toLocaleLowerCase() === seriesKey.toLocaleLowerCase())
-    if (!source || !catalog || !series) return []
+    const catalog = catalogFor(packageKey)
+    const collection = findCollection(packageKey, seriesKey)
+    if (!catalog || !collection) return []
     // Thumbnails are measured once per collection and reused while the query filters them.
-    const cacheKey = `${packageKey ?? ''}\u0000${series.key.toLocaleLowerCase()}`
+    const cacheKey = `${packageKey ?? ''}\u0000${collection.key.toLocaleLowerCase()}`
     let prepared = preparedIconsByCollection.get(cacheKey)
     if (!prepared) {
-      prepared = series.icons.map(icon => {
-        const entry = catalog.entries.find(candidate => (
-          projectIconIdentity(candidate.seriesKey, candidate.iconKey) === projectIconIdentity(series.key, icon.iconKey)
-        ))
-        const reference = qualify(packageKey, `icon:${series.key}/${icon.iconKey}`)
-        return {
-          key: `project-icon:${packageKey ?? ''}:${series.key}/${icon.iconKey}`,
-          label: icon.name,
-          detail: icon.iconKey,
-          insertText: richText ? `[[${reference}]]` : reference,
-          searchKeys: [icon.iconKey.toLocaleLowerCase(), icon.name.toLocaleLowerCase()],
-          ...(entry ? { thumbnailStyle: createProjectIconStyle(entry, readDimensions), thumbnailLabel: icon.name } : {}),
-        }
-      })
+      prepared = catalog.entries
+        .filter(entry => entry.seriesKey.toLocaleLowerCase() === collection.key.toLocaleLowerCase())
+        .map(entry => {
+          const reference = qualify(packageKey, `icon:${entry.seriesKey}/${entry.iconKey}`)
+          return {
+            key: `project-icon:${packageKey ?? ''}:${entry.seriesKey}/${entry.iconKey}`,
+            label: entry.name,
+            insertText: richText ? `[[${reference}]]` : reference,
+            searchKeys: [entry.iconKey.toLocaleLowerCase(), entry.name.toLocaleLowerCase()],
+            thumbnailStyle: createProjectIconStyle(entry, readDimensions),
+            thumbnailLabel: entry.name,
+          }
+        })
       preparedIconsByCollection.set(cacheKey, prepared)
     }
     const needle = query.toLocaleLowerCase()
@@ -202,34 +202,64 @@ export function createProjectIconCompletionProvider(
       .map(({ searchKeys: _searchKeys, ...icon }) => icon)
   }
 
+  function referenceToken(packageKey: string | null): string {
+    const reference = qualify(packageKey, 'icon:')
+    return richText ? `[[${reference}]]` : reference
+  }
+
   return ({ value, cursor }) => {
     const state = richText ? locateRichTextToken(value, cursor) : locateReferenceToken(value, cursor)
     if (!state) return null
 
     if (state.stage === 'prefix') {
-      // Inside `[[` the caller may still be naming a current-project collection, so offer those
-      // collections first and the packages that ship icons after them.
-      const items: PropertyCompletionItem[] = [
-        ...collectionItems(null, state.query).map(item => ({
-          ...item,
-          key: `project-icon-series::${item.detail}`,
-          insertText: `icon:${item.insertText}`,
-        })),
-        ...sourceItems(state.query),
-      ]
-      return { replaceStart: state.bodyStart, replaceEnd: state.bodyEnd, items }
+      // Nothing after `[[` is a reference yet, so a collection choice has to write the `icon:`
+      // prefix as well. Packages rewrite the whole content.
+      const collections = collectionItems(null, state.query).map(item => ({
+        ...item,
+        insertText: `icon:${item.insertText}`,
+      }))
+      return {
+        replaceStart: state.reference.start,
+        replaceEnd: state.reference.end,
+        items: [...collections, ...packageItems(state.query)],
+      }
     }
 
     if (state.stage === 'series') {
-      const items = state.packageKey === null
-        ? [...collectionItems(null, state.query), ...sourceItems(state.query)]
-        : collectionItems(state.packageKey, state.query)
-      if (!items.length) return null
-      return { replaceStart: state.bodyStart, replaceEnd: state.bodyEnd, items }
+      // Naming a package rewrites the reference, so its items carry their own span.
+      const packages = state.packageKey === null
+        ? packageItems(state.query).map(item => within(state.reference, item))
+        : []
+      const parent = state.packageKey === null
+        ? undefined
+        : within(state.reference, {
+          key: 'project-icon-parent:',
+          label: '..',
+          insertText: richText ? '[[icon:]]' : 'icon:',
+          keepOpen: true,
+        })
+      const items = [...collectionItems(state.packageKey, state.query), ...packages]
+      if (!items.length && !parent) return null
+      return {
+        replaceStart: state.body.start,
+        replaceEnd: state.body.end,
+        items,
+        ...(parent ? { parent } : {}),
+      }
     }
 
-    const items = iconItems(state.packageKey, state.seriesKey, state.query)
+    const items = iconItems(state.packageKey!, state.seriesKey!, state.query)
     if (!items.length) return null
-    return { replaceStart: state.tokenStart, replaceEnd: state.tokenEnd, items }
+    return {
+      replaceStart: state.token.start,
+      replaceEnd: state.token.end,
+      items,
+      parent: {
+        key: 'project-icon-parent:',
+        label: '..',
+        insertText: referenceToken(state.packageKey),
+        keepOpen: true,
+      },
+    }
   }
 }

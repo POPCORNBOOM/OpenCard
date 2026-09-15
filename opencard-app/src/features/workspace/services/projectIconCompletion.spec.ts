@@ -1,135 +1,125 @@
 import { describe, expect, it } from 'vitest'
 import type { ProjectIconSeries } from '../model/projectIcons'
-import type { ProjectIconCatalog } from './projectIconCatalog'
+import { buildProjectIconCatalog } from './projectIconCatalog'
 import { createProjectIconCompletionProvider, type ProjectIconSource } from './projectIconCompletion'
 
-const projectSeries: ProjectIconSeries = {
+const projectSeries: ProjectIconSeries[] = [{
   name: 'Status icons', key: 'status',
   icons: [{ iconKey: 'warning', name: 'Warning badge', source: 'assets/icons/warning.svg', tint: 'theme' }],
-}
-const projectCatalog: ProjectIconCatalog = {
-  series: [{ name: projectSeries.name, key: 'status' }],
-  entries: [{ ...projectSeries.icons[0]!, seriesKey: 'status', src: 'asset://status' }],
-  errors: [],
-}
-const packageSeries: ProjectIconSeries = {
+}]
+const packageSeries: ProjectIconSeries[] = [{
   name: 'Theme marks', key: 'mark',
   icons: [{ iconKey: 'sword', name: 'Sword', source: 'assets/icons/sword.svg', tint: 'original' }],
-}
-const packageCatalog: ProjectIconCatalog = {
-  series: [{ name: packageSeries.name, key: 'mark' }],
-  entries: [{ ...packageSeries.icons[0]!, seriesKey: 'mark', src: 'asset://theme/mark' }],
-  errors: [],
-}
+}]
 
 const projectSource: ProjectIconSource = {
-  packageKey: null, label: 'This project', series: [projectSeries], catalog: projectCatalog,
+  packageKey: null,
+  label: 'This project',
+  catalog: buildProjectIconCatalog(projectSeries, source => `asset://${source}`),
 }
 const packageSource: ProjectIconSource = {
-  packageKey: 'theme', label: 'Theme Pack', series: [packageSeries], catalog: packageCatalog,
+  packageKey: 'theme',
+  label: 'Theme Pack',
+  catalog: buildProjectIconCatalog(packageSeries, source => `asset://theme/${source}`),
 }
 const sources = [projectSource, packageSource]
 /** Sizes as the resolver reports them once the icon has been painted. */
 const readSize = () => ({ width: 16, height: 8 })
 
 describe('project icon completion', () => {
-  it('completes a collection after icon: and keeps the menu open', async () => {
-    const result = await createProjectIconCompletionProvider(sources)({ value: 'x [[icon:st]]', cursor: 11 })
-    expect(result).toMatchObject({ replaceStart: 9, replaceEnd: 11 })
-    expect(result?.items[0]).toMatchObject({
-      label: 'Status icons', detail: 'status', insertText: 'status/', keepOpen: true,
-    })
-  })
-
-  it('searches icons and supplies a measured thumbnail', async () => {
-    const value = '[[icon:status/bad]]'
-    const result = await createProjectIconCompletionProvider(sources, { readDimensions: readSize })(
-      { value, cursor: value.length - 2 },
+  it('lists collections without repeating their key', async () => {
+    const result = await createProjectIconCompletionProvider(sources, { mode: 'reference' })(
+      { value: 'icon:', cursor: 5 },
     )
-    expect(result?.items[0]).toMatchObject({
-      label: 'Warning badge',
-      detail: 'warning',
-      insertText: '[[icon:status/warning]]',
-    })
-    expect(result?.items[0]?.thumbnailStyle?.width).toBe('2em')
+    const collection = result?.items.find(item => item.insertText === 'status/')
+    expect(collection).toMatchObject({ label: 'Status icons', keepOpen: true })
+    expect(collection).not.toHaveProperty('detail')
   })
 
-  it('browses a collection between double brackets and then writes the canonical token', async () => {
-    const provider = createProjectIconCompletionProvider(sources)
-
-    const seriesValue = 'Use [[st]] here'
-    const seriesResult = await provider({ value: seriesValue, cursor: seriesValue.indexOf(']]') })
-    expect(seriesResult).toMatchObject({ replaceStart: 6, replaceEnd: 8 })
-    expect(seriesResult?.items[0]).toMatchObject({ insertText: 'icon:status/', keepOpen: true })
-
-    const iconValue = 'Use [[icon:status/]] here'
-    const iconResult = await provider({ value: iconValue, cursor: iconValue.indexOf(']]') })
-    expect(iconResult).toMatchObject({ replaceStart: 4, replaceEnd: iconValue.indexOf(']]') + 2 })
-    expect(iconResult?.items[0]).toMatchObject({ insertText: '[[icon:status/warning]]' })
+  it('lists icons by name without repeating their key', async () => {
+    const value = 'icon:status/'
+    const result = await createProjectIconCompletionProvider(sources, {
+      mode: 'reference',
+      readDimensions: readSize,
+    })({ value, cursor: value.length })
+    const icon = result?.items[0]
+    expect(icon).toMatchObject({ label: 'Warning badge', insertText: 'icon:status/warning' })
+    expect(icon).not.toHaveProperty('detail')
+    expect(icon?.thumbnailStyle?.width).toBe('2em')
   })
 
-  it('offers the packages that ship icons and writes the package qualifier', async () => {
-    const provider = createProjectIconCompletionProvider(sources)
-
-    const empty = await provider({ value: '[[', cursor: 2 })
-    expect(empty?.items).toContainEqual(expect.objectContaining({
-      key: 'project-icon-source:theme',
-      label: 'Theme Pack',
-      insertText: 'theme@icon:',
-      keepOpen: true,
-    }))
-
-    const packagePrefix = '[[theme@icon:'
-    const seriesResult = await provider({ value: packagePrefix, cursor: packagePrefix.length })
-    expect(seriesResult?.items[0]).toMatchObject({ label: 'Theme marks', insertText: 'mark/', keepOpen: true })
-
-    const packageIcon = '[[theme@icon:mark/'
-    const iconResult = await provider({ value: packageIcon, cursor: packageIcon.length })
-    expect(iconResult?.items[0]).toMatchObject({
-      key: 'project-icon:theme:mark/sword',
-      insertText: '[[theme@icon:mark/sword]]',
-    })
+  it('replaces the whole reference when a package is chosen, not just the collection slot', async () => {
+    const result = await createProjectIconCompletionProvider(sources, { mode: 'reference' })(
+      { value: 'icon:', cursor: 5 },
+    )
+    const pkg = result?.items.find(item => item.insertText === 'theme@icon:')
+    expect(pkg).toMatchObject({ label: 'Theme Pack', replaceStart: 0, replaceEnd: 5 })
+    // Applying it must yield the package reference, not `icon:theme@icon:`.
+    const applied = `icon:`.slice(0, pkg!.replaceStart) + pkg!.insertText + `icon:`.slice(pkg!.replaceEnd!)
+    expect(applied).toBe('theme@icon:')
   })
 
-  it('writes the bare reference for a path field and leaves plain paths alone', async () => {
+  it('walks up from an icon to its collection and from a package collection to the sources', async () => {
     const provider = createProjectIconCompletionProvider(sources, { mode: 'reference' })
-
-    const seriesValue = 'icon:st'
-    const seriesResult = await provider({ value: seriesValue, cursor: seriesValue.length })
-    expect(seriesResult).toMatchObject({ replaceStart: 5, replaceEnd: seriesValue.length })
-    expect(seriesResult?.items[0]).toMatchObject({ label: 'Status icons', insertText: 'status/' })
 
     const iconValue = 'icon:status/'
     const iconResult = await provider({ value: iconValue, cursor: iconValue.length })
-    expect(iconResult).toMatchObject({ replaceStart: 0, replaceEnd: iconValue.length })
-    expect(iconResult?.items[0]).toMatchObject({ insertText: 'icon:status/warning' })
+    expect(iconResult?.parent).toMatchObject({ label: '..', insertText: 'icon:' })
 
-    const packageValue = 'theme@icon:mark/'
-    const packageResult = await provider({ value: packageValue, cursor: packageValue.length })
-    expect(packageResult).toMatchObject({ replaceStart: 0, replaceEnd: packageValue.length })
-    expect(packageResult?.items[0]).toMatchObject({ insertText: 'theme@icon:mark/sword' })
+    const packageIconValue = 'theme@icon:mark/'
+    const packageIconResult = await provider({ value: packageIconValue, cursor: packageIconValue.length })
+    expect(packageIconResult?.parent).toMatchObject({ insertText: 'theme@icon:' })
 
-    expect(await provider({ value: 'assets/portrait.png', cursor: 20 })).toBeNull()
+    const packageCollectionValue = 'theme@icon:'
+    const packageCollectionResult = await provider({
+      value: packageCollectionValue,
+      cursor: packageCollectionValue.length,
+    })
+    expect(packageCollectionResult?.parent).toMatchObject({
+      label: '..',
+      insertText: 'icon:',
+      replaceStart: 0,
+      replaceEnd: packageCollectionValue.length,
+    })
   })
 
-  it('prepares thumbnails only for the active collection and reuses them while filtering', async () => {
+  it('writes the icon: prefix for a collection chosen between double brackets', async () => {
+    const provider = createProjectIconCompletionProvider(sources)
+    const value = 'Use [[st]] here'
+    const result = await provider({ value, cursor: value.indexOf(']]') })
+    expect(result).toMatchObject({ replaceStart: 6, replaceEnd: 8 })
+    expect(result?.items[0]).toMatchObject({ label: 'Status icons', insertText: 'icon:status/', keepOpen: true })
+  })
+
+  it('writes the canonical token for a package icon', async () => {
+    const provider = createProjectIconCompletionProvider(sources)
+    const value = '[[theme@icon:mark/'
+    const result = await provider({ value, cursor: value.length })
+    expect(result?.items[0]).toMatchObject({
+      label: 'Sword',
+      insertText: '[[theme@icon:mark/sword]]',
+    })
+    expect(result?.items[0]).not.toHaveProperty('detail')
+  })
+
+  it('prepares thumbnails once per collection and reuses them while filtering', async () => {
     let sourceReads = 0
     const measuredEntry = {
-      ...projectCatalog.entries[0]!,
+      ...projectSource.catalog.entries[0]!,
       get src() {
         sourceReads += 1
         return 'asset://status'
       },
     }
     const provider = createProjectIconCompletionProvider([
-      { ...projectSource, catalog: { ...projectCatalog, entries: [measuredEntry] } },
-    ])
+      { ...projectSource, catalog: { ...projectSource.catalog, entries: [measuredEntry] } },
+    ], { mode: 'reference' })
     expect(sourceReads).toBe(0)
-    await provider({ value: '[[st', cursor: 4 })
+    await provider({ value: 'icon:st', cursor: 7 })
     expect(sourceReads).toBe(0)
-    await provider({ value: '[[icon:status/', cursor: 14 })
+    await provider({ value: 'icon:status/', cursor: 12 })
     expect(sourceReads).toBe(1)
-    await provider({ value: '[[icon:status/war', cursor: 17 })
+    await provider({ value: 'icon:status/war', cursor: 15 })
     expect(sourceReads).toBe(1)
   })
 })

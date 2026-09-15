@@ -99,7 +99,6 @@ export function useCdeDataTableCellProjection(options: UseCdeDataTableCellProjec
         field,
       ),
       fontCatalog: buildFontCatalog(options.projectContext.value.fonts),
-      iconSeries: options.projectContext.value.iconSeries,
       projectIconCatalog: options.projectContext.value.projectIconCatalog,
       resourceEnvironment: options.projectContext.value.resourceEnvironment,
       directoryProvider: options.directoryProvider.value,

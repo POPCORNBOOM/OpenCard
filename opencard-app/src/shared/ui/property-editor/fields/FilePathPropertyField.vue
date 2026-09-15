@@ -215,8 +215,10 @@ function applySuggestionByKey(key: string): void {
   if (!item || !result) return
 
   const currentValue = activeInput.value?.value.replace(/\\/g, '/') ?? stringValue.value
-  const nextValue = `${currentValue.slice(0, result.replaceStart)}${item.insertText}${currentValue.slice(result.replaceEnd)}`
-  const nextCursor = result.replaceStart + item.insertText.length
+  const replaceStart = item.replaceStart ?? result.replaceStart
+  const replaceEnd = item.replaceEnd ?? result.replaceEnd
+  const nextValue = `${currentValue.slice(0, replaceStart)}${item.insertText}${currentValue.slice(replaceEnd)}`
+  const nextCursor = replaceStart + item.insertText.length
   if (item.key.startsWith('clear-file:')
     || item.insertText.endsWith('/')
     || item.insertText.endsWith('@')

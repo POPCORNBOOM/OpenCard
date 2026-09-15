@@ -110,7 +110,6 @@ export function enrichCardPropertyFieldDefinition(options: {
   referenceContext?: ReferenceCompletionContext | null
   fontCatalog: readonly FontCatalogEntry[]
   directoryProvider?: FilePathDirectoryProvider
-  iconSeries?: readonly ProjectIconSeries[] | null
   projectIconCatalog?: ProjectIconCatalog | null
   resourceEnvironment?: ProjectResourceEnvironment
   project?: Readonly<ProjectInformation> | null
@@ -131,17 +130,14 @@ export function enrichCardPropertyFieldDefinition(options: {
     {
       packageKey: null,
       label: options.translate('propertyEditor.references.project'),
-      series: options.iconSeries ?? [],
       catalog: options.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
     },
     ...Array.from(options.resourceEnvironment?.packageEnvironments ?? []).flatMap(([packageKey, environment]) => {
       const pkg = options.resourceEnvironment?.packages?.get(packageKey)
-      const series = environment.iconDocument.iconSeries ?? []
-      return pkg && !pkg.unavailable && series.length
+      return pkg && !pkg.unavailable && environment.iconCatalog.entries.length
         ? [{
           packageKey: pkg.manifest.key,
           label: pkg.manifest.name,
-          series,
           catalog: environment.iconCatalog,
         }]
         : []

@@ -29,7 +29,6 @@ describe('card property field enrichment', () => {
       fieldKey: 'source',
       record: {},
       fontCatalog: [],
-      iconSeries,
       projectIconCatalog: buildProjectIconCatalog(iconSeries, source => `asset://${source}`),
     })
 
