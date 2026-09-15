@@ -6,7 +6,6 @@ export { RESOURCE_PACKAGE_EXTENSION, RESOURCE_PACKAGE_SUFFIX } from './resourceP
  * - 只返回文件语义结果 不处理编辑器渲染流程
  */
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
-import { PROJECT_INTERNAL_DIRECTORY_NAME } from './projectStructure'
 import { INSTALLED_RESOURCE_PACKAGE_MANIFEST_GLOB } from './resourcePackage'
 
 export const CARD_DOCUMENT_EXTENSION = 'ocdocument'
@@ -291,17 +290,6 @@ function getExtension(path: string): string {
   return normalizeSegment(baseName.slice(dotIndex + 1))
 }
 
-function isProjectInternalFile(path: string, projectRoot: string): boolean {
-  const normalizedPath = path.replace(/\\/g, '/')
-  const separatorIndex = normalizedPath.lastIndexOf('/')
-  if (separatorIndex < 0) return true
-  const parentPath = normalizedPath.slice(0, separatorIndex).replace(/\/+$/, '')
-  const normalizedRoot = `${projectRoot.replace(/\\/g, '/').replace(/\/+$/, '')}/${PROJECT_INTERNAL_DIRECTORY_NAME}`
-  return isWindowsLikePath(projectRoot)
-    ? parentPath.toLocaleLowerCase() === normalizedRoot.toLocaleLowerCase()
-    : parentPath === normalizedRoot
-}
-
 function isRegisteredManagedSource(
   path: string,
   projectRoot: string | undefined,
@@ -339,14 +327,9 @@ export function resolveFileType(path: string, projectRoot?: string): FileTypeDef
   )))
   if (patternMatch) return patternMatch
 
-  const fileNameMatch = fileTypes.find((definition) => {
-    const matches = definition.fileNames?.some((fileName) => (
-      caseInsensitive ? normalizeSegment(fileName) === baseName : fileName === getBaseName(path)
-    ))
-    const isLegacyProjectAlias = definition.id.startsWith('opencard-')
-      && definition.fileNames?.some((fileName) => fileName.startsWith('.oc'))
-    return Boolean(matches) && (!isLegacyProjectAlias || !projectRoot || isProjectInternalFile(path, projectRoot))
-  })
+  const fileNameMatch = fileTypes.find((definition) => Boolean(definition.fileNames?.some((fileName) => (
+    caseInsensitive ? normalizeSegment(fileName) === baseName : fileName === getBaseName(path)
+  ))))
   if (fileNameMatch) return fileNameMatch
 
   const extension = getExtension(path)
