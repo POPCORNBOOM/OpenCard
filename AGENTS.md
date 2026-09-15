@@ -39,6 +39,24 @@
 - Progress reports must distinguish observed facts, hypotheses, production-code changes, automated verification, and pending manual verification. Never describe unverified UI behavior as complete.
 - During implementation, proactively report at each meaningful phase boundary (diagnosis complete, production edit complete, verification complete) and whenever a command stalls or work takes unexpectedly long. Do not remain silent through extended tool use; keep the user informed about current findings, changes, blockers, and next steps.
 
+## Test Guards
+
+- Tests have two roles and only one of them is permanent. A test written while building records **current behaviour**, incidental implementation detail included; that is scaffolding. A test that freezes a **confirmed contract** is a guard.
+- Scaffolding may be dismantled and rewritten wholesale to serve a design change. Never refuse a correct design change because scaffolding would go red, and never keep an accidental assertion merely because it currently passes.
+- Promote a module's tests to a guard only when the module is confirmed clean. That judgement is the agent's, and it is offered to the user as a by-product of ordinary work — not sought out, and not raised repeatedly.
+- A guard is named `<Source>.guard.spec.ts`. `scripts/lint-naming.mjs` strips `.spec.ts` and then takes the segment before the first `.`, so `OcCard.guard.spec.ts` still resolves to `OcCard.vue` and passes `lint:naming` unchanged. Do not invent a prefix such as `[A]`: it breaks that check.
+- Promotion criteria — all six must hold:
+  1. The responsibility fits one sentence containing no "and".
+  2. Every input and output is an explicit parameter or return value; no globals, no captured outer state.
+  3. One implementation of each meaning across the repository.
+  4. Every export has a caller outside its own file.
+  5. Failure is a value carrying a code, not a throw and not a silent fallback.
+  6. Behaviour is testable as a pure function: no mock framework, no mount, no fake timers.
+- Offer it once, in this shape: `发现 <module> 满足完美无缺要求，理由：【三句以内】, 模块结构：【方法：输入 arg 名|类型|含义，输出 名|类型|含义；数据结构字段：名|类型|含义与用途】`. That structure list is the guard's table of contents: each entry becomes an assertion.
+- Promotion requires a **stable contract**. Early-Stage Compatibility allows persisted formats to be rewritten outright, so a guard freezes the module's inputs and outputs, never a file format.
+- When dismantling scaffolding, re-derive the module's intended contract and confirm that any **cross-module** contract it carried is still guarded at the seam. Otherwise a refactor can change behaviour with nothing left to detect it.
+- This section governs deliberate design changes. Production-First Debugging still governs bug reports: there, identify the production root cause before touching a spec. Weakening an assertion so that something passes is forbidden under both.
+
 ## Release Notes
 
 - The agent that implements a user-facing feature, fix, or removal must update `opencard-app/RELEASE_NOTES.md` for that specific change before handoff or commit.
