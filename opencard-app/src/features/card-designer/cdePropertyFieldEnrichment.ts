@@ -20,8 +20,11 @@ import {
 import type { ProjectFontRegistry } from '../workspace/model/projectFontRegistry'
 import { toCssFontFamily, type FontCatalogEntry } from '../workspace/model/projectFonts'
 import type { ProjectIconSeries } from '../workspace/model/projectIcons'
-import type { ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
-import { createProjectIconCompletionProvider } from '../workspace/services/projectIconCompletion'
+import { EMPTY_PROJECT_ICON_CATALOG, type ProjectIconCatalog } from '../workspace/services/projectIconCatalog'
+import {
+  createProjectIconCompletionProvider,
+  type ProjectIconSource,
+} from '../workspace/services/projectIconCompletion'
 import type { ProjectResourceEnvironment } from '../workspace/services/projectResourceEnvironment'
 import { buildResourceFontCatalog } from '../workspace/services/resourceReference'
 import {
@@ -124,8 +127,31 @@ export function enrichCardPropertyFieldDefinition(options: {
   const fontProvider = options.fieldKey === 'fontFamily'
     ? createFontCompletionProvider(fontCatalog, options.translate('propertyEditor.references.project'), options.resourceEnvironment)
     : undefined
+  const iconSources: readonly ProjectIconSource[] = [
+    {
+      packageKey: null,
+      label: options.translate('propertyEditor.references.project'),
+      series: options.iconSeries ?? [],
+      catalog: options.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
+    },
+    ...Array.from(options.resourceEnvironment?.packageEnvironments ?? []).flatMap(([packageKey, environment]) => {
+      const pkg = options.resourceEnvironment?.packages?.get(packageKey)
+      const series = environment.iconDocument.iconSeries ?? []
+      return pkg && !pkg.unavailable && series.length
+        ? [{
+          packageKey: pkg.manifest.key,
+          label: pkg.manifest.name,
+          series,
+          catalog: environment.iconCatalog,
+        }]
+        : []
+    }),
+  ]
+  // Rich text stores the `[[...]]` token; an image source stores the bare reference.
   const iconProvider = (options.fieldKey === 'content' || (options.fieldKey === 'source' && options.definition.fieldType === 'filePath'))
-    ? createProjectIconCompletionProvider(options.iconSeries, options.projectIconCatalog)
+    ? createProjectIconCompletionProvider(iconSources, {
+      mode: options.fieldKey === 'content' ? 'rich-text' : 'reference',
+    })
     : undefined
   const provider = bindingProvider || fontProvider || iconProvider
     ? chainPropertyCompletionProviders([bindingProvider, fontProvider, iconProvider])
