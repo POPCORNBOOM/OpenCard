@@ -301,6 +301,13 @@ Agent 在 `shared/ui/foundation/themes.ts` 中新增语义 token 时，`OC_THEME
 - emit 正确触发
 - disabled 阻止交互
 
+**jsdom 层的边界**：测试跑在 jsdom 上，它没有图片解码、canvas 与 WebGL 实现，也不做真实排版。以下行为在这一层**无法**被验证，只能在真实窗口里人工确认，提交信息和进度报告都不得把它们写成"已验证"：
+
+- **光栅化输出本身**：`utils/exportCard.ts` 经 `dom-to-image-more` 生成 PNG/JPEG，测试必须 mock 该库，因此只覆盖选项映射与错误处理，不覆盖像素。
+- **canvas / WebGL 画面**：`OcPhaseImage`、`WelcomeGravityField`、`AppearanceShaderPreview` 的实际渲染结果。
+- **依赖真实排版的几何**：jsdom 不做布局，`getBoundingClientRect` 一律为 0，基于它测量出来的位置与尺寸都需要真实窗口复核。
+- **`window.matchMedia`**：jsdom 不提供，读取前一律走 `shared/ui/foundation/prefersReducedMotion.ts`，不得直接读全局。
+
 ### 铁律 26 — 模态对话框一律使用 `OcDialog`
 
 - 应用级模态对话框必须使用 `components/standard/OcDialog.vue`；feature 组件不得自行实现 Teleport、backdrop、`aria-modal`、焦点陷阱、容器几何、z-index 或进出动画。

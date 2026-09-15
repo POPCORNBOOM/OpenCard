@@ -5,11 +5,11 @@
         :disabled="disabled || currentIndex <= 0" :aria-label="previousLabel" :data-tooltip="previousLabel"
         @click="step(-1)" />
     </template>
-    <OcFieldInput variant="plain" full-width readonly :value="currentOption?.label ?? ''"
+    <OcFieldInput variant="plain" full-width readonly :value="currentLabel"
       @keydown.left.prevent="step(-1)" @keydown.right.prevent="step(1)" />
     <template #suffix>
       <OcButton type="button" icon-only variant="ghost" icon="nav.arrow-right"
-        :disabled="disabled || currentIndex < 0 || currentIndex >= options.length - 1"
+        :disabled="disabled || currentIndex >= options.length - 1"
         :aria-label="nextLabel" :data-tooltip="nextLabel" @click="step(1)" />
     </template>
   </OcFieldFrame>
@@ -43,7 +43,8 @@ const emit = defineEmits<{
 }>()
 
 const currentIndex = computed(() => props.options.findIndex(option => option.value === props.modelValue))
-const currentOption = computed(() => props.options[currentIndex.value])
+/** 值不在选项里时显示原值：用户仍看得到当前存的是什么，也能用“下一个”进入列表。 */
+const currentLabel = computed(() => props.options[currentIndex.value]?.label ?? props.modelValue)
 
 function step(direction: -1 | 1): void {
   if (props.disabled) return

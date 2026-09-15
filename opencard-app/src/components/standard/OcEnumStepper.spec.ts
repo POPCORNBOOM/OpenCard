@@ -104,10 +104,22 @@ describe('OcEnumStepper', () => {
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 
-  it('shows an empty field and disables both arrows when the value is not among the options', () => {
+  it('keeps an unknown value visible and lets the next arrow step into the list', async () => {
     const wrapper = mount(OcEnumStepper, { props: { modelValue: 'missing', options } })
 
-    expect(field(wrapper).value).toBe('')
+    expect(field(wrapper).value).toBe('missing')
+    expect(wrapper.findAll('button')[0].attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('button')[1].attributes('disabled')).toBeUndefined()
+
+    await wrapper.findAll('button')[1].trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([['left']])
+  })
+
+  it('keeps both arrows disabled when there are no options to step into', () => {
+    const wrapper = mount(OcEnumStepper, { props: { modelValue: 'missing', options: [] } })
+
+    expect(field(wrapper).value).toBe('missing')
     expect(wrapper.findAll('button').every(button => button.attributes('disabled') !== undefined)).toBe(true)
   })
 
