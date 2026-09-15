@@ -188,7 +188,7 @@ export function enrichCardPropertyFieldDefinition(options: {
       ...(iconProvider ? [{ open: '[[', close: ']]' }] : []),
     ] } : {}),
     ...(bindingProvider ? { binding: { provider: bindingProvider } } : {}),
-    ...(iconProvider ? { projectIcon: { provider: iconProvider, catalog: options.projectIconCatalog ?? undefined } } : {}),
+    ...(iconProvider ? { projectIcon: { provider: iconProvider, catalog: options.projectIconCatalog ?? undefined, sources: iconSources } } : {}),
     ...(provider ? { completion: { ...options.definition.completion, provider } } : {}),
   } as PropertyEditorFieldDefinition
 }

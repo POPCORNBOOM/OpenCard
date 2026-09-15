@@ -368,8 +368,10 @@ const projectIconEntriesByActionKey = computed(() => new Map(
   (props.projectIconCatalog?.entries ?? []).map(entry => [projectIconActionKey(entry), entry]),
 ))
 const recentProjectIconEntries = computed(() => recentProjectIconIdentities.value.flatMap(identity => {
+  // The recent row lists current-project icons; the identity still carries the package so a
+  // package icon and a project icon sharing collection and icon keys cannot collide.
   const entry = props.projectIconCatalog?.entries.find(candidate => (
-    projectIconRecentIdentity(candidate.seriesKey, candidate.iconKey) === identity
+    projectIconRecentIdentity(null, candidate.seriesKey, candidate.iconKey) === identity
   ))
   return entry ? [entry] : []
 }))
@@ -719,7 +721,7 @@ function insertProjectIconEntry(entry: ProjectIconCatalogEntry): void {
     const position = currentEditor.state.selection.from
     currentEditor.chain().focus().updateAttributes('projectIcon', attrs).setNodeSelection(position).run()
   } else currentEditor.chain().focus().insertContent(createProjectIconContent(currentEditor, entry)).run()
-  rememberRecentProjectIcon(entry.seriesKey, entry.iconKey)
+  rememberRecentProjectIcon(null, entry.seriesKey, entry.iconKey)
 }
 
 function createProjectIconContent(

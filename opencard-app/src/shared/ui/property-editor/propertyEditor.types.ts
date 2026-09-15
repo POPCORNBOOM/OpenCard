@@ -1,6 +1,7 @@
 import type { IconToken } from '../icon/iconRegistry'
 import type { FilePathDirectoryProvider, FilePathFilter } from '../../model/filePath'
 import type { ProjectIconCatalog } from '../../../features/workspace/services/projectIconCatalog'
+import type { ProjectIconSource } from '../../../features/workspace/services/projectIconCompletion'
 import type { OcNodeTailDisplayPart } from '../node/node.types'
 import type { OcActionDefinition } from '../../../components/standard/OcActionMenu.vue'
 
@@ -124,6 +125,8 @@ type PropertyEditorFieldBase = {
   projectIcon?: {
     provider?: PropertyCompletionProvider
     catalog?: ProjectIconCatalog
+    /** Icon sources the editor may offer: the current project first, then packages that ship icons. */
+    sources?: readonly ProjectIconSource[]
   }
   /** Display-only tail; a property row's commands go through its action rail instead. */
   tail?: OcNodeTailDisplayPart | readonly OcNodeTailDisplayPart[]
