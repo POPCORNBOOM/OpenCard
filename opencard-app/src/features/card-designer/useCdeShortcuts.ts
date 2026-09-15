@@ -193,7 +193,7 @@ function resolveScopeFromPath(path: readonly EventTarget[]): CdeShortcutScope | 
   return null
 }
 
-function isEditableEventPath(path: readonly EventTarget[]): boolean {
+export function isEditableEventPath(path: readonly EventTarget[]): boolean {
   return path.some(target => target instanceof Element && (
     target.matches('input, textarea, select, [contenteditable="true"], .monaco-editor')
     || target.getAttribute('role') === 'textbox'

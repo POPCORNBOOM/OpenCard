@@ -3,6 +3,7 @@
  * Selection truth, document commands, plane models, and viewport geometry stay outside.
  */
 import { nextTick, onMounted, onUnmounted, ref, type Ref } from 'vue'
+import { isEditableEventPath } from './useCdeShortcuts'
 
 export type CdeLayerViewPort = {
   nudgeSelection: (deltaX: number, deltaY: number) => boolean
@@ -46,6 +47,9 @@ export function useCdeLayerViewInteraction(options: UseCdeLayerViewInteractionOp
     ) return
 
     if (event.key === 'Tab') {
+      // Tab is the one key the canvas claims from anywhere inside the editor, but an editable
+      // control owns Tab. The shortcut router exempts editables the same way.
+      if (isEditableEventPath(event.composedPath())) return
       if (options.hasRenderableFace.value) layerViewActive.value = true
       consume(event)
       return

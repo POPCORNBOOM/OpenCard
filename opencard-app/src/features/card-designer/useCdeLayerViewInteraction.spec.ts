@@ -93,14 +93,25 @@ describe('useCdeLayerViewInteraction', () => {
     wrapper.unmount()
   })
 
-  it('activates Layer View when Tab starts from a CDE child control', async () => {
+  it('activates Layer View when Tab starts from a non-editable CDE child control', async () => {
+    const { interaction, wrapper } = createHarness()
+    const child = wrapper.get('.button')
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    child.element.dispatchEvent(event)
+    await nextTick()
+    expect(event.defaultPrevented).toBe(true)
+    expect(interaction.layerViewActive.value).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('leaves Tab to an editable control instead of claiming it for Layer View', async () => {
     const { interaction, wrapper } = createHarness()
     const input = wrapper.get('.input')
     const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
     input.element.dispatchEvent(event)
     await nextTick()
-    expect(event.defaultPrevented).toBe(true)
-    expect(interaction.layerViewActive.value).toBe(true)
+    expect(event.defaultPrevented).toBe(false)
+    expect(interaction.layerViewActive.value).toBe(false)
     wrapper.unmount()
   })
 
