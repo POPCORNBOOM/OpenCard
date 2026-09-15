@@ -339,9 +339,7 @@ import {
 import {
   MAX_SIDEBAR_WIDTH,
   MIN_SIDEBAR_WIDTH,
-  type ProjectWorkspaceSidebarState,
 } from '../settings/model/appSettings'
-import { updateProjectWorkspaceState } from '../settings/model/workspaceState'
 import SettingsWorkspace from '../settings/components/SettingsWorkspace.vue'
 import CreateProjectWorkspace from '../project-templates/components/CreateProjectWorkspace.vue'
 import ExportTemplateWorkspace from '../project-templates/components/ExportTemplateWorkspace.vue'
@@ -410,6 +408,7 @@ import type { ApplicationCloseAction } from './composables/useUnsavedSessionGuar
 import { useShellEditorHost } from './composables/useShellEditorHost'
 import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle'
 import { recentProjectKey, useRecentProjectSnapshots } from './composables/useRecentProjectSnapshots'
+import { useShellSidebarLayout } from './composables/useShellSidebarLayout'
 import { useShellWindow } from './composables/useShellWindow'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
@@ -663,46 +662,25 @@ const { categoryTreeData: settingsCategoryTreeData, activeCategory: activeSettin
   translate: t,
 })
 
-const sidebarCollapsed = computed(() => settingsStore.settings.value.shell.sidebarCollapsed)
-const sidebarWidth = ref(settingsStore.settings.value.shell.sidebarWidth)
-const lastExpandedSidebarWidth = ref(sidebarWidth.value)
-const sidebarResizeActive = ref(false)
-const sidebarResizeCollapsed = ref<boolean | null>(null)
-const sidebarResizeToggleAnimating = ref(false)
-let sidebarResizeRevision = 0
-const effectiveSidebarCollapsed = computed(() => (
-  (sidebarResizeCollapsed.value ?? sidebarCollapsed.value)
-  || (viewportWidth.value < 960 && !isCreateProjectMode.value)
-))
-watch(() => settingsStore.settings.value.shell.sidebarWidth, width => {
-  if (!sidebarResizeActive.value) sidebarWidth.value = width
+const {
+  sidebarCollapsed,
+  sidebarWidth,
+  effectiveSidebarCollapsed,
+  sidebarResizeActive,
+  sidebarResizeToggleAnimating,
+  sidebarPersistedLayout,
+  toggleSidebarCollapsed,
+  handleSidebarResizeStart,
+  handleSidebarResizeEnd,
+  handleSidebarTransitionEnd,
+  handleSidebarResize,
+  handleSidebarLayoutChange,
+} = useShellSidebarLayout({
+  settings: settingsStore,
+  projectPath,
+  viewportWidth,
+  isCreateProjectMode,
 })
-const sidebarWorkspaceStateKey = computed(() => projectPath.value.replace(/\\/g, '/').replace(/\/+$/, ''))
-const sidebarPersistedLayout = computed<ProjectWorkspaceSidebarState | undefined>(() => {
-  const key = sidebarWorkspaceStateKey.value
-  const sidebar = key ? settingsStore.settings.value.projectCreation.workspaceStates[key]?.sidebar : undefined
-  return sidebar ? {
-    collapsedLists: [...sidebar.collapsedLists],
-    listWeights: { ...sidebar.listWeights },
-  } : undefined
-})
-function handleSidebarLayoutChange(layout: ProjectWorkspaceSidebarState): void {
-  const key = sidebarWorkspaceStateKey.value
-  if (!key) return
-  settingsStore.updateProjectCreation({
-    workspaceStates: updateProjectWorkspaceState(
-      settingsStore.settings.value.projectCreation.workspaceStates,
-      key,
-      current => {
-        current.sidebar = {
-          collapsedLists: [...layout.collapsedLists],
-          listWeights: { ...layout.listWeights },
-        }
-        return current
-      },
-    ),
-  })
-}
 const exportRendererRef = ref<InstanceType<typeof CardFaceRenderer>>()
 const projectTreeRef = ref<{ beginRename: (key: string) => Promise<void> } | null>(null)
 
@@ -2977,57 +2955,6 @@ async function openCreateProject(): Promise<void> {
   }
 
   enterCreateProject()
-}
-
-function toggleSidebarCollapsed() {
-  if (sidebarCollapsed.value) {
-    settingsStore.updateShell({
-      sidebarCollapsed: false,
-      sidebarWidth: lastExpandedSidebarWidth.value,
-    })
-    return
-  }
-
-  lastExpandedSidebarWidth.value = Math.max(sidebarWidth.value, MIN_SIDEBAR_WIDTH)
-  settingsStore.updateShell({ sidebarCollapsed: true })
-}
-
-function handleSidebarResizeStart(): void {
-  sidebarResizeRevision += 1
-  sidebarResizeActive.value = true
-  sidebarResizeCollapsed.value = sidebarCollapsed.value
-  sidebarResizeToggleAnimating.value = false
-}
-
-function handleSidebarResizeEnd(): void {
-  const revision = sidebarResizeRevision
-  const collapsed = sidebarResizeCollapsed.value ?? sidebarCollapsed.value
-  settingsStore.updateShell({
-    sidebarCollapsed: collapsed,
-    sidebarWidth: sidebarWidth.value,
-  })
-  void nextTick(() => {
-    if (sidebarResizeRevision !== revision) return
-    sidebarResizeActive.value = false
-    sidebarResizeCollapsed.value = null
-    sidebarResizeToggleAnimating.value = false
-  })
-}
-
-function handleSidebarTransitionEnd(event: TransitionEvent): void {
-  if (event.propertyName === 'grid-template-columns') sidebarResizeToggleAnimating.value = false
-}
-
-function handleSidebarResize(width: number) {
-  const collapsed = width <= SHELL_SIDEBAR_COLLAPSE_THRESHOLD
-  const previousCollapsed = sidebarResizeCollapsed.value ?? sidebarCollapsed.value
-  if (collapsed !== previousCollapsed) sidebarResizeToggleAnimating.value = true
-  sidebarResizeCollapsed.value = collapsed
-  if (collapsed) return
-
-  const nextWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(width, MIN_SIDEBAR_WIDTH))
-  sidebarWidth.value = nextWidth
-  lastExpandedSidebarWidth.value = nextWidth
 }
 
 function createUntitledOpenCard() {
