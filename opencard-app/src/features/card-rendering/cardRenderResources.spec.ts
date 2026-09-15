@@ -104,7 +104,7 @@ describe('cardRenderResources', () => {
     const packageEnvironment: ProjectResourceEnvironment = {
       kind: 'package',
       namespace: 'package-alice-picture',
-      rootPath: 'D:/Cards/.opencard/blocks/alice/picture/resources',
+      rootPath: 'D:/Cards/.opencard/packages/alice-picture',
       fontDocument: {},
       fonts: {},
       iconDocument: {},
@@ -119,7 +119,7 @@ describe('cardRenderResources', () => {
     })
 
     expect(resolveCardAssetSrc('assets/a.png', context, 'package-image'))
-      .toBe('asset://D:/Cards/.opencard/blocks/alice/picture/resources/assets/a.png')
+      .toBe('asset://D:/Cards/.opencard/packages/alice-picture/assets/a.png')
     expect(resolveCardAssetSrc('assets/a.png', context)).toBe('')
   })
 

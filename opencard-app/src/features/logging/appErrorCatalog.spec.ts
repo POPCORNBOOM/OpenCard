@@ -1,11 +1,31 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import errorCodeDocument from '../../../../docs/错误码.md?raw'
 import {
   APP_ERROR_CATALOG,
   createAppErrorReport,
   getAppErrorMeaning,
   isAppErrorReport,
 } from './appErrorCatalog'
+
+/**
+ * Read the query document from disk rather than importing it as `?raw`.
+ * The document lives outside the Vite root, and an import of it was refused with a
+ * "Denied ID" error in some environments, which failed this whole file to load and
+ * silently retired the guard below. Walking up from the working directory instead keeps
+ * the guard independent of the bundler and of the test environment's URL scheme.
+ */
+function readErrorCodeDocument(): string {
+  let directory = process.cwd()
+  for (let depth = 0; depth < 3; depth += 1) {
+    const candidate = resolve(directory, 'docs/错误码.md')
+    if (existsSync(candidate)) return readFileSync(candidate, 'utf8')
+    directory = resolve(directory, '..')
+  }
+  throw new Error('Could not locate docs/错误码.md from the working directory')
+}
+
+const errorCodeDocument = readErrorCodeDocument()
 
 describe('appErrorCatalog', () => {
   it('uses searchable codes with complete localized meanings and solutions', () => {

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./projectStore', () => ({
   useProjectStore: () => ({
     projectPath: { value: 'D:/project' },
-    readFile: vi.fn(),
+    readFile: vi.fn(async () => '{}'),
     saveFile: vi.fn(),
     saveProjectConfiguration: vi.fn(),
     saveProjectFontRegistry: vi.fn(),
@@ -35,7 +35,7 @@ describe('editorSessionStore explicit save path', () => {
   it('opens managed project files with their dedicated editors', async () => {
     const store = useEditorSessionStore()
 
-    const session = await store.openPreviewFile('D:/project/.opencard/.ocfonts')
+    const session = await store.openPreviewFile('D:/project/.opencard/fonts/fonts.json')
 
     expect(session).toMatchObject({
       fileTypeId: 'opencard-font-registry',

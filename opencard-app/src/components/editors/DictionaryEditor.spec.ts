@@ -33,7 +33,7 @@ describe('DictionaryEditor', () => {
   it('does not add row, column, or cell selection states', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ base: { title: 'Default' }, languages: { en_US: {} } }),
       },
     })
@@ -56,7 +56,7 @@ describe('DictionaryEditor', () => {
     const writeBinaryFile = vi.spyOn(fileSystemService, 'writeBinaryFile').mockResolvedValue()
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ base: { title: 'Default' } }),
       },
       global: { stubs: { Teleport: true } },
@@ -81,7 +81,7 @@ describe('DictionaryEditor', () => {
   it('adds records and language columns in place inside the grid', async () => {
     const wrapper = mount(DictionaryEditor, {
       attachTo: document.body,
-      props: { filePath: 'D:/Demo/.oclocale', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/locale.json', modelValue: '{}' },
     })
     await wrapper.get('tbody button').trigger('click')
     const recordForm = wrapper.get('tbody .dictionary-editor__inline-create')
@@ -108,7 +108,7 @@ describe('DictionaryEditor', () => {
     const wrapper = mount(DictionaryEditor, {
       attachTo: document.body,
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ base: { title: 'Default', body: 'Body' } }),
       },
     })
@@ -133,7 +133,7 @@ describe('DictionaryEditor', () => {
   it('uses embedded fields, shows inheritance, creates overrides, and resets them', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ base: { title: '默认' }, languages: { en_US: {} } }),
       },
     })
@@ -151,7 +151,7 @@ describe('DictionaryEditor', () => {
   it('sets and clears the active language in the draft', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ languages: { en_US: {} } }),
       },
     })
@@ -168,7 +168,7 @@ describe('DictionaryEditor', () => {
   it('keeps language header actions together in one trailing group', () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ languages: { en_US: {} } }),
       },
     })
@@ -182,7 +182,7 @@ describe('DictionaryEditor', () => {
     const wrapper = mount(DictionaryEditor, {
       attachTo: document.body,
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({
           base: { title: '默认', body: '正文' },
           languages: { en_US: { title: 'English' } },
@@ -221,7 +221,7 @@ describe('DictionaryEditor', () => {
   it('copies record keys and language keys from their action menus', async () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ base: { title: 'Default' }, languages: { en_US: {} } }),
       },
     })
@@ -236,7 +236,7 @@ describe('DictionaryEditor', () => {
 
   it('uses source repair mode for invalid content', () => {
     const wrapper = mount(DictionaryEditor, {
-      props: { filePath: 'D:/Demo/.oclocale', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.opencard/locale.json', modelValue: '{broken' },
     })
     expect(wrapper.find('.dictionary-editor__repair').exists()).toBe(true)
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
@@ -245,7 +245,7 @@ describe('DictionaryEditor', () => {
   it('reports a missing active language without changing the draft', () => {
     const wrapper = mount(DictionaryEditor, {
       props: {
-        filePath: 'D:/Demo/.oclocale',
+        filePath: 'D:/Demo/.opencard/locale.json',
         modelValue: JSON.stringify({ active: 'fr_FR', base: { title: 'Default' } }),
       },
     })

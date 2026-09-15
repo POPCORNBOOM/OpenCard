@@ -306,7 +306,7 @@ function addTemplatePackage(
     description: '',
     entry,
   }))
-  fs.putFile(`${root}/content/.opencard/.ocproject`, projectFile(options.name))
+  fs.putFile(`${root}/content/.opencard/project.json`, projectFile(options.name))
   fs.putFile(`${root}/content/${entry}`, cardDocument())
 }
 
@@ -343,7 +343,7 @@ function cardDocument(name = ''): string {
 }
 
 function addImportSource(fs: MemoryFileSystem): void {
-  fs.putFile('/source/.opencard/.ocproject', projectFile())
+  fs.putFile('/source/.opencard/project.json', projectFile())
   fs.putFile('/source/main.ocdocument', cardDocument())
   fs.putFile('/source/assets/portrait.png', new Uint8Array([0, 127, 255]))
 }
@@ -426,7 +426,7 @@ describe('ProjectTemplateService prepared package import', () => {
     })
     fs.putFile('/prepared.octemplate', zipSync({
       'template.json': strToU8(manifest),
-      'content/.opencard/.ocproject': strToU8(projectFile()),
+      'content/.opencard/project.json': strToU8(projectFile()),
       'content/main.ocdocument': strToU8(cardDocument('Prepared Blueprint')),
       'content/assets/cover-a.png': new Uint8Array([1, 2]),
       'content/assets/cover-b.webp': new Uint8Array([3, 4]),
@@ -446,6 +446,7 @@ describe('ProjectTemplateService prepared package import', () => {
     })
     expect(fs.rawFile('/appdata/templates/prepared/content/assets/cover-b.webp'))
       .toEqual(new Uint8Array([3, 4]))
+    expect(await fs.fileExists('/appdata/templates/prepared/content/.opencard/project.json')).toBe(true)
   })
 
   it('rejects files outside content and unsupported extensions', async () => {
@@ -473,7 +474,7 @@ describe('ProjectTemplateService package export', () => {
   it('does not allow an existing project dictionary to be excluded', async () => {
     const fs = new MemoryFileSystem()
     addImportSource(fs)
-    fs.putFile('/source/.opencard/.oclocale', '{}')
+    fs.putFile('/source/.opencard/locale.json', '{}')
 
     await expect(createService(fs).exportProjectTemplate({
       sourcePath: '/source',
@@ -482,7 +483,7 @@ describe('ProjectTemplateService package export', () => {
       description: '',
       entry: 'main.ocdocument',
       covers: [],
-      excludedPaths: ['.opencard/.oclocale'],
+      excludedPaths: ['.opencard/locale.json'],
     })).rejects.toMatchObject({ code: 'source-not-project' })
   })
 
@@ -590,20 +591,21 @@ describe('ProjectTemplateService project creation', () => {
     expect(fs.allPaths().filter(path => path.startsWith('/projects/Empty'))).toEqual([
       '/projects/Empty',
       '/projects/Empty/.opencard',
-      '/projects/Empty/.opencard/.ocfonts',
-      '/projects/Empty/.opencard/.ocicons',
-      '/projects/Empty/.opencard/.oclocale',
-      '/projects/Empty/.opencard/.ocproject',
-      '/projects/Empty/.opencard/blocks',
       '/projects/Empty/.opencard/fonts',
+      '/projects/Empty/.opencard/fonts/fonts.json',
       '/projects/Empty/.opencard/icons',
+      '/projects/Empty/.opencard/icons/icons.json',
+      '/projects/Empty/.opencard/locale.json',
+      '/projects/Empty/.opencard/packages',
+      '/projects/Empty/.opencard/packages/packages.json',
+      '/projects/Empty/.opencard/project.json',
     ])
   })
 
   it('copies the selected template atomically and returns its entry', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
+    fs.putFile('/template/content/.opencard/project.json', projectFile())
     fs.putFile('/template/content/cards/main.ocdocument', cardDocument())
     fs.putFile('/template/content/assets/portrait.png', new Uint8Array([1, 2, 3]))
 
@@ -614,8 +616,8 @@ describe('ProjectTemplateService project creation', () => {
     })
 
     expect(created).toEqual({ path: '/projects/Demo', entry: '/projects/Demo/cards/main.ocdocument' })
-    expect(await fs.fileExists('/projects/Demo/.opencard/.ocproject')).toBe(true)
-    const projectFileContent = JSON.parse(fs.rawFile('/projects/Demo/.opencard/.ocproject') as string)
+    expect(await fs.fileExists('/projects/Demo/.opencard/project.json')).toBe(true)
+    const projectFileContent = JSON.parse(fs.rawFile('/projects/Demo/.opencard/project.json') as string)
     expect(projectFileContent).toMatchObject({ name: 'Demo' })
     expect(projectFileContent).not.toHaveProperty('entry')
     expect(fs.rawFile('/projects/Demo/assets/portrait.png')).toEqual(new Uint8Array([1, 2, 3]))
@@ -625,7 +627,7 @@ describe('ProjectTemplateService project creation', () => {
   it('copies template content without opening a page when None is selected', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
+    fs.putFile('/template/content/.opencard/project.json', projectFile())
     fs.putFile('/template/content/main.ocdocument', cardDocument())
 
     const created = await createService(fs, 'no-entry').createProject({
@@ -642,7 +644,7 @@ describe('ProjectTemplateService project creation', () => {
   it('refuses an existing target without touching it', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects/Demo')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
+    fs.putFile('/template/content/.opencard/project.json', projectFile())
     fs.putFile('/template/content/main.ocdocument', cardDocument())
 
     await expect(createService(fs).createProject({
@@ -657,7 +659,7 @@ describe('ProjectTemplateService project creation', () => {
   it('returns a selected candidate entry without persisting it as project metadata', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
+    fs.putFile('/template/content/.opencard/project.json', projectFile())
     fs.putFile('/template/content/main.ocdocument', cardDocument())
     fs.putFile('/template/content/alternate.ocdocument', cardDocument())
     const template = {
@@ -673,14 +675,15 @@ describe('ProjectTemplateService project creation', () => {
     })
 
     expect(created.entry).toBe('/projects/Demo/alternate.ocdocument')
-    const projectFileContent = JSON.parse(fs.rawFile('/projects/Demo/.opencard/.ocproject') as string)
+    const projectFileContent = JSON.parse(fs.rawFile('/projects/Demo/.opencard/project.json') as string)
+    expect(projectFileContent).toMatchObject({ name: 'Demo' })
     expect(projectFileContent).not.toHaveProperty('entry')
   })
 
   it('rolls back when the template entry is missing', async () => {
     const fs = new MemoryFileSystem()
     fs.putDirectory('/projects')
-    fs.putFile('/template/content/.opencard/.ocproject', projectFile())
+    fs.putFile('/template/content/.opencard/project.json', projectFile())
 
     await expect(createService(fs, 'missing-entry').createProject({
       template: templateFixture('/template/content', 'missing.ocdocument'),
@@ -696,7 +699,7 @@ describe('ProjectTemplateService project creation', () => {
 describe('ProjectTemplateService safety boundaries', () => {
   it('accepts a document entry whose missing faces can use current defaults', async () => {
     const fs = new MemoryFileSystem()
-    fs.putFile('/source/.opencard/.ocproject', projectFile())
+    fs.putFile('/source/.opencard/project.json', projectFile())
     fs.putFile('/source/main.ocdocument', JSON.stringify({
       type: 'card-document',
       id: 'legacy',
@@ -743,7 +746,7 @@ describe('ProjectTemplateService safety boundaries', () => {
 
   it('sorts valid document entries and imports a selected entry other than the first', async () => {
     const fs = new MemoryFileSystem()
-    fs.putFile('/source/.opencard/.ocproject', projectFile())
+    fs.putFile('/source/.opencard/project.json', projectFile())
     fs.putFile('/source/z-last.ocdocument', cardDocument('Last Blueprint'))
     fs.putFile('/source/cards/a-first.ocdocument', cardDocument('First Blueprint'))
     fs.putFile('/source/b-middle.ocdocument', cardDocument())

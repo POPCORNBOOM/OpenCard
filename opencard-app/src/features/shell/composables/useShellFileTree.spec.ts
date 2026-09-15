@@ -64,7 +64,7 @@ describe('useShellFileTree opened editors', () => {
       projectPath: ref(projectPath),
       indexedEntries: ref([
         { name: '.opencard', isDirectory: true },
-        { name: '.opencard/.ocproject', isDirectory: false },
+        { name: '.opencard/project.json', isDirectory: false },
         { name: '.opencard/fonts', isDirectory: true },
         { name: '.opencard/fonts/Brand.otf', isDirectory: false },
         { name: '.env', isDirectory: false },
@@ -90,7 +90,7 @@ describe('useShellFileTree opened editors', () => {
       projectPath: ref(projectPath),
       indexedEntries: ref([
         { name: '.opencard', isDirectory: true },
-        { name: '.opencard/.ocproject', isDirectory: false },
+        { name: '.opencard/project.json', isDirectory: false },
         { name: '.env', isDirectory: false },
       ]),
       hideDotFiles: ref(false),
@@ -109,7 +109,7 @@ describe('useShellFileTree opened editors', () => {
       `${projectPath}/.env`,
     ])
     expect(projectTreeData.value.children.get(`${projectPath}/.opencard`))
-      .toEqual([`${projectPath}/.opencard/.ocproject`])
+      .toEqual([`${projectPath}/.opencard/project.json`])
   })
 
   it('provides fixed localized project-management entries that open managed files', async () => {

@@ -26,10 +26,10 @@ describe('externalOpenService', () => {
 
   it('classifies only OpenCard file types', () => {
     expect(classifyExternalOpenPath('D:\\Cards\\main.ocdocument')).toBe('card')
-    expect(classifyExternalOpenPath('D:/Cards/.opencard/.ocproject')).toBe('project-resource')
-    expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/.OCLOCALE')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/.opencard/project.json')).toBe('project-resource')
+    expect(classifyExternalOpenPath('D:/Cards/.OPENCARD/LOCALE.JSON')).toBe('project-resource')
     expect(classifyExternalOpenPath('D:/Cards/en_US.ocproject')).toBeNull()
-    expect(classifyExternalOpenPath('/cards/.opencard/.OCLOCALE')).toBeNull()
+    expect(classifyExternalOpenPath('/cards/.opencard/LOCALE.JSON')).toBeNull()
     expect(classifyExternalOpenPath('D:/Cards/demo.octemplate')).toBe('template')
     expect(classifyExternalOpenPath('D:/Packs/status.ociconpack')).toBe('icon-pack')
     expect(classifyExternalOpenPath('D:/Cards/demo.zip')).toBeNull()

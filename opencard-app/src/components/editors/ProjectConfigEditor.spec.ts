@@ -32,7 +32,7 @@ describe('ProjectConfigEditor', () => {
   it('edits only project name, description, and version', async () => {
     const wrapper = mount(ProjectConfigEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocproject',
+        filePath: 'D:/Demo/.opencard/project.json',
         modelValue: JSON.stringify({ name: 'Demo', description: 'Info', version: '1.0.0' }),
       },
     })
@@ -54,7 +54,7 @@ describe('ProjectConfigEditor', () => {
 
   it('omits empty profile fields', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{"name":"Demo"}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{"name":"Demo"}' },
     })
     await wrapper.get('[data-field-key="name"] input').setValue('')
     const updates = wrapper.emitted('update:modelValue') ?? []
@@ -63,7 +63,7 @@ describe('ProjectConfigEditor', () => {
 
   it('edits the project HTTPS host allowlist with custom controls', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{}' },
     })
 
     const modeControl = wrapper.getComponent(OcOptionGroup)
@@ -87,7 +87,7 @@ describe('ProjectConfigEditor', () => {
 
   it('stores allow-all without rendering a host list', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{}' },
     })
 
     wrapper.getComponent(OcOptionGroup).vm.$emit('update:modelValue', 'allow-all')
@@ -100,7 +100,7 @@ describe('ProjectConfigEditor', () => {
 
   it('stores export fields only as the default export configuration', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{}' },
     })
     const task = {
       documentPaths: ['cards/main.ocdocument'],
@@ -121,7 +121,7 @@ describe('ProjectConfigEditor', () => {
 
   it('persists collapsed project-profile sections and exposes them in the outline', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{}' },
     })
 
     expect(wrapper.findAll('.project-profile-editor__outline-item')).toHaveLength(3)
@@ -152,7 +152,7 @@ describe('ProjectConfigEditor', () => {
     })
     const wrapper = mount(ProjectConfigEditor, {
       props: {
-        filePath: 'D:/Demo/.opencard/.ocproject',
+        filePath: 'D:/Demo/.opencard/project.json',
         modelValue: '{}',
       },
     })
@@ -170,7 +170,7 @@ describe('ProjectConfigEditor', () => {
 
   it('stores the project cover as a project-relative path', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{"name":"Demo"}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{"name":"Demo"}' },
     })
 
     expect(wrapper.get('[data-field-key="cover"]').text()).toContain('projectConfig.fields.cover')
@@ -189,7 +189,7 @@ describe('ProjectConfigEditor', () => {
 
   it('shows the embedded JSON repair editor for invalid content', () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{broken' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{broken' },
     })
     expect(wrapper.find('.project-profile-editor__repair').exists()).toBe(true)
     expect(wrapper.find('.monaco-stub').exists()).toBe(true)
@@ -197,7 +197,7 @@ describe('ProjectConfigEditor', () => {
 
   it('emits the standard save command from Ctrl+S for valid content', async () => {
     const wrapper = mount(ProjectConfigEditor, {
-      props: { filePath: 'D:/Demo/.opencard/.ocproject', modelValue: '{}' },
+      props: { filePath: 'D:/Demo/.opencard/project.json', modelValue: '{}' },
     })
     await wrapper.get('.project-profile-editor').trigger('keydown', { ctrlKey: true, key: 's' })
     expect(wrapper.emitted('save')).toHaveLength(1)

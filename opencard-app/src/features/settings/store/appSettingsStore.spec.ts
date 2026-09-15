@@ -8,7 +8,7 @@ describe('appSettingsStore', () => {
     const persistence = new MemorySettingsPersistence({
       version: 1,
       appearance: { theme: 'light', locale: 'en-US' },
-      shell: { sidebarWidth: 500, sidebarCollapsed: true },
+      shell: { sidebarWidth: 320, sidebarCollapsed: true },
     })
     const store = createAppSettingsStore(persistence)
 
@@ -16,7 +16,7 @@ describe('appSettingsStore', () => {
 
     expect(store.isReady.value).toBe(true)
     expect(store.settings.value.appearance.theme).toBe('light')
-    expect(store.settings.value.shell.sidebarWidth).toBe(500)
+    expect(store.settings.value.shell.sidebarWidth).toBe(320)
   })
 
   it('validates semantic updates and persists the final document', async () => {
@@ -54,7 +54,7 @@ describe('appSettingsStore', () => {
         accentNeighborAngles: { dark: -50, light: -72 },
         fontFamilies: { dark: 'system', light: 'serif' },
       },
-      shell: { sidebarWidth: 640, sidebarCollapsed: true },
+      shell: { sidebarWidth: 420, sidebarCollapsed: true },
       updates: { suppressReleaseNotesAfterUpdate: true },
       exporting: { openCdeWorkbookAfterExport: false },
       workspace: {
@@ -199,11 +199,11 @@ describe('appSettingsStore', () => {
     const store = createAppSettingsStore(new MemorySettingsPersistence())
     await store.initialize()
     store.updateSetting('appearance.theme', 'light')
-    store.updateShell({ sidebarWidth: 500 })
+    store.updateShell({ sidebarWidth: 320 })
 
     store.resetSection('appearance')
 
     expect(store.settings.value.appearance).toEqual(createDefaultAppSettings().appearance)
-    expect(store.settings.value.shell.sidebarWidth).toBe(500)
+    expect(store.settings.value.shell.sidebarWidth).toBe(320)
   })
 })

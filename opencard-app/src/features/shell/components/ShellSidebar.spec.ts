@@ -29,7 +29,7 @@ describe('ShellSidebar', () => {
             hoverTip: 'New File',
             children: [
               { key: 'project.new-file.ocdocument', title: 'OpenCard (.ocdocument)' },
-              { key: 'project.new-file.ocproject', title: 'Project Configuration' },
+              { key: 'project.new-file.project-configuration', title: 'Project Configuration' },
             ],
           }],
         }]),

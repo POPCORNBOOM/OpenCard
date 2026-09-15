@@ -42,34 +42,35 @@ describe('projectStructureService', () => {
     expect(fs.renameFile).toHaveBeenCalledWith('D:/Cards/.opencard-init-test', 'D:/Cards/.opencard')
     expect(entries.get('D:/Cards/.opencard/fonts')).toBe('directory')
     expect(entries.get('D:/Cards/.opencard/icons')).toBe('directory')
-    expect(entries.get('D:/Cards/.opencard/blocks')).toBe('directory')
-    expect(entries.get('D:/Cards/.opencard/.ocproject')).toBe('file')
+    expect(entries.get('D:/Cards/.opencard/packages')).toBe('directory')
+    expect(entries.get('D:/Cards/.opencard/project.json')).toBe('file')
     expect([...writes.keys()].sort()).toEqual([
-      'D:/Cards/.opencard-init-test/.ocfonts',
-      'D:/Cards/.opencard-init-test/.ocicons',
-      'D:/Cards/.opencard-init-test/.oclocale',
-      'D:/Cards/.opencard-init-test/.ocproject',
+      'D:/Cards/.opencard-init-test/fonts/fonts.json',
+      'D:/Cards/.opencard-init-test/icons/icons.json',
+      'D:/Cards/.opencard-init-test/locale.json',
+      'D:/Cards/.opencard-init-test/packages/packages.json',
+      'D:/Cards/.opencard-init-test/project.json',
     ])
-    expect(writes.get('D:/Cards/.opencard-init-test/.ocfonts')).toBe('{}\n')
+    expect(writes.get('D:/Cards/.opencard-init-test/project.json')).toBe('{}\n')
   })
 
   it('repairs missing managed entries without overwriting existing files', async () => {
     const { fs, entries } = createFileSystem({
       'D:/Cards/.opencard': 'directory',
-      'D:/Cards/.opencard/.ocproject': 'file',
+      'D:/Cards/.opencard/project.json': 'file',
     })
     await ensureProjectStructure(fs, 'D:/Cards')
 
-    expect(entries.get('D:/Cards/.opencard/.ocfonts')).toBe('file')
+    expect(entries.get('D:/Cards/.opencard/locale.json')).toBe('file')
     expect(entries.get('D:/Cards/.opencard/fonts')).toBe('directory')
-    expect(fs.writeFile).not.toHaveBeenCalledWith('D:/Cards/.opencard/.ocproject', expect.anything())
+    expect(fs.writeFile).not.toHaveBeenCalledWith('D:/Cards/.opencard/project.json', expect.anything())
   })
 
   it('ignores extra root files and rejects unsafe managed paths without writing', async () => {
     const extra = createFileSystem({ 'D:/Cards/.ocfonts': 'file' })
     await initializeProjectStructure(extra.fs, 'D:/Cards')
     expect(extra.entries.get('D:/Cards/.ocfonts')).toBe('file')
-    expect(extra.entries.get('D:/Cards/.opencard/.ocfonts')).toBe('file')
+    expect(extra.entries.get('D:/Cards/.opencard/project.json')).toBe('file')
 
     const unsafe = createFileSystem({ 'D:/Cards/.opencard': 'symlink' })
     await expect(initializeProjectStructure(unsafe.fs, 'D:/Cards')).rejects.toThrow('Invalid OpenCard project directory')

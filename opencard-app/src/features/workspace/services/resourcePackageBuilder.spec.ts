@@ -6,7 +6,7 @@ import { createResourcePackageContentHash } from './resourcePackageHash'
 
 function files() {
   return [
-    { path: '.opencard/fonts.json', bytes: strToU8('{"families":[]}') },
+    { path: '.opencard/fonts/fonts.json', bytes: strToU8('{"families":[]}') },
     { path: 'assets/card.png', bytes: new Uint8Array([1, 2, 3]) },
   ]
 }

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RenderReadyCardFace } from '../render.types'
@@ -90,6 +90,28 @@ describe('CardViewport wheel zoom API', () => {
       animationFrames.shift()?.(index * 16)
     }
     await nextTick()
+  }
+
+  /**
+   * 选择框拖拽按 client 坐标差量计算位移（CardViewport.vue:1695-1698），
+   * 且手势中的首个 pointermove 只用于建立基准位置，
+   * 因此一次位移需要先落一次基准事件再落实际位移事件。
+   */
+  function createSelectionDrag(originX = 500, originY = 400) {
+    let x = originX
+    let y = originY
+    return {
+      begin(): void {
+        x = originX
+        y = originY
+        window.dispatchEvent(new MouseEvent('pointermove', { clientX: x, clientY: y }))
+      },
+      moveBy(deltaX: number, deltaY: number): void {
+        x += deltaX
+        y += deltaY
+        window.dispatchEvent(new MouseEvent('pointermove', { clientX: x, clientY: y }))
+      },
+    }
   }
 
   it('zooms in around the supplied viewport anchor', async () => {
@@ -410,6 +432,7 @@ describe('CardViewport wheel zoom API', () => {
 
     await wrapper.setProps({ selectedBlockId: 'selected' })
     await nextTick()
+    await flushPromises()
     const actions = wrapper.findAllComponents({ name: 'OcActionButton' })
     expect(actions.map((action) => action.props('action').key))
       .toEqual(['content.edit-rich-text', 'fill-parent', 'center', 'inset', 'outset'])
@@ -469,7 +492,14 @@ describe('CardViewport wheel zoom API', () => {
     await wrapper.get('.selection-frame').trigger('contextmenu')
     const menu = useFloatingMenu()
     expect(menu.state.value.items.map(item => item.key))
-      .toEqual(['content.edit-rich-text', 'fill-parent', 'center', 'inset', 'outset'])
+      .toEqual([
+        'content.edit-rich-text',
+        'selection-layout-divider',
+        'fill-parent',
+        'center',
+        'inset',
+        'outset',
+      ])
     menu.selectMenuItem('fill-parent')
     const contextSelectionActions = wrapper.emitted('selection-action') ?? []
     expect(contextSelectionActions[contextSelectionActions.length - 1]).toEqual([
@@ -481,12 +511,9 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.find('.selection-size-label--width').exists()).toBe(false)
     expect(wrapper.get('.selection-size-label--height').text()).toBe('80px')
     await wrapper.setProps({ selectedBlockId: 'other' })
-    const resizeMove = new Event('pointermove')
-    Object.defineProperties(resizeMove, {
-      movementX: { value: 0 },
-      movementY: { value: -10 },
-    })
-    window.dispatchEvent(resizeMove)
+    const resizeDrag = createSelectionDrag()
+    resizeDrag.begin()
+    resizeDrag.moveBy(0, -10)
     window.dispatchEvent(new Event('pointerup'))
     expect(wrapper.emitted('resize-selection')?.[0]?.[0]).toMatchObject({
       blockId: 'selected',
@@ -495,6 +522,7 @@ describe('CardViewport wheel zoom API', () => {
     })
     await wrapper.setProps({ selectedBlockId: 'selected' })
     await nextTick()
+    await flushPromises()
 
     await wrapper.get('.selection-frame').trigger('pointerdown')
     expect(wrapper.find('.selection-block-info').exists()).toBe(false)
@@ -562,16 +590,14 @@ describe('CardViewport wheel zoom API', () => {
 
     await wrapper.setProps({ selectedBlockId: 'selected' })
     await nextTick()
+    await flushPromises()
     expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
       .toEqual(['selection-handle-r', 'selection-handle-b'])
 
     await wrapper.get('.selection-handle-b').trigger('pointerdown')
-    const crossAxisMove = new Event('pointermove')
-    Object.defineProperties(crossAxisMove, {
-      movementX: { value: 0 },
-      movementY: { value: 20 },
-    })
-    window.dispatchEvent(crossAxisMove)
+    const crossAxisDrag = createSelectionDrag()
+    crossAxisDrag.begin()
+    crossAxisDrag.moveBy(0, 20)
     window.dispatchEvent(new Event('pointerup'))
     expect(wrapper.emitted('resize-selection')?.[0]?.[0]).toEqual({
       blockId: 'selected',
@@ -588,12 +614,9 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.findAll('.selection-handle').map(handle => handle.classes()[1]))
       .toEqual(['selection-handle-r', 'selection-handle-t', 'selection-handle-b'])
     await wrapper.get('.selection-handle-b').trigger('pointerdown')
-    const centeredCrossAxisMove = new Event('pointermove')
-    Object.defineProperties(centeredCrossAxisMove, {
-      movementX: { value: 0 },
-      movementY: { value: 10 },
-    })
-    window.dispatchEvent(centeredCrossAxisMove)
+    const centeredCrossAxisDrag = createSelectionDrag()
+    centeredCrossAxisDrag.begin()
+    centeredCrossAxisDrag.moveBy(0, 10)
     window.dispatchEvent(new Event('pointerup'))
     expect(wrapper.emitted('resize-selection')?.[1]?.[0]).toEqual({
       blockId: 'selected',
@@ -643,15 +666,13 @@ describe('CardViewport wheel zoom API', () => {
 
     await wrapper.setProps({ selectedBlockId: 'selected' })
     await nextTick()
+    await flushPromises()
     await wrapper.get('.selection-handle-r').trigger('pointerdown')
 
+    const selectionDrag = createSelectionDrag()
+    selectionDrag.begin()
     const moveBy = async (movementX: number) => {
-      const move = new Event('pointermove')
-      Object.defineProperties(move, {
-        movementX: { value: movementX },
-        movementY: { value: 0 },
-      })
-      window.dispatchEvent(move)
+      selectionDrag.moveBy(movementX, 0)
       await nextTick()
     }
 
@@ -713,13 +734,11 @@ describe('CardViewport wheel zoom API', () => {
 
     await wrapper.setProps({ selectedBlockId: 'selected' })
     await nextTick()
+    await flushPromises()
     await wrapper.get('.selection-handle-r').trigger('pointerdown')
-    const resizeMove = new Event('pointermove')
-    Object.defineProperties(resizeMove, {
-      movementX: { value: 5 },
-      movementY: { value: 0 },
-    })
-    window.dispatchEvent(resizeMove)
+    const resizeDrag = createSelectionDrag()
+    resizeDrag.begin()
+    resizeDrag.moveBy(5, 0)
     await nextTick()
 
     const guide = wrapper.get('.selection-alignment-guides line')
@@ -738,12 +757,9 @@ describe('CardViewport wheel zoom API', () => {
     expect(wrapper.find('.selection-alignment-guides').exists()).toBe(false)
 
     await wrapper.get('.selection-frame').trigger('pointerdown')
-    const move = new Event('pointermove')
-    Object.defineProperties(move, {
-      movementX: { value: 5 },
-      movementY: { value: 0 },
-    })
-    window.dispatchEvent(move)
+    const moveDrag = createSelectionDrag()
+    moveDrag.begin()
+    moveDrag.moveBy(5, 0)
     await nextTick()
     expect(wrapper.get('.selection-alignment-guides line').attributes())
       .toMatchObject({ x1: '258', x2: '258', y1: '120', y2: '230' })
@@ -758,12 +774,9 @@ describe('CardViewport wheel zoom API', () => {
 
     await wrapper.setProps({ alignmentSnappingEnabled: false })
     await wrapper.get('.selection-frame').trigger('pointerdown')
-    const unsnappedMove = new Event('pointermove')
-    Object.defineProperties(unsnappedMove, {
-      movementX: { value: 5 },
-      movementY: { value: 0 },
-    })
-    window.dispatchEvent(unsnappedMove)
+    const unsnappedDrag = createSelectionDrag()
+    unsnappedDrag.begin()
+    unsnappedDrag.moveBy(5, 0)
     await nextTick()
     expect(wrapper.find('.selection-alignment-guides').exists()).toBe(false)
     expect(wrapper.get('.selection-frame').attributes('style')).toContain('left: 155px')

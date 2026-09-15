@@ -66,7 +66,7 @@ describe('CardFaceRenderer resources', () => {
     const packageEnvironment: ProjectResourceEnvironment = {
       kind: 'package',
       namespace: 'package-alice-picture',
-      rootPath: 'D:/Cards/.opencard/blocks/alice/picture/resources',
+      rootPath: 'D:/Cards/.opencard/packages/alice-picture',
       fontDocument: {},
       fonts: {},
       iconDocument: {},

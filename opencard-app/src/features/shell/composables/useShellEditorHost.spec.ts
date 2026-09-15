@@ -1,5 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import DictionaryEditor from '../../../components/editors/DictionaryEditor.vue'
 import MonacoEditor from '../../../components/editors/MonacoEditor.vue'
 import ImagePreviewEditor from '../../../components/editors/ImagePreviewEditor.vue'
 import FontPreviewEditor from '../../../components/editors/FontPreviewEditor.vue'
@@ -166,6 +167,37 @@ describe('useShellEditorHost', () => {
     host.dispose()
   })
 
+  it('resolves a managed project file type from its path when the session id agrees', () => {
+    const matching = createHost(createSession({
+      fileTypeId: 'opencard-dictionary',
+      editorId: 'dictionary',
+      name: 'locale.json',
+      path: 'D:/project/.opencard/locale.json',
+      resourceKind: 'workspace',
+      mode: 'diff',
+      diff: { beforeRevisionId: 'abc', afterRevisionId: null },
+    }))
+
+    expect(matching.host.component.value).toBe(MonacoEditor)
+    expect(matching.host.props.value).toMatchObject({ mode: 'diff', language: 'json' })
+    matching.host.dispose()
+
+    // A declared file type that disagrees with the path keeps its own type instead of the path one.
+    const mismatched = createHost(createSession({
+      fileTypeId: 'unsupported',
+      editorId: 'dictionary',
+      name: 'locale.json',
+      path: 'D:/project/.opencard/locale.json',
+      resourceKind: 'workspace',
+      mode: 'diff',
+      diff: { beforeRevisionId: 'abc', afterRevisionId: null },
+    }))
+
+    expect(mismatched.host.component.value).toBe(DictionaryEditor)
+    expect(mismatched.host.props.value.language).toBeUndefined()
+    mismatched.host.dispose()
+  })
+
   it('routes font files and missing editors to safe preview sessions', () => {
     const font = createHost(createSession({
       fileTypeId: 'font',
@@ -211,9 +243,9 @@ describe('useShellEditorHost', () => {
   it('auto-saves structured font and icon registry draft updates', async () => {
     const { host, saveActiveSession } = createHost(createSession({
       editorId: 'font-registry',
-      fileTypeId: 'font-registry',
-      name: '.ocfonts',
-      path: 'D:/project/.opencard/.ocfonts',
+      fileTypeId: 'opencard-font-registry',
+      name: 'fonts.json',
+      path: 'D:/project/.opencard/fonts/fonts.json',
     }))
     const update = host.props.value['onUpdate:modelValue'] as (value: string) => void
 
@@ -355,7 +387,7 @@ describe('useShellEditorHost', () => {
   it.each([
     ['Card Designer', createSession()],
     ['Dictionary', createSession({
-      fileTypeId: 'dictionary', editorId: 'dictionary', name: '.oclocale', path: 'D:/project/.oclocale',
+      fileTypeId: 'opencard-dictionary', editorId: 'dictionary', name: 'locale.json', path: 'D:/project/.opencard/locale.json',
     })],
   ])('projects and routes %s workbook actions through a narrow editor boundary', async (_name, session) => {
     const { host } = createHost(session)

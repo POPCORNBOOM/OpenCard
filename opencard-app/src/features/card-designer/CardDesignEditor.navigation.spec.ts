@@ -195,6 +195,7 @@ describe('CardDesignEditor issue navigation', () => {
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
     const wrapper = shallowMount(CardDesignEditor, {
+      attachTo: document.body,
       props: { filePath: 'card.ocdocument', modelValue: JSON.stringify(createDocument()) },
       global: {
         plugins: [i18n],
@@ -221,6 +222,7 @@ describe('CardDesignEditor issue navigation', () => {
     const updated = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
     expect(updated.faces.front.children).toEqual([])
     expect(structureTree.props('selectedKeys')).toEqual([])
+    wrapper.unmount()
   })
 
   it('selects the instance and block, forces tree reveal, and focuses the property field', async () => {
@@ -543,6 +545,13 @@ describe('CardDesignEditor issue navigation', () => {
       },
     })
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      setup(_, { expose }) {
+        expose({ fitView: vi.fn(), zoomBy: vi.fn(), zoomByWheelAt: vi.fn() })
+        return () => h('div')
+      },
+    })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
         filePath: 'card.ocdocument',
@@ -557,6 +566,7 @@ describe('CardDesignEditor issue navigation', () => {
       global: {
         plugins: [i18n],
         stubs: {
+          CardViewport: CardViewportStub,
           PropertyEditor: PropertyEditorStub,
           OcCard: { template: '<div><slot /></div>' },
           OcPanel: { template: '<div><slot /></div>' },
@@ -801,7 +811,7 @@ describe('CardDesignEditor issue navigation', () => {
     expect(backState.selectedBlockIdsByFace).toEqual({ front: ['text-1'], back: [] })
     editor.selectViewportBlock('back-text-1')
     await nextTick()
-    const latest = (wrapper.emitted('update-card-designer-view') ?? [(undefined as unknown)]).slice(-1)[0] as { selectedBlockIdsByFace?: Record<string, string[]> }
+    const latest = (wrapper.emitted('update-card-designer-view') ?? []).slice(-1)[0]?.[0] as { selectedBlockIdsByFace?: Record<string, string[]> }
     expect(latest.selectedBlockIdsByFace).toEqual({ front: ['text-1'], back: ['back-text-1'] })
   })
 
@@ -1058,6 +1068,7 @@ describe('CardDesignEditor issue navigation', () => {
     const source = createDocument()
     setBlockProperty(source.faces.front.children[0]!.block, 'zIndex', '2')
     const wrapper = shallowMount(CardDesignEditor, {
+      attachTo: document.body,
       props: {
         filePath: 'D:/Project/cards/hero.ocdocument',
         fileName: 'hero.ocdocument',
@@ -1181,6 +1192,12 @@ describe('CardDesignEditor issue navigation', () => {
       children: Array<{ block: { children: Array<{ block: { id: string } }> } }>
     }
     expect(duplicatedFace.children[0]?.block.children).toHaveLength(2)
+    const duplicateViewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    const duplicateViewState = duplicateViewUpdates[duplicateViewUpdates.length - 1]?.[0] as {
+      selectedBlockIdsByFace: Record<string, string[]>
+    }
+    expect(duplicateViewState.selectedBlockIdsByFace.front)
+      .toEqual([duplicatedFace.children[0]?.block.children[1]?.block.id])
     await root.trigger('keydown', { key: 'Delete' })
     await nextTick()
     const restoredFace = viewport.props('face') as {
@@ -1188,7 +1205,12 @@ describe('CardDesignEditor issue navigation', () => {
     }
     expect(restoredFace.children[0]?.block.children).toHaveLength(1)
 
-    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
+    // 选择变化会提交视图状态：Delete 清空该面的块选择。
+    const selectionViewUpdates = wrapper.emitted('update-card-designer-view') ?? []
+    const clearedViewState = selectionViewUpdates[selectionViewUpdates.length - 1]?.[0] as {
+      selectedBlockIdsByFace: Record<string, string[]>
+    }
+    expect(clearedViewState.selectedBlockIdsByFace).toEqual({ front: [], back: [] })
     await root.trigger('keydown', { key: 's' })
     const snappingEvents = wrapper.emitted('update-card-designer-view') ?? []
     const snappingUpdate = snappingEvents[snappingEvents.length - 1]?.[0] as {
@@ -1218,6 +1240,7 @@ describe('CardDesignEditor issue navigation', () => {
     window.dispatchEvent(new Event('blur'))
     await nextTick()
     expect(viewport.props('layerViewActive')).toBe(false)
+    wrapper.unmount()
   })
 
   it('fills and centers a flow child only on the cross axis', async () => {
@@ -1376,6 +1399,13 @@ describe('CardDesignEditor issue navigation', () => {
 
   it('renders the Card Designer mode controlled by its prop', async () => {
     const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
+    const CardViewportStub = defineComponent({
+      name: 'CardViewport',
+      setup(_, { expose }) {
+        expose({ fitView: vi.fn(), zoomBy: vi.fn(), zoomByWheelAt: vi.fn() })
+        return () => h('div')
+      },
+    })
     const wrapper = shallowMount(CardDesignEditor, {
       props: {
         filePath: 'card.ocdocument',
@@ -1387,14 +1417,14 @@ describe('CardDesignEditor issue navigation', () => {
           selectedInstanceId: null,
         },
       },
-      global: { plugins: [i18n] },
+      global: { plugins: [i18n], stubs: { CardViewport: CardViewportStub } },
     })
     await nextTick()
 
     const table = wrapper.findComponent({ name: 'CardDataTable' })
     expect(table.exists()).toBe(true)
     expect((table.props('faceGroups') as Array<{ blocks: unknown[] }>)[0]?.blocks).toEqual([])
-    expect(wrapper.find('.card-design-editor__face-tools').exists()).toBe(false)
+    expect(wrapper.get('.card-design-editor__stage-layer').classes()).toContain('is-data-table-mode')
 
     table.vm.$emit('add-block', 'text-1')
     await nextTick()
@@ -1417,7 +1447,8 @@ describe('CardDesignEditor issue navigation', () => {
 
     await wrapper.setProps({ cardDesignerMode: 'design' })
     await nextTick()
-    expect(wrapper.findComponent({ name: 'CardDataTable' }).exists()).toBe(false)
+    expect(wrapper.get('.card-design-editor__stage-layer').classes()).not.toContain('is-data-table-mode')
+    expect(wrapper.get('.card-design-editor__data-table-view').classes()).not.toContain('is-active')
     expect(wrapper.findComponent({ name: 'OcOptionGroup' }).exists()).toBe(false)
   })
 
@@ -1579,7 +1610,7 @@ describe('CardDesignEditor issue navigation', () => {
     document.dataTable = {
       blocks: {
         'text-1': ['content', 'fontFamily'],
-        'image-1': ['image'],
+        'image-1': ['source'],
       },
     }
     const readDirectoryEntries = vi.spyOn(fileSystemService, 'readDirectoryEntries').mockResolvedValue([{
@@ -1634,7 +1665,7 @@ describe('CardDesignEditor issue navigation', () => {
     const contentDefinition = getDefinition('text-1', contentField, contentField.cells[0]!)
 
     const imageBlock = faceGroups[0]!.blocks.find(block => block.key === 'image-1')!
-    const imageField = imageBlock.fields.find(field => field.key === 'image')!
+    const imageField = imageBlock.fields.find(field => field.key === 'source')!
     const imageDefinition = getDefinition('image-1', imageField, imageField.cells[0]!)
     const imageEntries = await imageDefinition.directoryProvider?.('')
 
