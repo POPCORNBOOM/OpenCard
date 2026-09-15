@@ -1386,7 +1386,10 @@ const propertyDirectoryProvider = computed<FilePathDirectoryProvider | undefined
         sourceFilePath,
         projectStore.projectResourceEnvironment.value,
         fileSystemService,
-        { hideDotFiles: settingsStore.settings.value.workspace.hideDotFiles },
+        {
+          hideDotFiles: settingsStore.settings.value.workspace.hideDotFiles,
+          iconEntryLabel: t('projectConfig.icons.title'),
+        },
       )
     : undefined
 })

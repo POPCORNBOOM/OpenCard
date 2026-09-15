@@ -8,7 +8,7 @@ export function createResourceDirectoryProvider(
   sourceFilePath: string,
   environment: ProjectResourceEnvironment,
   fs: Pick<FileSystemService, 'readDirectoryEntries'>,
-  options: { hideDotFiles?: boolean } = {},
+  options: { hideDotFiles?: boolean, iconEntryLabel?: string } = {},
 ): FilePathDirectoryProvider {
   const source = /^[a-z]:[\\/]/i.test(sourceFilePath) || sourceFilePath.startsWith('/')
     ? sourceFilePath : `${rootPath.replace(/[\\/]+$/, '')}/${sourceFilePath}`
@@ -33,6 +33,9 @@ export function createResourceDirectoryProvider(
     if (prefix) return entries
     return [
       ...entries,
+      // Selecting this writes the `icon:` prefix without a separator, and the field's icon
+      // completion takes over from there.
+      { name: 'icon:', label: options.iconEntryLabel, isDirectory: true, icon: 'file.project-icon' as const },
       ...[...(current?.packages ?? [])].filter(([, pkg]) => !pkg.unavailable).map(([key, pkg]) => ({
         name: `${key}@`, label: pkg.manifest.name, isDirectory: true, icon: 'file.package' as const,
       })),

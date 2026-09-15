@@ -31,10 +31,12 @@ describe('FilePathPropertyField', () => {
       const input = wrapper.get('input')
       await input.trigger('focus')
       await flushPromises()
-      expect(wrapper.getComponent(OcAutocompletePopover).props('items')).toEqual([
+      const rootMenu = wrapper.getComponent(OcAutocompletePopover)
+      expect(rootMenu.props('items')).toEqual([
+        expect.objectContaining({ insertText: 'icon:', icon: 'file.project-icon' }),
         expect.objectContaining({ label: 'Theme Pack', insertText: 'theme@', icon: 'file.package' }),
       ])
-      await input.trigger('keydown', { key: 'Enter' })
+      rootMenu.vm.$emit('select', rootMenu.props('items').find(item => item.label === 'Theme Pack')!.key)
       await flushPromises()
       expect(readDirectoryEntries).toHaveBeenLastCalledWith('/project/.opencard/packages/theme', 1)
       const menu = wrapper.getComponent(OcAutocompletePopover)
@@ -42,8 +44,8 @@ describe('FilePathPropertyField', () => {
       menu.vm.$emit('select', menu.props('items').find(item => item.label === '..')!.key)
       await flushPromises()
       expect(input.element.value).toBe('')
-      expect(menu.props('items')[0]?.label).toBe('Theme Pack')
-      await input.trigger('keydown', { key: 'Enter' })
+      expect(menu.props('items').map(item => item.label)).toContain('Theme Pack')
+      menu.vm.$emit('select', menu.props('items').find(item => item.label === 'Theme Pack')!.key)
       await flushPromises()
       await input.trigger('keydown', { key: 'Enter' })
       await flushPromises()
@@ -66,8 +68,8 @@ describe('FilePathPropertyField', () => {
     const hidden = createResourceDirectoryProvider('/project', 'card.ocdocument', environment, { readDirectoryEntries }, { hideDotFiles: true })
     const visible = createResourceDirectoryProvider('/project', 'card.ocdocument', environment, { readDirectoryEntries }, { hideDotFiles: false })
 
-    expect((await hidden('')).map(entry => entry.name)).toEqual(['assets'])
-    expect((await visible('')).map(entry => entry.name)).toEqual(['.opencard', '.git', 'assets'])
+    expect((await hidden('')).map(entry => entry.name)).toEqual(['assets', 'icon:'])
+    expect((await visible('')).map(entry => entry.name)).toEqual(['.opencard', '.git', 'assets', 'icon:'])
   })
 
   it('uses Shift+Tab for parent navigation without trapping focus at the root', async () => {
