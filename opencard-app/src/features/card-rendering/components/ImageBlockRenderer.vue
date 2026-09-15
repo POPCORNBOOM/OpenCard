@@ -50,7 +50,11 @@ import OcIcon from '../../../components/base/OcIcon.vue'
 import ProjectIconGraphic from './ProjectIconGraphic.vue'
 import { useCardEditorContext } from './cardEditorContext'
 import type { RenderReadyImageBlock } from '../render.types'
+import type { ResolvedResource } from '../cardRenderResources'
 import { getBlockRenderPlacementStyles, type BlockRenderPlacement } from './blockRenderPlacement'
+
+/** This renderer's view of a resolved resource: a usable URL is an `image`. */
+type ImageSourceView = ResolvedResource | { kind: 'image', src: string }
 
 const props = defineProps<{
     block: RenderReadyImageBlock
@@ -83,14 +87,18 @@ const imgStyle = computed(() => {
     ].join('; ')
 })
 
-const resolvedSource = computed(() => (
-    editorContext.resources.resolveImageSource(props.block.source, props.block.id, 'source')
-))
+const resolvedSource = computed<ImageSourceView>(() => {
+  const resolved = editorContext.resources.resolve({
+    value: props.block.source,
+    expect: 'asset',
+    blockId: props.block.id,
+    fieldKey: 'source',
+  })
+  return resolved.kind === 'url' ? { kind: 'image', src: resolved.src } : resolved
+})
 
-function resolvedSourceIdentity(source: typeof resolvedSource.value): string {
-    if (source.kind === 'empty' || source.kind === 'unavailable') return source.kind
-    if (source.kind === 'icon') return 'icon'
-    return `image:${source.src}`
+function resolvedSourceIdentity(source: ImageSourceView): string {
+    return source.kind === 'image' ? `image:${source.src}` : source.kind
 }
 
 watch(() => resolvedSourceIdentity(resolvedSource.value), () => {

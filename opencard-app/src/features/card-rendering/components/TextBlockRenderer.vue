@@ -27,7 +27,15 @@ const blockStyle = computed(() => getTextContentBlockStyle(
     props.block,
     props.placement,
     isTransformDisabled.value,
-	    value => editorContext.resources.resolveFont(value, props.block.id, 'fontFamily'),
+    value => {
+        const resource = editorContext.resources.resolve({
+            value,
+            expect: 'font',
+            blockId: props.block.id,
+            fieldKey: 'fontFamily',
+        })
+        return resource.kind === 'font' ? resource.cssFamily : ''
+    },
 ))
 
 function handleClick(event: MouseEvent) {

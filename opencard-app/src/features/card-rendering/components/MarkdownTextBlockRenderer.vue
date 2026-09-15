@@ -20,16 +20,36 @@ const props = defineProps<{
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))
+const resolveContentResource = (value: string) => editorContext.resources.resolve({
+  value,
+  expect: 'asset',
+  blockId: props.block.id,
+  fieldKey: 'content',
+})
 const markdownContent = computed(() => renderMarkdown(props.block.content, {
-  resolveImageSrc: source => editorContext.resources.resolveAsset(source, props.block.id, 'content'),
-  resolveIconReference: source => editorContext.resources.resolveIcon(source, props.block.id, 'content'),
+  resolveImageSrc: source => {
+    const resource = resolveContentResource(source)
+    return resource.kind === 'url' ? resource.src : ''
+  },
+  resolveIconReference: source => {
+    const resource = resolveContentResource(source)
+    return resource.kind === 'icon' ? resource.entry : null
+  },
   readIconDimensions: editorContext.resources.resolveIconDimensions,
 }))
 const blockStyle = computed(() => getTextContentBlockStyle(
   props.block,
   props.placement,
   isTransformDisabled.value,
-  value => editorContext.resources.resolveFont(value, props.block.id, 'fontFamily'),
+  value => {
+    const resource = editorContext.resources.resolve({
+      value,
+      expect: 'font',
+      blockId: props.block.id,
+      fieldKey: 'fontFamily',
+    })
+    return resource.kind === 'font' ? resource.cssFamily : ''
+  },
 ))
 
 function handleClick(event: MouseEvent): void {

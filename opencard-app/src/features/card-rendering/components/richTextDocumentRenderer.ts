@@ -18,15 +18,17 @@ export default defineComponent({
     function renderNode(node: RichTextNode): VNodeChild {
       if (node.type === 'text') return node.value
       if (node.type === 'icon') {
-        const entry = context.resources.resolveIcon(
-          formatProjectIconPath({
+        const resource = context.resources.resolve({
+          value: formatProjectIconPath({
             packageKey: node.packageKey,
             seriesKey: node.seriesKey,
             iconKey: node.iconKey,
           }),
-          props.ownerBlock.id,
-          'content',
-        )
+          expect: 'asset',
+          blockId: props.ownerBlock.id,
+          fieldKey: 'content',
+        })
+        const entry = resource.kind === 'icon' ? resource.entry : null
         return entry
           ? h(ProjectIconGraphic, {
               class: 'project-inline-icon',

@@ -101,16 +101,16 @@ describe('ImageBlockRenderer', () => {
   it('keeps a loaded image visible when only the resolved source object is rebuilt', async () => {
     const generation = ref(0)
     const resources = createRendererTestResources()
-    const resolveImageSource = vi.fn(() => {
+    const resolve = vi.fn(() => {
       generation.value
-      return { kind: 'image' as const, src: 'asset:///logo.png' }
+      return { kind: 'url' as const, src: 'asset:///logo.png' }
     })
     const wrapper = mount(ImageBlockRenderer, {
       props: { block: createBlock('/logo.png'), placement: { kind: 'root' } },
       global: { provide: { [cardEditorContextKey as symbol]: {
         transformDisabledBlockIds: computed(() => new Set<string>()),
         handleBlockClick: () => undefined,
-        resources: { ...resources, resolveImageSource },
+        resources: { ...resources, resolve },
       } } },
     })
 
@@ -120,7 +120,7 @@ describe('ImageBlockRenderer', () => {
     generation.value += 1
     await wrapper.vm.$nextTick()
 
-    expect(resolveImageSource).toHaveBeenCalledTimes(2)
+    expect(resolve).toHaveBeenCalledTimes(2)
     expect(wrapper.get('.image-block__image').classes()).toContain('is-loaded')
     expect(wrapper.find('.image-block__placeholder').exists()).toBe(false)
   })

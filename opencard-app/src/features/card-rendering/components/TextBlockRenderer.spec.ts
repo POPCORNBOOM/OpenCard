@@ -76,7 +76,10 @@ describe('TextBlockRenderer', () => {
   })
 
   it('renders semicolon-separated project and system font fallbacks', () => {
-    const resolveFontFamily = vi.fn(() => '"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
+    const resolve = vi.fn(() => ({
+      kind: 'font' as const,
+      cssFamily: '"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif',
+    }))
     const block = parseRenderReadyBlockForTest(createTextBlock({
       id: 'project-font-block',
       content: 'Brand text',
@@ -92,16 +95,19 @@ describe('TextBlockRenderer', () => {
             ...rendererTestGlobal.provide[cardEditorContextKey as symbol],
             resources: {
               ...rendererTestGlobal.provide[cardEditorContextKey as symbol].resources,
-              resolveFont: resolveFontFamily,
+              resolve,
             },
           },
         },
       },
     })
 
-    expect(resolveFontFamily).toHaveBeenCalledWith(
-      'font:brand-sans; Microsoft YaHei; sans-serif', 'project-font-block', 'fontFamily',
-    )
+    expect(resolve).toHaveBeenCalledWith({
+      value: 'font:brand-sans; Microsoft YaHei; sans-serif',
+      expect: 'font',
+      blockId: 'project-font-block',
+      fieldKey: 'fontFamily',
+    })
     expect(wrapper.element.style.fontFamily)
       .toBe('"OpenCardProjectFont-brand-sans", "Microsoft YaHei", sans-serif')
   })

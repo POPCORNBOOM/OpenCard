@@ -34,19 +34,17 @@ export function createRendererTestResources(projectIconCatalog: ProjectIconCatal
   const resourceContext = createCardRenderResourceContext({ projectIconCatalog })
   const resolver: CardResourceResolver = {
     hostEnvironment: resourceContext.hostEnvironment,
-    resolveAsset: path => `asset://${path}`,
-    resolveImageSource: source => {
-      if (!source.trim()) return { kind: 'empty' }
-      return source.includes('icon:')
-        ? { kind: 'unavailable' }
-        : { kind: 'image', src: `asset://${source}` }
-    },
-    resolveFont: value => value,
-    resolveIcon: source => {
-      const [, path] = source.split(':', 2)
+    resolve: request => {
+      if (!request.value.trim()) return { kind: 'empty' }
+      if (request.expect === 'font') return { kind: 'font', cssFamily: request.value }
+      if (!request.value.includes('icon:')) return { kind: 'url', src: `asset://${request.value}` }
+      const [, path] = request.value.split(':', 2)
       const [seriesKey, iconKey] = path?.split('/') ?? []
-      return projectIconCatalog.entries.find(entry => entry.seriesKey.toLowerCase() === seriesKey?.toLowerCase()
-        && entry.iconKey.toLowerCase() === iconKey?.toLowerCase()) ?? null
+      const entry = projectIconCatalog.entries.find(candidate => (
+        candidate.seriesKey.toLowerCase() === seriesKey?.toLowerCase()
+        && candidate.iconKey.toLowerCase() === iconKey?.toLowerCase()
+      ))
+      return entry ? { kind: 'icon', entry } : { kind: 'unavailable', code: 'resource-unavailable', message: 'Referenced icon is unavailable' }
     },
     resolveIconDimensions: () => undefined,
     withScopes: () => resolver,

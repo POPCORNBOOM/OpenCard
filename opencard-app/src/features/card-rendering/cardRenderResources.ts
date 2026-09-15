@@ -17,13 +17,14 @@ import {
   parseResourceReference,
   parseResourceReferenceList,
   resolveResourceReferenceText,
+  type ResourceReferenceDiagnostic,
   type ResourceReferenceResolutionOptions,
 } from '../workspace/services/resourceReference'
 import type { ProjectFontRegistryEntry } from '../workspace/model/projectFontRegistry'
 import { toCssFontFamily } from '../workspace/model/projectFonts'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { isRemoteResourceAllowed } from '../editor-runtime/services/editorResource'
-import { resolveResourcePath } from '../workspace/model/scopedResourcePath'
+import { resolveResourcePath, type ScopedResourcePathIssueCode } from '../workspace/model/scopedResourcePath'
 
 export type CardRenderResourceContext = {
   readonly resourceRootPath: string | null
@@ -45,18 +46,39 @@ export type CardRenderResourceContext = {
 export type CardRenderResourceContextSource = CardRenderResourceContext | (() => CardRenderResourceContext)
 export type CardRenderResourceScopeSource = ProjectResourceScopeMap | (() => ProjectResourceScopeMap)
 
-export type ResolvedImageSource =
+/** Why a render-side resource could not be produced. */
+export type ResourceIssueCode =
+  | 'syntax-error'
+  | 'unsafe-path'
+  | 'reserved-path'
+  | 'source-outside-project'
+  | 'scope-unavailable'
+  | 'package-unavailable'
+  | 'resource-unavailable'
+  | 'kind-mismatch'
+
+/** What the field is asking for: one asset reference — a path or an icon — or a font list. */
+export type ResourceExpectation = 'asset' | 'font'
+
+export type ResourceRequest = {
+  /** The field's raw text: `xx.png` / `pkg@xx.png` / `icon:a/b` / `pkg@icon:a/b` / `font:x; Arial`. */
+  readonly value: string
+  readonly expect: ResourceExpectation
+  /** Scope lookup: the binding of this block and field. */
+  readonly blockId?: string
+  readonly fieldKey?: string
+}
+
+export type ResolvedResource =
   | { kind: 'empty' }
-  | { kind: 'image', src: string }
+  | { kind: 'url', src: string }
   | { kind: 'icon', entry: ProjectIconCatalog['entries'][number] }
-  | { kind: 'unavailable' }
+  | { kind: 'font', cssFamily: string }
+  | { kind: 'unavailable', code: ResourceIssueCode, message: string }
 
 export interface CardResourceResolver {
   readonly hostEnvironment: ProjectResourceEnvironment
-  resolveAsset: (source: string, blockId?: string, fieldKey?: string) => string
-  resolveImageSource: (source: string, blockId?: string, fieldKey?: string) => ResolvedImageSource
-  resolveFont: (value: string, blockId?: string, fieldKey?: string) => string
-  resolveIcon: (source: string, blockId?: string, fieldKey?: string) => ProjectIconCatalog['entries'][number] | null
+  resolve: (request: ResourceRequest) => ResolvedResource
   /** Reads an icon's size, which is what asks for it. */
   resolveIconDimensions: ProjectIconDimensionReader
   withScopes: (scopes: CardRenderResourceScopeSource) => CardResourceResolver
@@ -87,34 +109,144 @@ export function createCardResourceResolver(
 
   return {
     get hostEnvironment() { return context().hostEnvironment },
-    resolveAsset: (source, blockId, fieldKey) => resolveCardAssetSrc(source, context(), blockId, fieldKey),
-    resolveImageSource: (source, blockId, fieldKey) => resolveCardImageSource(source, context(), blockId, fieldKey),
-    resolveFont: (value, blockId, fieldKey) => resolveCardFontFamily(value, context(), blockId, fieldKey),
-    resolveIcon: (source, blockId, fieldKey) => resolveCardIconReference(source, context(), blockId, fieldKey),
+    resolve: request => resolveCardResource(request, context()),
     resolveIconDimensions: entry => (context().resolveIconDimensions ?? noopIconDimensionReader)(entry),
     withScopes: scopes => createCardResourceResolver(contextSource, [...scopeSources, scopes]),
   }
 }
 
-export function resolveCardImageSource(
-  source: string,
+/** The single decision for a render-side field: what its raw text resolves to. */
+export function resolveCardResource(
+  request: ResourceRequest,
   context: CardRenderResourceContext,
-  blockId?: string,
-  fieldKey = 'source',
-): ResolvedImageSource {
-  const value = source.trim()
+): ResolvedResource {
+  switch (request.expect) {
+    case 'asset': return resolveImageResource(request, context)
+    case 'font': return resolveFontResource(request, context)
+  }
+}
+
+function resolveImageResource(
+  request: ResourceRequest,
+  context: CardRenderResourceContext,
+): ResolvedResource {
+  const fieldKey = request.fieldKey ?? 'source'
+  const value = request.value.trim()
   if (!value) return { kind: 'empty' }
 
   const parsed = parseResourceReference(value)
   if (parsed.reference?.kind === 'icon') {
-    const entry = resolveCardIconReference(value, context, blockId, fieldKey)
-    return entry ? { kind: 'icon', entry } : { kind: 'unavailable' }
+    const resolved = resolveIconReference(value, context, request.blockId, fieldKey)
+    return resolved.value
+      ? { kind: 'icon', entry: resolved.value }
+      : unavailable(resolved.diagnostics, 'Referenced icon is unavailable')
   }
-  if (parsed.reference) return { kind: 'unavailable' }
-  if (/^(?:[a-z0-9._-]+@|@)?(?:font|icon):/i.test(value)) return { kind: 'unavailable' }
+  if (parsed.reference) {
+    return {
+      kind: 'unavailable',
+      code: 'kind-mismatch',
+      message: `An image field cannot resolve the ${parsed.reference.kind} reference "${value}"`,
+    }
+  }
+  // A font-or-icon reference that could not even be parsed still names no image.
+  if (/^(?:[a-z0-9._-]+@|@)?(?:font|icon):/i.test(value)) {
+    return unavailable(parsed.diagnostics, `Image source "${value}" is not a readable resource reference`)
+  }
 
-  const src = resolveCardAssetSrc(value, context, blockId, fieldKey)
-  return src ? { kind: 'image', src } : { kind: 'unavailable' }
+  return resolveAssetResource(value, context, request.blockId, fieldKey)
+}
+
+function resolveFontResource(
+  request: ResourceRequest,
+  context: CardRenderResourceContext,
+): ResolvedResource {
+  if (!request.value.trim()) return { kind: 'empty' }
+
+  const environment = resolveCardResourceEnvironment(context, request.blockId, request.fieldKey ?? 'fontFamily')
+  const fallback = context.resolveFontFamily ?? toCssFontFamily
+  const options: ResourceReferenceResolutionOptions = {
+    environment,
+    hostEnvironment: context.hostEnvironment,
+    packageEnvironments: context.packageEnvironments,
+  }
+  const cssFamily = parseResourceReferenceList(request.value, 'font').map(token => {
+    if (token.diagnostics.length > 0) return ''
+    if (!token.reference) return token.source
+    const resolved = resolveResourceReferenceText<ProjectFontRegistryEntry>(token.source, options)
+    if (!resolved.value || !resolved.reference) return ''
+    const key = resolved.value.kind === 'family'
+      ? resolved.value.family.key
+      : resolved.value.composition.key
+    if (resolved.environment?.kind === 'package') {
+      return JSON.stringify(createScopedProjectFontFamily(resolved.environment.namespace, key))
+    }
+    return fallback(`font:${key}`)
+  }).filter(Boolean).join(', ')
+
+  return { kind: 'font', cssFamily }
+}
+
+/** An asset field resolves to a URL or to a coded failure — nothing else. */
+type AssetResource = Extract<ResolvedResource, { kind: 'url' | 'unavailable' }>
+
+function resolveAssetResource(
+  value: string,
+  context: CardRenderResourceContext,
+  blockId?: string,
+  fieldKey?: string,
+): AssetResource {
+  const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-z]:[\\/]/i.test(value)) {
+    if (!isRemoteResourceAllowed(value, context.remoteResourcePolicy)) {
+      return { kind: 'unavailable', code: 'unsafe-path', message: `Resource scheme is not permitted: ${value}` }
+    }
+    return { kind: 'url', src: context.resolveRemoteResource?.(value) ?? value }
+  }
+  const projectRootPath = context.resourceRootPath ?? context.hostEnvironment.rootPath ?? environment.rootPath
+  if (!projectRootPath) {
+    return { kind: 'unavailable', code: 'scope-unavailable', message: `No project root is available to resolve "${value}"` }
+  }
+  const sourceFilePath = resolveAssetScopeSourceFile(context, environment, projectRootPath)
+  const resolved = resolveResourcePath(projectRootPath, sourceFilePath, value)
+  return resolved.ok
+    ? { kind: 'url', src: convertFileSrc(resolved.value) }
+    : { kind: 'unavailable', code: pathIssueCode(resolved.code), message: resolved.message }
+}
+
+/** `resolveResourcePath` carries its own taxonomy; only its syntax name differs here. */
+function pathIssueCode(code: ScopedResourcePathIssueCode): ResourceIssueCode {
+  switch (code) {
+    case 'unsafe-path':
+    case 'reserved-path':
+    case 'source-outside-project': return code
+    case 'invalid-reference': return 'syntax-error'
+    // `resolveResourcePath` never reports these two; they belong to relativizing a path.
+    case 'target-outside-project':
+    case 'unrepresentable-scope': return 'resource-unavailable'
+  }
+}
+
+function unavailable(
+  diagnostics: readonly ResourceReferenceDiagnostic[],
+  fallbackMessage: string,
+): Extract<ResolvedResource, { kind: 'unavailable' }> {
+  const [diagnostic] = diagnostics
+  return diagnostic
+    ? { kind: 'unavailable', code: diagnostic.code, message: diagnostic.message }
+    : { kind: 'unavailable', code: 'resource-unavailable', message: fallbackMessage }
+}
+
+function resolveIconReference(
+  source: string,
+  context: CardRenderResourceContext,
+  blockId?: string,
+  fieldKey?: string,
+) {
+  return resolveResourceReferenceText<ProjectIconCatalog['entries'][number]>(source, {
+    environment: resolveCardResourceEnvironment(context, blockId, fieldKey),
+    hostEnvironment: context.hostEnvironment,
+    packageEnvironments: context.packageEnvironments,
+  })
 }
 
 function fallbackEnvironment(
@@ -175,6 +307,10 @@ export function createCardRenderResourceContext(options: {
   }
 }
 
+/**
+ * The scoped environment a block field resolves against. It stays exported because the render-side
+ * validator asks the same question of the same context.
+ */
 export function resolveCardResourceEnvironment(
   context: CardRenderResourceContext,
   blockId?: string,
@@ -183,25 +319,6 @@ export function resolveCardResourceEnvironment(
   return blockId && fieldKey
     ? context.resourceScopes.get(projectResourceScopeIdentity(blockId, fieldKey)) ?? context.hostEnvironment
     : context.hostEnvironment
-}
-
-export function resolveCardAssetSrc(
-  source: string,
-  context: CardRenderResourceContext,
-  blockId?: string,
-  fieldKey = 'source',
-  ): string {
-  const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
-  const value = source.trim()
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^[a-z]:[\\/]/i.test(value)) {
-    if (!isRemoteResourceAllowed(value, context.remoteResourcePolicy)) return ''
-    return context.resolveRemoteResource?.(value) ?? value
-  }
-  const projectRootPath = context.resourceRootPath ?? context.hostEnvironment.rootPath ?? environment.rootPath
-  if (!projectRootPath) return ''
-  const sourceFilePath = resolveAssetScopeSourceFile(context, environment, projectRootPath)
-  const resolved = resolveResourcePath(projectRootPath, sourceFilePath, value)
-  return resolved.ok ? convertFileSrc(resolved.value) : ''
 }
 
 function resolveAssetScopeSourceFile(
@@ -222,65 +339,4 @@ function resolveAssetScopeSourceFile(
   return environmentRoot
     ? `${environmentRoot}/.opencard/manifest.json`
     : context.sourceFilePath ?? `${renderRoot}/.opencard/project.json`
-}
-
-export function resolveCardFontFamily(
-  value: string,
-  context: CardRenderResourceContext,
-  blockId?: string,
-  fieldKey = 'fontFamily',
-  ): string {
-  const scopeKey = blockId && fieldKey ? projectResourceScopeIdentity(blockId, fieldKey) : null
-  const scopedEnvironment = scopeKey ? context.resourceScopes.get(scopeKey) : undefined
-  const environment = scopedEnvironment ?? context.hostEnvironment
-  const fallback = context.resolveFontFamily ?? toCssFontFamily
-  const options: ResourceReferenceResolutionOptions = {
-    environment,
-    hostEnvironment: context.hostEnvironment,
-    packageEnvironments: context.packageEnvironments,
-  }
-  const result = parseResourceReferenceList(value, 'font').map(token => {
-    if (token.diagnostics.length > 0) return ''
-    if (!token.reference) return token.source
-    const resolved = resolveResourceReferenceText<ProjectFontRegistryEntry>(token.source, options)
-    if (!resolved.value || !resolved.reference) return ''
-    const key = resolved.value.kind === 'family'
-      ? resolved.value.family.key
-      : resolved.value.composition.key
-    if (resolved.environment?.kind === 'package') {
-      return JSON.stringify(createScopedProjectFontFamily(resolved.environment.namespace, key))
-    }
-    return fallback(`font:${key}`)
-  }).filter(Boolean).join(', ')
-
-  if (import.meta.env.DEV && blockId && blockId.includes('::') && fieldKey === 'fontFamily') {
-    console.debug('[OpenCard][font-resolution]', {
-      blockId,
-      source: value || '(empty)',
-      scopeKey,
-      scopeMatched: Boolean(scopedEnvironment),
-      environmentKind: environment.kind,
-      environmentNamespace: environment.namespace,
-      environmentRootPath: environment.rootPath,
-      availableFontKeys: Object.keys(environment.fonts),
-      result,
-      resolver: context.resolveFontFamily ? 'project-resolver' : 'default-css-resolver',
-    })
-  }
-
-  return result
-}
-
-export function resolveCardIconReference(
-  source: string,
-  context: CardRenderResourceContext,
-  blockId?: string,
-  fieldKey = 'content',
-  ): ProjectIconCatalog['entries'][number] | null {
-  const environment = resolveCardResourceEnvironment(context, blockId, fieldKey)
-  return resolveResourceReferenceText<ProjectIconCatalog['entries'][number]>(source, {
-    environment,
-    hostEnvironment: context.hostEnvironment,
-    packageEnvironments: context.packageEnvironments,
-  }).value
 }
