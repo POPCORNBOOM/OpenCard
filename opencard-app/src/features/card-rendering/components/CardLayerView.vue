@@ -122,6 +122,7 @@ import { pinyin } from 'pinyin-pro'
 import OcShortcut, { type OcShortcutPart } from '../../../components/standard/OcShortcut.vue'
 import type { RenderReadyCardFace } from '../render.types'
 import { buildCardLayerGroups, type CardLayerGroup } from './cardLayerModel'
+import { prefersReducedMotion } from '../../../shared/ui/foundation'
 
 type Snapshot = {
   id: string
@@ -447,11 +448,6 @@ function rebuildSnapshots(): void {
     })
   })
   snapshots.value = nextSnapshots
-}
-
-function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function stopAnimation(): void {

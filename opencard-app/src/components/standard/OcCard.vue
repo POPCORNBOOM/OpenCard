@@ -38,6 +38,7 @@ export type OcCardAction = OcActionButtonAction
 <script setup lang="ts">
 import { computed, useAttrs } from 'vue'
 import type { IconToken } from '../../shared/ui/icon/iconRegistry'
+import { prefersReducedMotion } from '../../shared/ui/foundation'
 import type { OcActionButtonSelectPayload } from './OcActionButton.vue'
 import OcActionRail from './OcActionRail.vue'
 import OcBar from './OcBar.vue'
@@ -97,10 +98,6 @@ const cardClasses = computed(() => [
 
 function handleActionSelect(payload: OcActionButtonSelectPayload): void {
   emit('action', { key: payload.key })
-}
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function asContentElement(element: Element): HTMLElement | null {

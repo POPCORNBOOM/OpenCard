@@ -1,4 +1,5 @@
 import { DEFAULT_OC_THEME, OC_THEME_REGISTRY } from './themes'
+import { prefersReducedMotion } from './prefersReducedMotion'
 import {
   OC_EDITABLE_THEME_COLOR_KEYS,
   OC_THEME_TOKEN_KEYS,
@@ -257,10 +258,8 @@ function applyTheme(
   const root = document.documentElement
   const shouldTransitionColors = currentThemeColorSignature !== null
     && currentThemeColorSignature !== colorSignature
-  const prefersReducedMotion = typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (shouldTransitionColors && !prefersReducedMotion) {
+  const prefersReduced = prefersReducedMotion()
+  if (shouldTransitionColors && !prefersReduced) {
     if (themeTransitionTimer !== null) clearTimeout(themeTransitionTimer)
     root.classList.add('oc-theme-transitioning')
     const durationValue = getComputedStyle(root).getPropertyValue('--oc-duration-theme').trim()

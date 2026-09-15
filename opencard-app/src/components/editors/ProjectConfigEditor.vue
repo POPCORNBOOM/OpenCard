@@ -132,6 +132,7 @@ import type { EditorNavigationResult, SessionNavigationToken } from '../../featu
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import { useAppSettingsStore } from '../../features/settings/store/appSettingsStore'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
+import { prefersReducedMotion } from '../../shared/ui/foundation'
 import { findProjectWorkspaceState, updateProjectWorkspaceState } from '../../features/settings/model/workspaceState'
 import {
   normalizeProjectAllowedHost,
@@ -344,7 +345,7 @@ async function navigateToProjectSection(sectionKey: ProjectProfileSectionKey): P
   if (isProjectSectionCollapsed(sectionKey)) setProjectSectionCollapsed(sectionKey, false)
   await nextTick()
   const section = document.getElementById(projectSectionElementId(sectionKey))
-  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const reduceMotion = prefersReducedMotion()
   section?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
   activeSection.value = sectionKey
 }
