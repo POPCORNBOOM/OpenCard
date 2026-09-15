@@ -6,7 +6,7 @@ describe('OcBar', () => {
   it('renders an empty bar without errors when nothing is provided', () => {
     const wrapper = mount(OcBar)
 
-    expect(wrapper.get('.oc-bar').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar').exists()).toBe(true)
     expect(wrapper.find('.oc-bar__icon').exists()).toBe(false)
     expect(wrapper.find('.oc-bar__title').exists()).toBe(false)
     expect(wrapper.find('.oc-bar__append').exists()).toBe(false)
@@ -27,8 +27,8 @@ describe('OcBar', () => {
       slots: { icon: '<span class="custom-icon" />' },
     })
 
-    expect(wrapper.get('.oc-bar__icon').find('svg').exists()).toBe(false)
-    expect(wrapper.get('.oc-bar__icon').find('.custom-icon').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar__icon svg').exists()).toBe(false)
+    expect(wrapper.find('.oc-bar__icon .custom-icon').exists()).toBe(true)
   })
 
   it('renders the icon slot alone when no icon prop is given', () => {
@@ -64,8 +64,8 @@ describe('OcBar', () => {
       slots: { append: '<button class="append-action" />' },
     })
 
-    expect(wrapper.get('.oc-bar__append .append-action').exists()).toBe(true)
-    expect(wrapper.get('.oc-bar__append .oc-bar__append-default').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar__append .append-action').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar__append .oc-bar__append-default').exists()).toBe(true)
     expect(wrapper.find('.oc-bar__append-hover').exists()).toBe(false)
     expect(wrapper.classes()).not.toContain('oc-bar--has-hover-append')
   })
@@ -79,14 +79,14 @@ describe('OcBar', () => {
     })
 
     expect(wrapper.classes()).toContain('oc-bar--has-hover-append')
-    expect(wrapper.get('.oc-bar__append-default .append-action').exists()).toBe(true)
-    expect(wrapper.get('.oc-bar__append-hover .hover-action').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar__append-default .append-action').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar__append-hover .hover-action').exists()).toBe(true)
   })
 
   it('renders the append-hover slot on its own', () => {
     const wrapper = mount(OcBar, { slots: { 'append-hover': '<button class="hover-action" />' } })
 
-    expect(wrapper.get('.oc-bar__append-hover .hover-action').exists()).toBe(true)
+    expect(wrapper.find('.oc-bar__append-hover .hover-action').exists()).toBe(true)
     expect(wrapper.find('.oc-bar__append-default').exists()).toBe(false)
   })
 

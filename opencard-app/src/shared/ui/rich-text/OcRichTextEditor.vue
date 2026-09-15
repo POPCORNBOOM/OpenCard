@@ -43,10 +43,10 @@
           <OcButton size="md" icon-only icon="format.code-braces" data-tooltip="插入 binding"
             aria-label="插入 binding" @mousedown.prevent @click="insertBinding" />
         </div>
-        <div v-if="projectIconCatalog" class="oc-rich-text-editor__tool-group" role="group" aria-label="项目图标">
+        <div v-if="hasProjectIconSources" class="oc-rich-text-editor__tool-group" role="group" aria-label="项目图标">
           <OcActionButton :action="projectIconAction" size="md" variant="ghost"
             @mousedown.prevent @select="handleProjectIconAction" />
-          <OcButton v-for="entry in recentProjectIconEntries" :key="projectIconActionKey(entry)" size="md" icon-only
+          <OcButton v-for="entry in recentProjectIconEntries" :key="projectIconSelectionKey(null, entry)" size="md" icon-only
             class="oc-rich-text-editor__recent-icon" :data-tooltip="`${entry.name} ${entry.seriesKey}`"
             :aria-label="`插入最近图标：${entry.name}`" @mousedown.prevent @click="insertRecentProjectIcon(entry)">
             <template #icon>
@@ -167,7 +167,8 @@ import {
   type ProjectIconCatalog,
   type ProjectIconCatalogEntry,
 } from '../../../features/workspace/services/projectIconCatalog'
-import { parseProjectIconPath } from '../../rich-text/projectIconReference'
+import type { ProjectIconSource } from '../../../features/workspace/services/projectIconCompletion'
+import { formatProjectIconPath, parseProjectIconPath } from '../../rich-text/projectIconReference'
 import { readProjectIconSize } from '../../../features/workspace/services/projectIconDimensionResolver'
 import {
   projectIconRecentIdentity,
@@ -189,9 +190,11 @@ const props = defineProps<{
   modelValue: string
   bindingCompletion?: RichTextBindingCompletionProvider
   projectIconCatalog?: ProjectIconCatalog
+  /** Icon sources the toolbar offers: the current project first, then packages that ship icons. */
+  packageIconSources?: readonly ProjectIconSource[]
   /**
-   * Resolves an icon reference that may name an icon owned by a package. Falls back to the host
-   * project catalog, which only knows current-project icons.
+   * Resolves an icon reference that may name an icon owned by a package. Falls back to the offered
+   * sources, then to the host project catalog, which only knows current-project icons.
    */
   resolveProjectIcon?: (reference: string) => ProjectIconCatalogEntry | null
   fontOptions?: readonly RichTextFontOption[]
@@ -364,39 +367,71 @@ const fontSizeOptions = computed(() => {
   const sizes = [...new Set<number>([...fontSizeSteps, activeSize])].sort((left, right) => left - right)
   return sizes.map(size => ({ label: `${size} px`, value: String(size) }))
 })
+const iconCatalogs = computed(() => {
+  const catalogs = new Map<string, ProjectIconCatalog>()
+  for (const source of props.packageIconSources ?? []) catalogs.set(source.packageKey ?? '', source.catalog)
+  if (!catalogs.has('') && props.projectIconCatalog) catalogs.set('', props.projectIconCatalog)
+  return catalogs
+})
+const hasProjectIconSources = computed(() => [...iconCatalogs.value.values()]
+  .some(catalog => catalog.entries.length > 0))
+
+function projectIconSelectionKey(packageKey: string | null, entry: ProjectIconCatalogEntry): string {
+  return `project-icon:${packageKey ?? ''}:${entry.seriesKey}/${entry.iconKey}`
+}
+
+function projectIconSeriesGroups(packageKey: string | null, catalog: ProjectIconCatalog) {
+  return catalog.series.map(series => ({
+    key: `project-icon-series:${packageKey ?? ''}:${series.key}`,
+    title: series.name,
+    icon: 'file.project-icon' as const,
+    children: catalog.entries
+      .filter(entry => entry.seriesKey.toLocaleLowerCase() === series.key.toLocaleLowerCase())
+      .map(entry => ({
+        key: projectIconSelectionKey(packageKey, entry),
+        title: entry.name,
+        thumbnailStyle: createProjectIconStyle(entry, readProjectIconSize),
+        thumbnailLabel: entry.name,
+      })),
+  })).filter(series => series.children.length > 0)
+}
+
 const projectIconEntriesByActionKey = computed(() => new Map(
-  (props.projectIconCatalog?.entries ?? []).map(entry => [projectIconActionKey(entry), entry]),
+  [...iconCatalogs.value].flatMap(([packageKey, catalog]) => catalog.entries.map(entry => [
+    projectIconSelectionKey(packageKey || null, entry),
+    { packageKey: packageKey || null, entry },
+  ] as const)),
 ))
 const recentProjectIconEntries = computed(() => recentProjectIconIdentities.value.flatMap(identity => {
   // The recent row lists current-project icons; the identity still carries the package so a
   // package icon and a project icon sharing collection and icon keys cannot collide.
-  const entry = props.projectIconCatalog?.entries.find(candidate => (
+  const entry = iconCatalogs.value.get('')?.entries.find(candidate => (
     projectIconRecentIdentity(null, candidate.seriesKey, candidate.iconKey) === identity
   ))
   return entry ? [entry] : []
 }))
-const projectIconActionChildren = computed(() => (props.projectIconCatalog?.series ?? []).map(series => ({
-  key: `project-icon-series:${series.key}`,
-  title: series.name,
-  icon: 'file.project-icon' as const,
-  children: props.projectIconCatalog?.entries
-    .filter(entry => entry.seriesKey.toLocaleLowerCase() === series.key.toLocaleLowerCase())
-    .map(entry => ({
-      key: projectIconActionKey(entry),
-      title: entry.name,
-      thumbnailStyle: createProjectIconStyle(entry, readProjectIconSize),
-      thumbnailLabel: entry.name,
-    })) ?? [],
-})).filter(series => series.children.length > 0))
+const projectIconActionChildren = computed(() => {
+  const host = [...iconCatalogs.value]
+    .filter(([packageKey]) => packageKey === '')
+    .flatMap(([, catalog]) => projectIconSeriesGroups(null, catalog))
+  const packages = (props.packageIconSources ?? [])
+    .filter(source => source.packageKey !== null)
+    .map(source => ({
+      key: `project-icon-package:${source.packageKey}`,
+      title: source.label,
+      icon: 'file.package' as const,
+      children: projectIconSeriesGroups(source.packageKey, source.catalog),
+    }))
+    .filter(group => group.children.length > 0)
+  return [...host, ...packages]
+})
 const projectIconAction = computed<OcActionButtonAction>(() => {
   toolbarRevision.value
-  const selected = selectedProjectIconEntry()
-  const catalog = props.projectIconCatalog
   return {
     key: 'project-icon',
     icon: 'action.project-icon-plus',
-    title: selected ? '替换项目图标' : '插入项目图标',
-    disabled: !catalog?.entries.length,
+    title: hasSelectedProjectIcon() ? '替换项目图标' : '插入项目图标',
+    disabled: !hasProjectIconSources.value,
     children: projectIconActionChildren.value,
   }
 })
@@ -470,8 +505,8 @@ function updateDialogBindingExpression(event: Event): void {
 }
 
 function selectDialogProjectIcon(payload: OcActionButtonSelectPayload): void {
-  const entry = projectIconEntriesByActionKey.value.get(payload.key)
-  if (entry) dialogIconPath.value = `${entry.seriesKey}/${entry.iconKey}`
+  const selection = projectIconEntriesByActionKey.value.get(payload.key)
+  if (selection) dialogIconPath.value = projectIconPath(selection)
 }
 
 function confirmSelectedNodeEditor(): void {
@@ -524,7 +559,7 @@ const editor = useEditor({
       completion: request => props.bindingCompletion?.(request) ?? null,
     }),
     ProjectIconNode.configure({
-      resolve: reference => props.resolveProjectIcon?.(reference) ?? resolveHostProjectIcon(reference),
+      resolve: reference => resolveProjectIconReference(reference),
     }),
   ],
   editorProps: {
@@ -682,51 +717,60 @@ function insertBinding(): void {
   }).run()
 }
 
-function projectIconActionKey(entry: Pick<ProjectIconCatalogEntry, 'seriesKey' | 'iconKey'>): string {
-  return `project-icon:${entry.seriesKey}/${entry.iconKey}`
+/** A chosen icon plus the package it belongs to: the stored reference needs both. */
+type ProjectIconSelection = {
+  packageKey: string | null
+  entry: ProjectIconCatalogEntry
 }
 
-/** Host fallback for icon resolution: only the current project's catalog is visible here. */
-function resolveHostProjectIcon(reference: string): ProjectIconCatalogEntry | null {
+function projectIconPath(selection: ProjectIconSelection): string {
+  return formatProjectIconPath({
+    packageKey: selection.packageKey,
+    seriesKey: selection.entry.seriesKey,
+    iconKey: selection.entry.iconKey,
+  })
+}
+
+/** Resolves a stored reference: the caller's resolver first, then any catalog the toolbar offers. */
+function resolveProjectIconReference(reference: string): ProjectIconCatalogEntry | null {
+  if (props.resolveProjectIcon) return props.resolveProjectIcon(reference)
   const parsed = parseProjectIconPath(reference)
-  if (!parsed || parsed.packageKey) return null
-  return findProjectIcon(props.projectIconCatalog, parsed.seriesKey, parsed.iconKey)
+  if (!parsed) return null
+  const catalog = iconCatalogs.value.get(parsed.packageKey ?? '')
+  return catalog ? findProjectIcon(catalog, parsed.seriesKey, parsed.iconKey) : null
 }
 
-function selectedProjectIconEntry(): ProjectIconCatalogEntry | null {
+function hasSelectedProjectIcon(): boolean {
   const currentEditor = editor.value
   const selection = currentEditor?.state.selection
-  if (!currentEditor || !(selection instanceof NodeSelection) || selection.node.type.name !== 'projectIcon') return null
-  const [seriesKey, iconKey] = String(selection.node.attrs.iconPath ?? '').split('/')
-  return props.projectIconCatalog?.entries.find(entry => (
-    entry.seriesKey.toLocaleLowerCase() === seriesKey.toLocaleLowerCase()
-    && entry.iconKey.toLocaleLowerCase() === iconKey.toLocaleLowerCase()
-  )) ?? null
+  return Boolean(currentEditor
+    && selection instanceof NodeSelection
+    && selection.node.type.name === 'projectIcon')
 }
 
 function handleProjectIconAction(payload: OcActionButtonSelectPayload): void {
-  const entry = projectIconEntriesByActionKey.value.get(payload.key)
-  if (entry) insertProjectIconEntry(entry)
+  const selection = projectIconEntriesByActionKey.value.get(payload.key)
+  if (selection) insertProjectIconEntry(selection)
 }
 
 function insertRecentProjectIcon(entry: ProjectIconCatalogEntry): void {
-  insertProjectIconEntry(entry)
+  insertProjectIconEntry({ packageKey: null, entry })
 }
 
-function insertProjectIconEntry(entry: ProjectIconCatalogEntry): void {
+function insertProjectIconEntry(selection: ProjectIconSelection): void {
   const currentEditor = editor.value
   if (!currentEditor) return
-  const attrs = { iconPath: `${entry.seriesKey}/${entry.iconKey}` }
-  if (selectedProjectIconEntry()) {
+  const attrs = { iconPath: projectIconPath(selection) }
+  if (hasSelectedProjectIcon()) {
     const position = currentEditor.state.selection.from
     currentEditor.chain().focus().updateAttributes('projectIcon', attrs).setNodeSelection(position).run()
-  } else currentEditor.chain().focus().insertContent(createProjectIconContent(currentEditor, entry)).run()
-  rememberRecentProjectIcon(null, entry.seriesKey, entry.iconKey)
+  } else currentEditor.chain().focus().insertContent(createProjectIconContent(currentEditor, attrs)).run()
+  rememberRecentProjectIcon(selection.packageKey, selection.entry.seriesKey, selection.entry.iconKey)
 }
 
 function createProjectIconContent(
   currentEditor: Editor,
-  entry: ProjectIconCatalogEntry,
+  attrs: { iconPath: string },
   sourcePosition?: number,
 ): JSONContent {
   const marks = sourcePosition === undefined
@@ -735,7 +779,7 @@ function createProjectIconContent(
       ?? currentEditor.state.doc.resolve(sourcePosition).marks())
   return {
     type: 'projectIcon',
-    attrs: { iconPath: `${entry.seriesKey}/${entry.iconKey}` },
+    attrs,
     ...(marks.length > 0 ? { marks: marks.map(mark => mark.toJSON()) } : {}),
   }
 }

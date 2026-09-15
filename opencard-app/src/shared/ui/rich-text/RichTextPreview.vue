@@ -4,21 +4,33 @@ import {
   createProjectIconStyle,
   findProjectIcon,
   type ProjectIconCatalog,
+  type ProjectIconCatalogEntry,
 } from '../../../features/workspace/services/projectIconCatalog'
-import { parseRichTextHtml, type RichTextNode } from '../../rich-text/richTextHtml'
+import type { ProjectIconSource } from '../../../features/workspace/services/projectIconCompletion'
+import { parseRichTextHtml, type RichTextIconNode, type RichTextNode } from '../../rich-text/richTextHtml'
 import { readProjectIconSize } from '../../../features/workspace/services/projectIconDimensionResolver'
 
 const props = defineProps<{
   html: string
   projectIconCatalog?: ProjectIconCatalog
+  /** Icon sources including packages; the host catalog alone cannot resolve a package icon. */
+  packageIconSources?: readonly ProjectIconSource[]
 }>()
 
 const document = computed(() => parseRichTextHtml(props.html).document)
 
+function resolveIconEntry(node: RichTextIconNode): ProjectIconCatalogEntry | null {
+  const source = props.packageIconSources?.find(candidate => (
+    (candidate.packageKey ?? '') === (node.packageKey ?? '')
+  ))
+  if (source) return findProjectIcon(source.catalog, node.seriesKey, node.iconKey)
+  return node.packageKey ? null : findProjectIcon(props.projectIconCatalog, node.seriesKey, node.iconKey)
+}
+
 function renderNode(node: RichTextNode): VNodeChild {
   if (node.type === 'text') return node.value
   if (node.type === 'icon') {
-    const entry = findProjectIcon(props.projectIconCatalog, node.seriesKey, node.iconKey)
+    const entry = resolveIconEntry(node)
     return entry
       ? h('span', {
           class: 'rich-text-preview__icon',

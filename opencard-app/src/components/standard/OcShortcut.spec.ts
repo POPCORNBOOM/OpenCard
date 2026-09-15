@@ -7,6 +7,10 @@ function mountParts(parts: readonly OcShortcutPart[], decorative?: boolean) {
   return mount(OcShortcut, { props: { parts, decorative } })
 }
 
+function childElements(wrapper: ReturnType<typeof mountParts>): HTMLElement[] {
+  return Array.from(wrapper.element.children) as HTMLElement[]
+}
+
 describe('OcShortcut', () => {
   it('renders the shortcut root as a plain visible span by default', () => {
     const wrapper = mountParts([])
@@ -25,7 +29,7 @@ describe('OcShortcut', () => {
   it('renders each key and separator part in order', () => {
     const wrapper = mountParts(['Ctrl', { separator: '+' }, { icon: 'tool.zoom-in' }])
 
-    const children = Array.from(wrapper.element.children)
+    const children = childElements(wrapper)
     expect(children.map(child => child.className)).toEqual([
       'oc-key',
       'oc-shortcut__separator',
@@ -44,19 +48,16 @@ describe('OcShortcut', () => {
     expect(glyph.attributes('viewBox')).toBe('0 0 24 24')
   })
 
-  it('renders a plain text part as a key', () => {
-    const wrapper = mount(OcShortcut, {
-      props: { parts: ['Ctrl'] as readonly OcShortcutPart[] },
-    })
-
-    expect(wrapper.element.children).toHaveLength(1)
-    expect(wrapper.get('.oc-key').text()).toBe('Ctrl')
-  })
-
-  // 字符串分支在运行时崩溃：模板对 string 变体也执行了 `'icon' in part`。
-  it.skip('accepts a string part inside a mixed shortcut', () => {
+  it('renders a mixed string, separator and string shortcut as keys', () => {
     const mixed: readonly OcShortcutPart[] = ['Ctrl', { separator: '+' }, 'S']
+    const wrapper = mount(OcShortcut, { props: { parts: mixed } })
 
-    expect(() => mount(OcShortcut, { props: { parts: mixed } })).not.toThrow()
+    const children = childElements(wrapper)
+    expect(children.map(child => child.className)).toEqual([
+      'oc-key',
+      'oc-shortcut__separator',
+      'oc-key',
+    ])
+    expect(children.map(child => child.textContent)).toEqual(['Ctrl', '+', 'S'])
   })
 })
