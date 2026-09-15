@@ -54,6 +54,9 @@ jobs:
       - name: Install NPM dependencies
         run: npm ci
 
+      - name: Type check and test
+        run: npm run verify
+
       - name: Read release notes
         id: release-notes
         shell: bash

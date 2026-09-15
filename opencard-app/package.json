@@ -8,6 +8,7 @@
     "dev": "node scripts/dev-with-log.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
+    "verify": "vue-tsc --noEmit && vitest run",
     "qq:group-openid": "node scripts/get-qq-group-openid.mjs",
     "audit:naming": "node scripts/lint-naming.mjs",
     "lint:naming": "node scripts/lint-naming.mjs --check",
