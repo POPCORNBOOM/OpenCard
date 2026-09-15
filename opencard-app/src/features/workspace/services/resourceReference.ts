@@ -130,7 +130,7 @@ export function parseResourceReference(source: string): ParsedResourceReference 
   }
 }
 
-export function formatResourceReference(reference: ResourceReference): string {
+function formatResourceReference(reference: ResourceReference): string {
   const qualifier = reference.scope === 'host'
     ? '@'
     : reference.scope === 'package'
@@ -198,7 +198,7 @@ function resourceUnavailable<T>(
   }
 }
 
-export function resolveResourceReference<T extends string | ProjectFontRegistryEntry | ProjectIconCatalogEntry>(
+function resolveResourceReference<T extends string | ProjectFontRegistryEntry | ProjectIconCatalogEntry>(
   reference: ResourceReference,
   options: ResourceReferenceResolutionOptions,
 ): ResolvedResource<T> {

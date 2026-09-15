@@ -271,14 +271,6 @@ export function resolveCardFontFamily(
   return result
 }
 
-export function resolveCardIconCatalog(
-  context: CardRenderResourceContext,
-  blockId?: string,
-  fieldKey = 'content',
-): ProjectIconCatalog {
-  return resolveCardResourceEnvironment(context, blockId, fieldKey).iconCatalog
-}
-
 export function resolveCardIconReference(
   source: string,
   context: CardRenderResourceContext,
