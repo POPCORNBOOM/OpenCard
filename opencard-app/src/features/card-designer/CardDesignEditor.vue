@@ -29,6 +29,7 @@
                   readonly :transform="viewportTransform" :viewport-insets="diffViewportInsets"
                   :comparison="diffViewportComparison" :comparison-divider-label="t('sidebar.diffViewer.divider')"
                   @diff-divider-change="handleDiffDividerChange" @blank-click="clearEffectiveBlockSelection"
+                  @block-click="handleEffectiveViewportBlockClick"
                   @viewport-transform-change="handleViewportTransformChange"
                   @render-readiness-change="handleRenderReadinessChange" />
               </div>
@@ -55,7 +56,7 @@
                   :show-size-on-resize="workspaceMode === 'design' && !props.debugPassiveCdeViewport && (props.showSelectionSizeOnResize ?? true)"
                   :alignment-snapping-enabled="workspaceMode === 'design' && !props.debugPassiveCdeViewport && alignmentSnappingEnabled"
                   :transform-disabled-block-ids="transformDisabledBlockIds"
-                  @pointerdown.capture="handleCanvasPointerDown" @block-click="handleViewportBlockClick"
+                  @pointerdown.capture="handleCanvasPointerDown" @block-click="handleEffectiveViewportBlockClick"
                   @blank-click="clearEffectiveBlockSelection" @resize-selection="handleSelectionResize"
                   @move-selection="handleSelectionMove" @selection-action="handleSelectionAction"
                   @selection-command="handleSelectionCommand" @z-index-step="handleLayerZIndexStep"
@@ -128,7 +129,7 @@
                 <OcTree v-if="isInstancePanelExpanded" ref="instanceTreeRef" fill role="listbox"
                   data-cde-shortcut-scope="instance-tree" tab-navigation="none"
                   :data="props.mode === 'diff' ? diffInstanceTreeData : instanceTreeData"
-                  :selected-keys="selectedCardKeys" selection-mode="multiple"
+                  :selected-keys="props.mode === 'diff' ? diffSelectedInstanceKeys : selectedCardKeys" selection-mode="multiple"
                   @selection-change="handleInstanceTreeSelection" @action="handleInstanceTreeAction"
                   @rename-commit="handleInstanceRenameCommit" @move="handleInstanceMove" />
               </OcPanel>
@@ -818,11 +819,22 @@ const selectedCardId = ref<string | null>(
   props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID,
 )
 const forceStructureTreeReveal = ref(false)
-const diffSelectedInstanceId = computed(() => (
-  props.mode === 'diff' && selectedCardId.value !== BLUEPRINT_CARD_ID
-    ? selectedCardId.value
-    : null
-))
+// 对比模式的选择与编辑选择平行存在：它只作用于对比投影 不写文档 也不写会话状态。
+const diffSelectedInstanceKeys = ref<string[]>([])
+const diffSelectedInstanceId = computed(() => {
+  const key = diffSelectedInstanceKeys.value[0]
+  return props.mode === 'diff' && key && key !== BLUEPRINT_CARD_ID ? key : null
+})
+// 对比中可投影的实例 id 全集：对比模式的有效性判断以它为准 而不是当前打开的文档。
+const diffInstanceIds = computed<ReadonlySet<string>>(() => new Set([
+  ...(diffModel.value?.beforeDocument.instances ?? []).map(instance => instance.id),
+  ...(diffModel.value?.afterDocument.instances ?? []).map(instance => instance.id),
+]))
+watch([diffSelectedInstanceKeys, diffInstanceIds], ([keys, instanceIds]) => {
+  const validKeys = keys.filter(key => key === BLUEPRINT_CARD_ID || instanceIds.has(key))
+  if (validKeys.length === keys.length) return
+  diffSelectedInstanceKeys.value = validKeys
+})
 const diffBeforeInstance = computed(() => diffSelectedInstanceId.value
   ? diffModel.value?.beforeDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
   : null)
@@ -844,10 +856,7 @@ const diffInstanceTreeData = computed<OcNodeCollection>(() => {
     label: t('cardDesigner.dataTable.blueprint'),
     visual: { type: 'icon', icon: 'file.opencard' },
   })
-  const ids = new Set([
-    ...(diffModel.value?.beforeDocument.instances ?? []).map(instance => instance.id),
-    ...(diffModel.value?.afterDocument.instances ?? []).map(instance => instance.id),
-  ])
+  const ids = diffInstanceIds.value
   for (const id of ids) {
     const before = diffModel.value?.beforeDocument.instances.find(instance => instance.id === id)
     const after = diffModel.value?.afterDocument.instances.find(instance => instance.id === id)
@@ -1091,9 +1100,9 @@ const canMutateSelectedInstance = computed(() => selectedCardKeys.value.some(
 
 function handleInstanceTreeSelection(event: OcNodeSelectionEvent): void {
   if (props.mode === 'diff') {
-    const key = event.selectedKeys[0] ?? BLUEPRINT_CARD_ID
-    selectedCardId.value = key
-    selectedCardKeys.value = [key]
+    diffSelectedInstanceKeys.value = event.selectedKeys.length > 0
+      ? [...event.selectedKeys]
+      : [BLUEPRINT_CARD_ID]
     return
   }
   handleInstanceSelection(event)
@@ -1260,6 +1269,16 @@ async function pasteClipboardBlocks(): Promise<void> {
 function clearEffectiveBlockSelection(): void {
   if (props.mode === 'diff') diffSelectedBlockKeys.value = []
   else clearSelection()
+}
+
+/** 画布选中块：对比模式只写对比选择 编辑模式照旧写文档选择。 */
+function handleEffectiveViewportBlockClick(blockId: string): void {
+  if (props.mode === 'diff') {
+    diffSelectedBlockKeys.value = [blockId]
+    void nextTick(() => editorRootRef.value?.focus({ preventScroll: true }))
+    return
+  }
+  handleViewportBlockClick(blockId)
 }
 
 const expandedBlockKeys = ref<string[]>([])
@@ -2195,8 +2214,64 @@ function resolveBlockFaceKey(blockId: string): CardFaceKey | null {
   }
 }
 
+/** 对比模式的问题定位：输入键与字段键都取自对比属性投影 找不到就如实报未找到。 */
+function resolveDiffNavigationField(
+  target: CardDesignerNavigationToken['target'],
+): { inputKey: string; fieldKey: string } | null {
+  const blockId = target.blockId
+  if (!blockId) return null
+  const inputKey = target.owner === 'location' ? `${blockId}:layout` : blockId
+  const input = diffPropertyInputs.value.find(candidate => candidate.key === inputKey)
+  if (!input) return null
+  const fieldKey = input.fields[`${target.fieldKey}@new`]
+    ? `${target.fieldKey}@new`
+    : input.fields[`${target.fieldKey}@old`]
+      ? `${target.fieldKey}@old`
+      : null
+  return fieldKey ? { inputKey, fieldKey } : null
+}
+
+async function navigateDiffTarget(
+  token: CardDesignerNavigationToken,
+): Promise<CardDesignerNavigationResult> {
+  if (!diffModel.value) return 'not-found'
+  const target = token.target
+
+  if (target.instanceId !== null && !diffInstanceIds.value.has(target.instanceId)) return 'not-found'
+  diffSelectedInstanceKeys.value = [target.instanceId ?? BLUEPRINT_CARD_ID]
+  if (target.faceKey) activeFaceKey.value = target.faceKey
+
+  const descriptor = target.blockId
+    ? collectDiffBlocks(diffAfterProjectedDocument.value).get(target.blockId)
+      ?? collectDiffBlocks(diffBeforeProjectedDocument.value).get(target.blockId)
+    : undefined
+  if (!descriptor || (target.faceKey && descriptor.faceKey !== target.faceKey)) {
+    diffSelectedBlockKeys.value = []
+    return 'not-found'
+  }
+  diffSelectedBlockKeys.value = [descriptor.block.id]
+
+  const projected = resolveDiffNavigationField(target)
+  if (!projected) return 'not-found'
+
+  forceStructureTreeReveal.value = true
+  await nextTick()
+  await nextTick()
+  forceStructureTreeReveal.value = false
+  if (!propertyEditorRef.value) return 'not-found'
+  return await propertyEditorRef.value.revealField(
+    projected.inputKey,
+    projected.fieldKey,
+    target.characterOffset,
+  )
+    ? 'success'
+    : 'not-found'
+}
+
 async function navigate(token: SessionNavigationToken): Promise<CardDesignerNavigationResult> {
   if (!isCardDesignerNavigationToken(token)) return 'invalid-token'
+  // 对比视图是只读视图：定位只作用于对比投影 不触碰文档 也不写会话状态。
+  if (props.mode === 'diff') return await navigateDiffTarget(token)
 
   const document = cardDoc.value
   if (!document) return 'not-found'
@@ -2299,6 +2374,8 @@ watch(
 )
 
 watch(selectedCardId, (cardId) => {
+  // 对比视图是只读视图：实例选择不得写入会话视图状态。
+  if (props.mode === 'diff') return
   const storedId = props.cardDesignerView?.selectedInstanceId ?? null
   const nextId = cardId === BLUEPRINT_CARD_ID ? null : cardId
   if (storedId !== nextId) commitViewState()

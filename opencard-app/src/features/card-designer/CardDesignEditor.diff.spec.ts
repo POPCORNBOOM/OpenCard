@@ -200,6 +200,37 @@ function selectInstance(wrapper: VueWrapper, instanceId: string): void {
   })
 }
 
+type NavigationTargetInput = {
+  owner: 'document' | 'face' | 'instance' | 'block' | 'location'
+  fieldKey: string
+  instanceId?: string
+  faceKey?: 'front' | 'back'
+  blockId?: string
+  characterOffset?: number
+}
+
+function navigationToken(input: NavigationTargetInput): SessionNavigationToken {
+  return {
+    protocol: 'card-designer',
+    version: 2,
+    target: {
+      kind: 'property',
+      instanceId: input.instanceId ?? null,
+      faceKey: input.faceKey ?? null,
+      owner: input.owner,
+      fieldKey: input.fieldKey,
+      ...(input.blockId ? { blockId: input.blockId } : {}),
+      ...(input.characterOffset === undefined ? {} : { characterOffset: input.characterOffset }),
+    },
+  }
+}
+
+async function navigateInDiff(wrapper: VueWrapper, token: SessionNavigationToken): Promise<string> {
+  return await (wrapper.vm as unknown as {
+    navigate: (value: SessionNavigationToken) => Promise<string>
+  }).navigate(token)
+}
+
 describe('CardDesignEditor diff mode', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
@@ -437,25 +468,39 @@ describe('CardDesignEditor diff mode', () => {
     await settle(wrapper)
     expect(editorTrees(wrapper).instanceTree.props('selectedKeys')).toEqual(['instance-1'])
 
+    // A comparison-only instance keeps its diff-tree highlight: the diff selection is validated
+    // against the comparison document, not against the open document.
     selectInstance(wrapper, 'instance-added')
     await settle(wrapper)
-    // Pinned real behaviour: the edit-mode instance watcher validates the selection against the
-    // *open* document's instances, so a comparison-only instance loses its tree highlight even
-    // though `selectedCardId` — and therefore the comparison projection below — keeps following it.
-    expect(editorTrees(wrapper).instanceTree.props('selectedKeys')).toEqual([])
+    expect(editorTrees(wrapper).instanceTree.props('selectedKeys')).toEqual(['instance-added'])
     expect(wrapper.find('.card-viewport-comparison-layer .card-comparison-placeholder').exists()).toBe(true)
 
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     expect(wrapper.emitted('modified')).toBeUndefined()
     expect(wrapper.emitted('save')).toBeUndefined()
+    // Diff instance selection stays inside the diff projection: no session view-state commit.
+    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
     expect(editorProp<string>(wrapper, 'modelValue')).toBe(modelValue)
-    // Pinned real behaviour: instance selection still reports session view state through the
-    // `selectedCardId` watcher, and the diff-scoped block selection never reaches that payload.
-    const viewStates = (wrapper.emitted('update-card-designer-view') ?? []).map(([value]) => value)
-    expect(viewStates).toEqual([
-      expect.objectContaining({ selectedInstanceId: 'instance-1', selectedBlockIdsByFace: { front: [], back: [] } }),
-      expect.objectContaining({ selectedInstanceId: 'instance-added', selectedBlockIdsByFace: { front: [], back: [] } }),
-    ])
+  })
+
+  it('selects a block from the comparison canvas without writing the document', async () => {
+    const wrapper = mountDiff()
+    await settle(wrapper)
+
+    // A real click on the block the after side renders; diff mode has no other canvas selection path.
+    await wrapper.get('.card-viewport-stage--after [data-block-id="text-added"]').trigger('click')
+    await settle(wrapper)
+
+    expect(editorTrees(wrapper).structureTree.props('selectedKeys')).toEqual(['text-added'])
+    const inputs = wrapper.getComponent({ name: 'PropertyEditor' }).props('inputs') as PropertyEditorInput[]
+    // An added block has no before side, so every field plus its placement is an added pair.
+    expect(inputs.map(input => input.key)).toEqual(['text-added', 'text-added:layout'])
+    expect(inputs[0]!.record).toMatchObject({ 'name@new': 'Added block', 'content@new': 'New' })
+    expect(inputs[1]!.record).toMatchObject({ 'anchor@new': 'lt' })
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('modified')).toBeUndefined()
+    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
   })
 
   it('swallows a save request in diff mode', async () => {
@@ -474,41 +519,101 @@ describe('CardDesignEditor diff mode', () => {
     expect(editorProp<string>(wrapper, 'modelValue')).toBe(modelValue)
   })
 
-  it('keeps issue navigation in diff mode from writing the document', async () => {
+  it('navigates to a compared block change in diff mode without writing the document', async () => {
+    const wrapper = mountDiff()
+    await settle(wrapper)
+    const modelValue = editorProp<string>(wrapper, 'modelValue')
+
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'block', faceKey: 'front', blockId: 'text-1', fieldKey: 'content',
+    }))).resolves.toBe('success')
+    await settle(wrapper)
+
+    // The diff projection followed the target: block selected in the diff tree, and the real
+    // property panel revealed the `@new` side of the compared field.
+    expect(editorTrees(wrapper).structureTree.props('selectedKeys')).toEqual(['text-1'])
+    expect(wrapper.get('.property-editor__row[data-input-key="text-1"][data-field-key="content@new"]')
+      .classes()).toContain('is-revealed')
+
+    // A location-owned target reveals the layout input pair instead.
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'location', faceKey: 'front', blockId: 'text-1', fieldKey: 'x',
+    }))).resolves.toBe('success')
+    await settle(wrapper)
+    expect(wrapper.get('.property-editor__row[data-input-key="text-1:layout"][data-field-key="x@new"]')
+      .classes()).toContain('is-revealed')
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('modified')).toBeUndefined()
+    // Navigating inside the comparison never commits the open document's selection.
+    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
+    expect(editorProp<string>(wrapper, 'modelValue')).toBe(modelValue)
+  })
+
+  it('navigates to the removed side of a block that only exists before', async () => {
+    const wrapper = mountDiff()
+    await settle(wrapper)
+
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'block', faceKey: 'front', blockId: 'text-removed', fieldKey: 'content',
+    }))).resolves.toBe('success')
+    await settle(wrapper)
+
+    expect(editorTrees(wrapper).structureTree.props('selectedKeys')).toEqual(['text-removed'])
+    expect(wrapper.get('.property-editor__row[data-input-key="text-removed"][data-field-key="content@old"]')
+      .classes()).toContain('is-revealed')
+    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
+  })
+
+  it('returns not-found in diff mode when the target is not in the comparison', async () => {
     const wrapper = mountDiff()
     await settle(wrapper)
     const modelValue = editorProp<string>(wrapper, 'modelValue')
     selectStructureBlock(wrapper, 'text-1')
     await settle(wrapper)
 
-    const navigate = (wrapper.vm as unknown as {
-      navigate: (token: SessionNavigationToken) => Promise<string>
-    }).navigate
-    const result = await navigate({
-      protocol: 'card-designer',
-      version: 2,
-      target: {
-        kind: 'property',
-        instanceId: null,
-        faceKey: 'front',
-        blockId: 'working-text',
-        owner: 'block',
-        fieldKey: 'content',
-      },
-    })
+    // A block that only exists in the open document must not be selected through the working
+    // document; the diff selection is cleared and the request is reported as not-found.
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'block', faceKey: 'front', blockId: 'working-text', fieldKey: 'content',
+    }))).resolves.toBe('not-found')
     await settle(wrapper)
+    expect(editorTrees(wrapper).structureTree.props('selectedKeys')).toEqual([])
 
-    // Real behaviour: `navigate` has no diff branch, so it addresses the *open* document — it
-    // selects the working block, commits view state, and cannot reveal a diff property input.
+    // A compared block whose field did not change has no diff entry to reveal.
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'block', faceKey: 'front', blockId: 'text-1', fieldKey: 'name',
+    }))).resolves.toBe('not-found')
+    await settle(wrapper)
+    expect(editorTrees(wrapper).structureTree.props('selectedKeys')).toEqual(['text-1'])
+
+    // Document-owned targets exist in the comparison, but the comparison projects block fields
+    // only, so nothing can be revealed.
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'document', fieldKey: 'version',
+    }))).resolves.toBe('not-found')
+    await settle(wrapper)
+    expect(editorTrees(wrapper).structureTree.props('selectedKeys')).toEqual([])
+
+    // An instance the comparison cannot project is rejected, and the selection it replaced is kept
+    // (the earlier null-instance targets left the blueprint selected).
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'instance', instanceId: 'instance-working', fieldKey: 'name',
+    }))).resolves.toBe('not-found')
+    await settle(wrapper)
+    expect(editorTrees(wrapper).instanceTree.props('selectedKeys')).toEqual(['__blueprint__'])
+
+    // A compared instance is selected even though the comparison has no instance field to reveal.
+    await expect(navigateInDiff(wrapper, navigationToken({
+      owner: 'instance', instanceId: 'instance-added', fieldKey: 'name',
+    }))).resolves.toBe('not-found')
+    await settle(wrapper)
+    expect(editorTrees(wrapper).instanceTree.props('selectedKeys')).toEqual(['instance-added'])
+
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     expect(wrapper.emitted('modified')).toBeUndefined()
+    expect(wrapper.emitted('update-card-designer-view')).toBeUndefined()
     expect(editorProp<string>(wrapper, 'modelValue')).toBe(modelValue)
-    expect(result).toBe('not-found')
-    const viewStates = (wrapper.emitted('update-card-designer-view') ?? []).map(([value]) => value)
-    expect(viewStates[viewStates.length - 1]).toEqual(expect.objectContaining({
-      selectedInstanceId: null,
-      selectedBlockIdsByFace: { front: ['working-text'], back: [] },
-    }))
   })
 
   it('reports viewport divider changes through update-diff-ui-state', async () => {
