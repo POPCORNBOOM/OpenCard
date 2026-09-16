@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   OcNode,
+  OcNodeActivateEvent,
   OcNodeCollection,
 } from '../../shared/ui/node/node.types'
 import OcTree from './OcTree.vue'
@@ -367,6 +368,145 @@ describe('OcTree', () => {
       key: 'root',
       expanded: true,
     }])
+    expect(wrapper.find('[data-oc-tree-key="child"]').exists()).toBe(false)
+  })
+
+  it('activates the double-clicked row and prevents that event default', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['first', 'second'],
+          items: [
+            ['first', { label: 'First' }],
+            ['second', { label: 'Second' }],
+          ],
+        }),
+        activationMode: 'double-click',
+      },
+    })
+    const row = wrapper.get('[data-oc-tree-key="second"] .oc-tree__row')
+    const doubleClick = new MouseEvent('dblclick', { bubbles: true, cancelable: true })
+
+    row.element.dispatchEvent(doubleClick)
+    await wrapper.vm.$nextTick()
+
+    // The pair is swallowed by the row, and the event carries the row's own key and nothing else.
+    expect(doubleClick.defaultPrevented).toBe(true)
+    expect(wrapper.emitted('node-activate')).toEqual([[{ key: 'second' }]])
+    const payload = wrapper.emitted('node-activate')?.[0]?.[0] as OcNodeActivateEvent
+    expect(Object.keys(payload)).toEqual(['key'])
+  })
+
+  it('keeps a single click selecting without activating in double-click mode', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['first', 'second'],
+          items: [
+            ['first', { label: 'First' }],
+            ['second', { label: 'Second' }],
+          ],
+        }),
+        activationMode: 'double-click',
+      },
+    })
+
+    await wrapper.get('[data-oc-tree-key="second"] .oc-tree__row').trigger('click')
+
+    // The click still reaches the row, but its selection intent stays separate from activation.
+    expect(wrapper.emitted('selection-change')).toEqual([[{
+      triggerKey: 'second',
+      selectedKeys: ['second'],
+    }]])
+    expect(wrapper.emitted('node-activate')).toBeUndefined()
+  })
+
+  it('activates on a single click and ignores a double click in single-click mode', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          roots: ['first', 'second'],
+          items: [
+            ['first', { label: 'First' }],
+            ['second', { label: 'Second' }],
+          ],
+        }),
+        activationMode: 'single-click',
+      },
+    })
+    const row = wrapper.get('[data-oc-tree-key="second"] .oc-tree__row')
+
+    await row.trigger('click')
+    expect(wrapper.emitted('node-activate')).toEqual([[{ key: 'second' }]])
+
+    row.element.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
+    // The same activation still stands alone: the double click adds no second report.
+    expect(wrapper.emitted('node-activate')).toEqual([[{ key: 'second' }]])
+  })
+
+  it('never activates a row while the activation mode is none', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData(),
+        activationMode: 'none',
+      },
+    })
+    const row = wrapper.get('.oc-tree__row')
+
+    await row.trigger('click')
+    row.element.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('node-activate')).toBeUndefined()
+    // The click is a real row click: it selects, so the silence above is the disabled activation.
+    expect(wrapper.emitted('selection-change')).toEqual([[{
+      triggerKey: 'root',
+      selectedKeys: ['root'],
+    }]])
+  })
+
+  it('never activates a row while no activation mode is given', async () => {
+    const wrapper = mount(OcTree, { props: { data: createData() } })
+    const row = wrapper.get('.oc-tree__row')
+
+    await row.trigger('click')
+    row.element.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('node-activate')).toBeUndefined()
+  })
+
+  it('keeps activation consistent on rows revealed by expanding a parent', async () => {
+    const wrapper = mount(OcTree, {
+      props: {
+        data: createData({
+          items: [
+            ['root', { label: 'Root' }],
+            ['child', { label: 'Child' }],
+          ],
+          children: [['root', ['child']]],
+        }),
+        activationMode: 'double-click',
+      },
+    })
+
+    // Expansion is controlled, so it is driven the way a parent does it: a real icon click, then
+    // the new expanded state fed back into the tree.
+    await wrapper.get('[data-oc-tree-key="root"] .oc-tree__icon-slot').trigger('click')
+    expect(wrapper.emitted('expansion-change')?.[0]).toEqual([{ key: 'root', expanded: true }])
+    expect(wrapper.emitted('node-activate')).toBeUndefined()
+
+    await wrapper.setProps({ expandedKeys: ['root'] })
+    expect(wrapper.find('[data-oc-tree-key="child"]').exists()).toBe(true)
+    const childRow = wrapper.get('[data-oc-tree-key="child"] .oc-tree__row')
+    childRow.element.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('node-activate')).toEqual([[{ key: 'child' }]])
+
+    await wrapper.get('[data-oc-tree-key="root"] .oc-tree__icon-slot').trigger('click')
+    expect(wrapper.emitted('expansion-change')?.[1]).toEqual([{ key: 'root', expanded: false }])
+    await wrapper.setProps({ expandedKeys: [] })
     expect(wrapper.find('[data-oc-tree-key="child"]').exists()).toBe(false)
   })
 
