@@ -326,7 +326,6 @@ import type {
   OcNodeActivateEvent,
   OcNodeCollection,
   OcNodeExpansionEvent,
-  OcNodeExpansionSyncEvent,
   OcNodeExternalDropEvent,
   OcNodeMoveEvent,
   OcNodeRenameCommitEvent,
@@ -395,7 +394,6 @@ import ProjectExportDialog from '../exporting/components/ProjectExportDialog.vue
 import ResourcePackageBuilderDialog from '../workspace/components/ResourcePackageBuilderDialog.vue'
 import CommitVersionDialog from '../version-control/components/CommitVersionDialog.vue'
 import InitializeRepositoryDialog from '../version-control/components/InitializeRepositoryDialog.vue'
-import type { RepositoryInitializationInput } from '../version-control/git.types'
 import type { ExportDocumentCandidate } from '../../components/editors/ProjectExportTaskEditor.vue'
 import {
   createDefaultProjectExportTask,
@@ -410,6 +408,7 @@ import { useShellProjectLifecycle } from './composables/useShellProjectLifecycle
 import { recentProjectKey, useRecentProjectSnapshots } from './composables/useRecentProjectSnapshots'
 import { useShellSidebarLayout } from './composables/useShellSidebarLayout'
 import { useShellWindow } from './composables/useShellWindow'
+import { useShellVersionControl } from './composables/useShellVersionControl'
 import { useWorkspaceIssues } from './composables/useWorkspaceIssues'
 import { navigateWorkspaceIssue } from './services/workspaceIssueNavigation'
 import {
@@ -447,7 +446,6 @@ import {
 import { useShellSidebarLists } from './composables/useShellSidebarLists'
 import {
   IMPORT_RESOURCE_PACKAGE_ACTION_KEY,
-  isRepositorySidebarReady,
   PROJECT_FILES_LIST_KEY,
   PROJECT_NEW_FOLDER_ACTION_KEY,
   PROJECT_NEW_OPENCARD_ACTION_KEY,
@@ -458,9 +456,8 @@ import {
   TIMELINE_REFRESH_ACTION_KEY,
   USER_TEMPLATES_GROUP_KEY,
 } from './shellSidebarConfig'
-import { TIMELINE_COMPARE_WITH_DISK_ACTION_KEY, useProjectTimeline } from '../version-control/useProjectTimeline'
+import { TIMELINE_COMPARE_WITH_DISK_ACTION_KEY } from '../version-control/useProjectTimeline'
 import { useOcdocumentDiffSession } from '../version-control/useOcdocumentDiffSession'
-import { createCommit, initializeRepository, stageAll } from '../version-control/gitService'
 
 const { t, locale } = useI18n()
 const DIFF_EXIT_ACTION_KEY = 'diff.exit'
@@ -706,13 +703,6 @@ const feedbackCenterPage = ref<FeedbackPage | null>(null)
 const themeExchangeDialog = ref<{ themeId: 'dark' | 'light' } | null>(null)
 const themeExchangeText = ref('')
 const themeExchangeError = ref('')
-const commitVersionDialogOpen = ref(false)
-const isCommittingVersion = ref(false)
-const commitVersionError = ref('')
-const initializeRepositoryDialogOpen = ref(false)
-const isInitializingRepository = ref(false)
-const initializeRepositoryError = ref('')
-const repositoryInitializedDuringDialog = ref(false)
 const { latestDiagnostics: latestFeedbackDiagnostics } = useFeedbackDiagnostics()
 const {
   unreadReplyCount: unreadFeedbackReplyCount,
@@ -821,45 +811,46 @@ onUnmounted(() => {
   if (autoSaveTimer !== null) window.clearInterval(autoSaveTimer)
 })
 
-const timelineFilePath = computed(() => {
-  const session = activeSession.value
-  if (!projectPath.value || session?.resourceKind !== 'workspace' || !session.path) return null
-  return getRelativeProjectPath(session.path)
-})
-const projectTimeline = useProjectTimeline(
-  projectPath,
-  timelineFilePath,
-  locale,
-  computed(() => t('sidebar.timelineCompareWithDisk')),
-)
 const {
-  treeData: timelineTreeData,
-  projectTreeData: timelineProjectTreeData,
+  commitVersionDialogOpen,
+  isCommittingVersion,
+  commitVersionError,
+  initializeRepositoryDialogOpen,
+  isInitializingRepository,
+  initializeRepositoryError,
+  repositoryInitializedDuringDialog,
+  timelineFilePath,
+  timelineFileName,
+  timelineTreeData,
+  timelineProjectTreeData,
   changesTreeData,
-  loading: timelineLoading,
-  initialized: timelineInitialized,
-  errorKind: timelineErrorKind,
-  refresh: refreshTimeline,
-  refreshStatus: refreshTimelineStatus,
-  revisionOptions: timelineRevisionOptions,
-} = projectTimeline
-const repositoryReady = computed(() => isRepositorySidebarReady(timelineInitialized.value))
-const repositoryNeedsInitialization = computed(() => (
-  timelineInitialized.value === false && !timelineErrorKind.value
-))
-const versionGraphExpandedKeys = ref<string[]>([])
-watch(timelineProjectTreeData, data => {
-  versionGraphExpandedKeys.value = versionGraphExpandedKeys.value.filter(key => data.children.has(key))
+  timelineLoading,
+  timelineRevisionOptions,
+  refreshTimeline,
+  refreshTimelineStatus,
+  timelinePlaceholder,
+  versionGraphExpandedKeys,
+  repositoryReady,
+  repositoryNeedsInitialization,
+  handleVersionGraphExpansionChange,
+  handleVersionGraphExpansionSync,
+  closeCommitVersionDialog,
+  closeInitializeRepositoryDialog,
+  initializeProjectRepository,
+  commitVersion,
+} = useShellVersionControl({
+  projectPath,
+  activeSession,
+  locale,
+  translate: t,
+  fileChangeRevision,
+  getRelativeProjectPath,
 })
-watch(fileChangeRevision, () => {
-  if (projectPath.value) void refreshTimelineStatus()
-})
-const timelineFileName = computed(() => activeSession.value?.name ?? timelineFilePath.value?.split(/[\\/]/).pop() ?? 'ocdocument')
 const diffSessionState = useOcdocumentDiffSession({
   projectRoot: projectPath,
   filePath: timelineFilePath,
   fileName: timelineFileName,
-  revisions: projectTimeline.revisionOptions,
+  revisions: timelineRevisionOptions,
 })
 let synchronizedDiffSessionKey = ''
 watch(
@@ -888,15 +879,6 @@ const editorComparison = computed(() => {
     after: { ...session.after, revisionId: session.after.commitId, resourceRootPath: diffSessionState.afterSnapshotRoot.value },
   }
 })
-function handleVersionGraphExpansionChange(event: OcNodeExpansionEvent): void {
-  versionGraphExpandedKeys.value = event.expanded
-    ? [...new Set([...versionGraphExpandedKeys.value, event.key])]
-    : versionGraphExpandedKeys.value.filter(key => key !== event.key)
-}
-
-function handleVersionGraphExpansionSync(event: OcNodeExpansionSyncEvent): void {
-  versionGraphExpandedKeys.value = event.expandedKeys
-}
 async function handleTimelineAction(event: OcNodeActionEvent) {
   if (event.actionKey !== TIMELINE_COMPARE_WITH_DISK_ACTION_KEY || !timelineFilePath.value) return
   const commitId = event.key.startsWith('timeline:') ? event.key.slice('timeline:'.length) : null
@@ -917,16 +899,6 @@ async function handleTimelineAction(event: OcNodeActionEvent) {
     afterRevisionId: null,
   })
 }
-const timelinePlaceholder = computed(() => {
-  if (!timelineFilePath.value) return t('sidebar.timelineNoFile')
-  if (timelineLoading.value) return t('sidebar.timelineLoading')
-  if (timelineErrorKind.value) return t('sidebar.timelineFailed')
-  if (timelineInitialized.value === false) return t('sidebar.timelineNotInitialized')
-  if (timelineInitialized.value === true && !projectTimeline.hasHistory.value) {
-    return t('sidebar.timelineNoCommits')
-  }
-  return t('sidebar.timelineNoFile')
-})
 
 const {
   editorRef: currentEditorRef,
@@ -2880,90 +2852,6 @@ async function runShellCommand(actionKey: string) {
     await openProjectExportDialog()
   }
   return
-}
-
-function closeCommitVersionDialog(): void {
-  if (isCommittingVersion.value) return
-  commitVersionDialogOpen.value = false
-  commitVersionError.value = ''
-}
-
-function closeInitializeRepositoryDialog(): void {
-  if (isInitializingRepository.value) return
-  initializeRepositoryDialogOpen.value = false
-  initializeRepositoryError.value = ''
-  repositoryInitializedDuringDialog.value = false
-}
-
-async function initializeProjectRepository(input: RepositoryInitializationInput): Promise<void> {
-  const root = projectPath.value
-  if (!root || isInitializingRepository.value) return
-  isInitializingRepository.value = true
-  initializeRepositoryError.value = ''
-  try {
-    if (!repositoryInitializedDuringDialog.value) {
-      const initialized = await initializeRepository(root, input.identity)
-      if (!initialized.ok || !initialized.value) {
-        initializeRepositoryError.value = initialized.error?.message ?? t('sidebar.initializeDialog.failed')
-        return
-      }
-      repositoryInitializedDuringDialog.value = true
-      await refreshTimeline()
-    }
-
-    if (input.createInitialCommit) {
-      const staged = await stageAll(root)
-      if (!staged.ok || !staged.value) {
-        initializeRepositoryError.value = t('sidebar.initializeDialog.initialCommitFailed')
-        return
-      }
-      const committed = await createCommit(root, { message: t('sidebar.initializeDialog.initialCommitMessage') })
-      if (!committed.ok || !committed.value) {
-        initializeRepositoryError.value = t('sidebar.initializeDialog.initialCommitFailed')
-        return
-      }
-    }
-
-    initializeRepositoryDialogOpen.value = false
-    repositoryInitializedDuringDialog.value = false
-    await refreshTimeline()
-  } catch (error) {
-    if (error instanceof Error) {
-      initializeRepositoryError.value = error.message
-    } else if (repositoryInitializedDuringDialog.value) {
-      initializeRepositoryError.value = t('sidebar.initializeDialog.initialCommitFailed')
-    } else {
-      initializeRepositoryError.value = t('sidebar.initializeDialog.failed')
-    }
-  } finally {
-    isInitializingRepository.value = false
-  }
-}
-
-async function commitVersion(value: { summary: string; description: string }): Promise<void> {
-  const root = projectPath.value
-  if (!root || isCommittingVersion.value) return
-  isCommittingVersion.value = true
-  commitVersionError.value = ''
-  try {
-    const staged = await stageAll(root)
-    if (!staged.ok || !staged.value) {
-      commitVersionError.value = staged.error?.message ?? t('sidebar.commitDialog.failed')
-      return
-    }
-    const message = value.description ? `${value.summary}\n\n${value.description}` : value.summary
-    const result = await createCommit(root, { message })
-    if (!result.ok || !result.value) {
-      commitVersionError.value = result.error?.message ?? t('sidebar.commitDialog.failed')
-      return
-    }
-    commitVersionDialogOpen.value = false
-    await refreshTimeline()
-  } catch (error) {
-    commitVersionError.value = error instanceof Error ? error.message : t('sidebar.commitDialog.failed')
-  } finally {
-    isCommittingVersion.value = false
-  }
 }
 
 function createResourcePackageTreeData(packs: readonly StoredResourcePackage[]): OcNodeCollection {
