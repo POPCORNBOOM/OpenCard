@@ -506,7 +506,7 @@ export default {
       duplicateSeriesKeyIssue: 'Project icon reference name "{key}" is duplicated.',
       duplicateIconKeyIssue: 'Icon reference name "{key}" is duplicated in this project icon.',
       imageLoadFailed: 'The project icon file could not be loaded. Its configuration is preserved but cannot be previewed.',
-      preview: 'Preview', resizePreview: 'Resize the icon canvas and preview panel',
+      resizePreview: 'Resize the icon canvas and properties panel',
     },
   },
   fontRegistry: {

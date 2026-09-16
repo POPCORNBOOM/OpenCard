@@ -506,7 +506,7 @@ export default {
       duplicateSeriesKeyIssue: '项目图标引用名称“{key}”重复。',
       duplicateIconKeyIssue: '图标引用名称“{key}”在当前项目图标中重复。',
       imageLoadFailed: '项目图标文件无法加载；配置会保留，但该图标暂时不可预览。',
-      preview: '预览', resizePreview: '调整图标画布与预览面板高度',
+      resizePreview: '调整图标画布与属性面板高度',
     },
   },
   fontRegistry: {

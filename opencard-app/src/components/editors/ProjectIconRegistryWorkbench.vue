@@ -30,7 +30,7 @@
               :data-tooltip="t('projectConfig.icons.removeSeries')"
               @click.stop="removeSeries(index)" />
           </template>
-          <ProjectIconSetWorkspace v-if="selectedSeriesIndex === index" :ref="captureSetWorkspace"
+          <ProjectIconSetWorkspace v-if="selectedSeriesIndex === index"
             :series="candidate" :entries="selectedSeriesEntries" :selected-icon-indexes="selectedIconIndexesForSeries"
             @update:series="updateSelectedSeries" @update:selected-icon-indexes="setSelectedIconIndexes" />
         </ProjectConfigSection>
@@ -46,15 +46,14 @@
             :entry="selectedCatalogEntry" mode="preview" />
           <OcEmpty v-else tone="muted" inset="none">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
         </div>
-        <OcViewportInspector v-model:expanded="previewPanelExpanded" v-model:height="previewPanelHeight"
-          class="project-icon-registry-workbench__preview-pane" :heading="t('projectConfig.icons.preview')"
+        <OcViewportInspector v-model:expanded="propertyPanelExpanded" v-model:height="propertyPanelHeight"
+          class="project-icon-registry-workbench__property-pane" :heading="t('cardDesigner.panels.properties')"
           :expand-label="t('app.shell.expandBottomPanel')" :collapse-label="t('app.shell.collapseBottomPanel')"
           :resize-label="t('projectConfig.icons.resizePreview')">
-          <div class="project-icon-registry-workbench__preview-content">
-            <OcText as="strong">{{ selectedIcon?.name ?? t('projectConfig.icons.noIconSelected') }}</OcText>
-            <ProjectIconView v-if="selectedCatalogEntry" class="project-icon-registry-workbench__preview-icon"
-              :entry="selectedCatalogEntry" mode="preview" />
-            <OcText v-else tone="muted" size="sm">{{ t('projectConfig.icons.noIconSelected') }}</OcText>
+          <div class="project-icon-registry-workbench__property-content">
+            <PropertyEditor v-if="selectedIcon" ref="propertyEditorRef" :inputs="iconPropertyInputs"
+              :categories="iconPropertyCategories" sort-mode="category" @update-property="updateIconProperty" />
+            <OcEmpty v-else tone="muted">{{ t('projectConfig.icons.noIconSelected') }}</OcEmpty>
           </div>
         </OcViewportInspector>
       </template>
@@ -76,7 +75,11 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   findProjectIconKeyConflicts,
+  PROJECT_ICON_ROTATIONS,
+  PROJECT_ICON_TINTS,
+  type ProjectIcon,
   type ProjectIconKeyConflict,
+  type ProjectIconRotation,
   type ProjectIconSeries,
 } from '../../features/workspace/model/projectIcons'
 import ProjectIconView from '../../features/workspace/components/ProjectIconView.vue'
@@ -87,6 +90,12 @@ import {
   type ProjectIconCatalog,
   type ProjectIconCatalogEntry,
 } from '../../features/workspace/services/projectIconCatalog'
+import type {
+  PropertyEditorCategoryDefinition,
+  PropertyEditorInput,
+  PropertyEditorMutation,
+} from '../../shared/ui/property-editor/propertyEditor.types'
+import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
 import OcButton from '../base/OcButton.vue'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcIcon from '../base/OcIcon.vue'
@@ -116,9 +125,9 @@ const selectedSeriesKey = ref<string | null>(null)
 const selectedIconIndexes = ref<Record<string, number[]>>({})
 const settingsSeriesIndex = ref<number | null>(null)
 const settingsBusy = ref(false)
-const previewPanelExpanded = ref(true)
-const previewPanelHeight = ref<number | null>(null)
-const setWorkspaceRef = ref<InstanceType<typeof ProjectIconSetWorkspace> | null>(null)
+const propertyPanelExpanded = ref(true)
+const propertyPanelHeight = ref<number | null>(null)
+const propertyEditorRef = ref<InstanceType<typeof PropertyEditor> | null>(null)
 const localCatalog = ref<ProjectIconCatalog>({ series: [], entries: [], errors: [] })
 let initialized = false
 
@@ -166,6 +175,44 @@ const selectedCatalogEntry = computed<ProjectIconCatalogEntry | null>(() => {
     ?? findProjectIcon(props.projectIconCatalog, series.key, icon.iconKey)
 })
 const conflicts = computed(() => findProjectIconKeyConflicts(props.series))
+const iconPropertyCategories = computed<ReadonlyMap<string, PropertyEditorCategoryDefinition>>(() => new Map([
+  ['identity', { title: t('projectConfig.icons.identity'), icon: 'data.symbol-class' }],
+  ['appearance', { title: t('projectConfig.icons.appearance'), icon: 'file.image' }],
+]))
+const iconPropertyInputs = computed<PropertyEditorInput[]>(() => {
+  const index = selectedIconIndex.value
+  const icon = selectedIcon.value
+  if (index === null || !icon) return []
+  return [{
+    key: `icon:${index}`,
+    title: icon.name,
+    record: {
+      iconKey: icon.iconKey,
+      name: icon.name,
+      tint: icon.tint,
+      pixelated: String(icon.pixelated ?? false),
+      rotation: `${icon.rotation ?? 0}°`,
+    },
+    fields: {
+      iconKey: { title: t('projectConfig.icons.referenceName'), fieldType: 'string', category: 'identity', order: 1, required: true, commitMode: 'blur' },
+      name: { title: t('projectConfig.icons.iconName'), fieldType: 'string', category: 'identity', order: 2, commitMode: 'blur' },
+      tint: {
+        title: t('projectConfig.icons.tint'), fieldType: 'string', category: 'appearance', order: 1,
+        options: [...PROJECT_ICON_TINTS],
+        optionLabels: {
+          theme: t('projectConfig.icons.tintTheme'),
+          original: t('projectConfig.icons.tintOriginal'),
+        },
+        presentation: 'select',
+      },
+      pixelated: { title: t('projectConfig.icons.pixelated'), fieldType: 'boolean', category: 'appearance', order: 2 },
+      rotation: {
+        title: t('projectConfig.icons.rotation'), fieldType: 'string', category: 'appearance', order: 3,
+        options: PROJECT_ICON_ROTATIONS.map(value => `${value}°`), presentation: 'select',
+      },
+    },
+  }]
+})
 
 watch(() => props.series, nextSeries => {
   if (!initialized) {
@@ -226,6 +273,30 @@ function updateSelectedSeries(nextSeries: ProjectIconSeries): void {
   next[index] = nextSeries
   emit('update:series', next)
 }
+function updateIcon(index: number, patch: Partial<ProjectIcon>): void {
+  const current = selectedSeries.value
+  const icon = current?.icons[index]
+  if (!current || !icon) return
+  const icons = [...current.icons]
+  icons[index] = { ...icon, ...patch }
+  updateSelectedSeries({ ...current, icons })
+}
+function updateIconProperty(mutation: PropertyEditorMutation): void {
+  const index = selectedIconIndex.value
+  if (index === null) return
+  if (mutation.fieldKey === 'iconKey') updateIcon(index, { iconKey: String(mutation.value) })
+  else if (mutation.fieldKey === 'name') updateIcon(index, { name: String(mutation.value) })
+  else if (mutation.fieldKey === 'tint') {
+    updateIcon(index, { tint: mutation.value === 'original' ? 'original' : 'theme' })
+  } else if (mutation.fieldKey === 'pixelated') {
+    updateIcon(index, { pixelated: mutation.value === true || mutation.value === 'true' })
+  } else if (mutation.fieldKey === 'rotation') {
+    const value = Number(String(mutation.value).replace('°', ''))
+    if ((PROJECT_ICON_ROTATIONS as readonly number[]).includes(value)) {
+      updateIcon(index, { rotation: value as ProjectIconRotation })
+    }
+  }
+}
 function exportIconPack(index: number): void {
   const candidate = props.series[index]
   if (candidate) emit('export-pack', candidate)
@@ -257,9 +328,6 @@ function removeSeries(index: number): void {
   if (!removed) return
   emit('remove-series', removed.key)
 }
-function captureSetWorkspace(instance: unknown): void {
-  setWorkspaceRef.value = instance as InstanceType<typeof ProjectIconSetWorkspace> | null
-}
 async function selectSeries(seriesKey: string): Promise<boolean> {
   await nextTick()
   const index = props.series.findIndex(candidate => candidate.key === seriesKey)
@@ -278,7 +346,8 @@ async function navigateToKeyConflict(conflict: ProjectIconKeyConflict): Promise<
   if (!candidate.icons[conflict.iconIndex]) return false
   setSelectedIconIndexes([conflict.iconIndex])
   await nextTick()
-  return await setWorkspaceRef.value?.activateIconKey(conflict.iconIndex) ?? false
+  await propertyEditorRef.value?.activateField(`icon:${conflict.iconIndex}`, 'iconKey')
+  return true
 }
 
 defineExpose({ selectSeries, navigateToKeyConflict, selectedRuntime })
@@ -334,23 +403,17 @@ defineExpose({ selectSeries, navigateToKeyConflict, selectedRuntime })
   position: absolute; top: var(--oc-space-2); left: 50%; z-index: var(--oc-z-overlay-toolbar);
   transform: translateX(-50%);
 }
-.project-icon-registry-workbench__preview-pane {
+.project-icon-registry-workbench__property-pane {
   --oc-viewport-inspector-default-height: var(--oc-project-icon-atlas-height);
 }
-.project-icon-registry-workbench__preview-content {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  justify-items: center;
+.project-icon-registry-workbench__property-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   width: 100%;
-  height: 100%;
   min-width: 0;
   min-height: 0;
-  gap: var(--oc-space-2);
-  overflow: hidden;
-}
-.project-icon-registry-workbench__preview-icon {
-  align-self: center;
-  font-size: var(--oc-project-icon-preview-size);
+  overflow: auto;
 }
 .project-icon-registry-workbench__placeholder {
   display: grid; grid-row: 1 / -1; place-content: center; justify-items: center;
