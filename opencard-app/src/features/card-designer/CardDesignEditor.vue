@@ -227,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
+import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
@@ -286,6 +286,7 @@ import { useCdeDataTableCommands } from './useCdeDataTableCommands'
 import { useCdeDataTableWorkbook } from './useCdeDataTableWorkbook'
 import { useAppSettingsStore } from '../settings/store/appSettingsStore'
 import { useCdeRenderProjection } from './useCdeRenderProjection'
+import { useCdeViewportCardInfo } from './useCdeViewportCardInfo'
 import type { PreparedCardRender } from '../card-rendering/renderPipeline'
 import {
   useCdeViewportController,
@@ -327,9 +328,6 @@ import {
 } from '../../shared/model/clipboard/cardBlockClipboard'
 import { readOcClipboard, writeOcClipboard } from '../../shared/model/clipboard/ocClipboardService'
 import { fileSystemService } from '../workspace/services/fileSystemService'
-import {
-  getEditorResourceRelativePath,
-} from '../editor-runtime/services/editorResource'
 import { createResourceDirectoryProvider } from '../workspace/services/resourceDirectoryProvider'
 import {
   isCardDesignerNavigationToken,
@@ -1610,119 +1608,23 @@ const selectionInfo = computed<CardViewportSelectionInfo | null>(() => {
   }
 })
 
-type ViewportCardInfoItem = {
-  key: string
-  value: string
-  separated?: boolean
-  multiline?: boolean
-}
-const viewportCardInfo = computed(() => {
-  function countBlocks(blocks: readonly CardBlock[]): number {
-    return blocks.reduce((count, block) => (
-      count + 1 + (isBlockContainer(block)
-        ? countBlocks(block.children.map((child) => child.block))
-        : 0)
-    ), 0)
-  }
-
-  const document = cardDoc.value
-  const face = activeFace.value
-  const filePath = getEditorResourceRelativePath(props.resourceRootPath ?? null, props.filePath)
-    || props.fileName?.trim()
-    || props.filePath.split(/[\\/]/).filter(Boolean).pop()
-    || props.filePath
-  const blockCount = face ? countBlocks(face.children.map((child) => child.block)) : 0
-  const isBlueprint = selectedCardId.value === BLUEPRINT_CARD_ID
-  const documentName = viewDoc.value?.name || '—'
-  const documentVersion = viewDoc.value?.version || '—'
-  const description = viewDoc.value?.description.trim()
-  const notes = viewDoc.value?.notes.trim()
-  const items: ViewportCardInfoItem[] = [
-    { key: 'fileName', value: filePath },
-    { key: 'document', value: `${documentName} @ ${documentVersion}` },
-  ]
-
-  if (description) {
-    items.push({
-      key: 'description',
-      value: t('cardDesigner.info.descriptionValue', { description }),
-      multiline: true,
-    })
-  }
-
-  items.push({
-    key: 'instanceCount',
-    value: t('cardDesigner.info.instanceTotal', { count: document?.instances.length ?? 0 }),
-  })
-
-  if (!isBlueprint && selectedCard.value) {
-    const instanceIndex = Math.max(0, document?.instances.findIndex(
-      (instance) => instance.id === selectedCard.value?.id,
-    ) ?? -1) + 1
-    items.push({
-      key: 'instance',
-      value: t('cardDesigner.info.instancePosition', {
-        name: selectedCard.value.name || selectedCard.value.id,
-        index: instanceIndex,
-        total: document?.instances.length ?? 0,
-      }),
-      separated: true,
-    })
-  }
-
-  items.push({
-    key: 'face',
-    value: activeFaceKey.value === 'front'
-      ? t('cardDesigner.info.front')
-      : t('cardDesigner.info.back'),
-    separated: true,
-  })
-  items.push({ key: 'blockCount', value: t('cardDesigner.info.blockTotal', { count: blockCount }) })
-  if (notes) {
-    items.push({ key: 'notes', value: notes, separated: true, multiline: true })
-  }
-  return items
+const {
+  highlightedInfoKeys,
+  viewportCardDimensions,
+  viewportCardInfo,
+} = useCdeViewportCardInfo({
+  cardDoc,
+  activeFaceKey,
+  selectedCardId,
+  selectedCard,
+  viewDocument: viewDoc,
+  viewFace,
+  resourceRootPath: toRef(props, 'resourceRootPath'),
+  filePath: toRef(props, 'filePath'),
+  fileName: toRef(props, 'fileName'),
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  translate: (key, parameters) => t(key, parameters ?? {}),
 })
-const viewportCardDimensions = computed(() => ({
-  width: t('cardDesigner.info.widthValue', { value: viewFace.value?.width ?? '—' }),
-  height: t('cardDesigner.info.heightValue', { value: viewFace.value?.height ?? '—' }),
-}))
-const highlightedInfoKeys = ref<ReadonlySet<string>>(new Set())
-const previousInfoValues = new Map<string, string>()
-const infoHighlightTimers = new Map<string, number>()
-
-function highlightInfoValue(key: string): void {
-  const nextKeys = new Set(highlightedInfoKeys.value)
-  nextKeys.add(key)
-  highlightedInfoKeys.value = nextKeys
-
-  const previousTimer = infoHighlightTimers.get(key)
-  if (previousTimer !== undefined) window.clearTimeout(previousTimer)
-  infoHighlightTimers.set(key, window.setTimeout(() => {
-    const remainingKeys = new Set(highlightedInfoKeys.value)
-    remainingKeys.delete(key)
-    highlightedInfoKeys.value = remainingKeys
-    infoHighlightTimers.delete(key)
-  }, 900))
-}
-
-watch(viewportCardInfo, (items) => {
-  for (const item of items) {
-    const previousValue = previousInfoValues.get(item.key)
-    previousInfoValues.set(item.key, item.value)
-    if (previousValue === undefined || previousValue === item.value) continue
-    highlightInfoValue(item.key)
-  }
-}, { immediate: true })
-watch(viewportCardDimensions, (dimensions) => {
-  for (const key of ['width', 'height'] as const) {
-    const value = dimensions[key]
-    const previousValue = previousInfoValues.get(key)
-    previousInfoValues.set(key, value)
-    if (previousValue === undefined || previousValue === value) continue
-    highlightInfoValue(key)
-  }
-}, { immediate: true })
 const propertyFieldWarnings = computed<ReadonlyMap<string, string>>(() => {
   const warnings = new Map<string, string>()
   const message = t('propertyEditor.currentValueRenderWarning')
@@ -2024,11 +1926,6 @@ defineExpose({
   dataTableWorkbookBusy,
   canExportDataTableWorkbook,
   getImageRenderSource,
-})
-
-onUnmounted(() => {
-  for (const timer of infoHighlightTimers.values()) window.clearTimeout(timer)
-  infoHighlightTimers.clear()
 })
 
 </script>
