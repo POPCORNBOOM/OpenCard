@@ -229,7 +229,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { EditorEmits, EditorProps, EditorSnapshotContext } from '../editor-runtime/registry/editorRegistry'
+import type { EditorEmits, EditorProps } from '../editor-runtime/registry/editorRegistry'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import {
@@ -237,7 +237,6 @@ import {
   getBlockProperty,
   type AdditionalFieldDefinition,
   type CardBlock,
-  type CardDocument,
   type CardFaceKey,
   type FlowDirection,
 } from '../../entities/card/model'
@@ -245,7 +244,6 @@ import { getBlockPresentation } from './blockPresentation'
 import OcPanel from '../../components/base/OcPanel.vue'
 import CardFaceRenderer from '../card-rendering/components/CardFaceRenderer.vue'
 import CardViewport, {
-  type CardViewportComparison,
   type CardViewportSelectionActionLabels,
   type CardViewportSelectionCommand,
   type CardViewportSelectionInfo,
@@ -253,7 +251,6 @@ import CardViewport, {
 } from '../card-rendering/components/CardViewport.vue'
 import { buildCardLayerGroups } from '../card-rendering/components/cardLayerModel'
 import PropertyEditor from '../../shared/ui/property-editor/PropertyEditor.vue'
-import type { PropertyEditorFieldDefinition, PropertyEditorInput } from '../../shared/ui/property-editor/propertyEditor.types'
 import AdditionalFieldCreateDialog from '../../shared/ui/property-editor/AdditionalFieldCreateDialog.vue'
 import OcEmpty from '../../components/base/OcEmpty.vue'
 import OcTree from '../../components/standard/OcTree.vue'
@@ -273,6 +270,7 @@ import {
 import { useCdeDocumentState } from './useCdeDocumentState'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 import { useCdeOverlayLayout } from './useCdeOverlayLayout'
+import { useCdeDiffView } from './useCdeDiffView'
 import { useCdePropertyEditorProjection } from './useCdePropertyEditorProjection'
 import { useCdeDataTableCellProjection } from './useCdeDataTableCellProjection'
 import {
@@ -309,22 +307,15 @@ import {
   useCdeBlockFieldCommands,
 } from './useCdeBlockFieldCommands'
 import type {
-  OcNode,
   OcNodeActionEvent,
   OcNodeActivateEvent,
-  OcNodeCollection,
   OcNodeExpansionEvent,
   OcNodeExpansionSyncEvent,
   OcNodeSelectionEvent,
 } from '../../shared/ui/node/node.types'
 import { isBlockContainer, isBlockPackaged, visitCardBlockTree } from '../../entities/card/tree'
-import { applyInstance } from '../../entities/card/instance'
 import OcCard, { type OcCardAction } from '../../components/standard/OcCard.vue'
-import type { CardDesignerViewState, EditorDiffViewMode } from '../editor-runtime/model/editorUiState'
-import { compareOcdocuments } from '../version-control/ocdocumentDiff'
-import { resolveCardPropertyFields } from '../card-properties/cardPropertyFieldDefinitions'
-import { prepareCardRender } from '../card-rendering/renderPipeline'
-import { EMPTY_PROJECT_ICON_CATALOG } from '../workspace/services/projectIconCatalog'
+import type { CardDesignerViewState } from '../editor-runtime/model/editorUiState'
 import { createCardDesignerIssueSnapshot } from './cardDesignerIssues'
 import { isBindingExpression } from '../editor-runtime/model/binding'
 import type { FilePathDirectoryProvider } from '../../shared/model/filePath'
@@ -369,189 +360,6 @@ const projectStore = useProjectStore()
 const settingsStore = useAppSettingsStore()
 const propertyBindingInterpreter = { isExpression: isBindingExpression }
 
-const diffModel = computed(() => {
-  if (props.mode !== 'diff' || !props.comparison) return null
-  const result = compareOcdocuments(props.comparison.before.content, props.comparison.after.content)
-  return result.ok ? result : null
-})
-const diffBeforeRender = computed<PreparedCardRender | null>(() => {
-  const model = diffModel.value
-  const snapshot = props.comparison?.before
-  if (!model || !snapshot) return null
-  return prepareCardRender({
-    document: model.beforeDocument,
-    instance: diffBeforeInstance.value,
-    resourceRootPath: snapshot.resourceRootPath ?? null,
-    sourceFilePath: snapshot.sourceFilePath ?? null,
-    environment: {
-      ...projectStore.renderEnvironment.value,
-      project: snapshot.project ?? null,
-      dictionary: snapshot.dictionary,
-      projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
-      remoteResourcePolicy: snapshot.remoteResourcePolicy,
-      resolveFontFamily: snapshot.resolveFontFamily,
-    },
-  })
-})
-const diffAfterRender = computed<PreparedCardRender | null>(() => {
-  const model = diffModel.value
-  const snapshot = props.comparison?.after
-  if (!model || !snapshot) return null
-  return prepareCardRender({
-    document: model.afterDocument,
-    instance: diffAfterInstance.value,
-    resourceRootPath: snapshot.resourceRootPath ?? null,
-    sourceFilePath: snapshot.sourceFilePath ?? null,
-    environment: {
-      ...projectStore.renderEnvironment.value,
-      project: snapshot.project ?? null,
-      dictionary: snapshot.dictionary,
-      projectIconCatalog: snapshot.projectIconCatalog ?? EMPTY_PROJECT_ICON_CATALOG,
-      remoteResourcePolicy: snapshot.remoteResourcePolicy,
-      resolveFontFamily: snapshot.resolveFontFamily,
-    },
-  })
-})
-const diffDivider = ref(Math.min(1, Math.max(0, props.diffUiState?.divider ?? 0.5)))
-const diffViewMode = ref<EditorDiffViewMode>(props.diffUiState?.viewMode ?? 'split')
-const diffDividerTransitionRevision = ref(0)
-watch(() => props.diffUiState, value => {
-  diffDivider.value = Math.min(1, Math.max(0, value?.divider ?? 0.5))
-  diffViewMode.value = value?.viewMode ?? 'split'
-})
-function formatDiffRevisionLabel(snapshot: EditorSnapshotContext | undefined): string {
-  if (!snapshot) return ''
-  const hash = snapshot.revisionId?.slice(0, 7)
-  return hash ? `${hash} ${snapshot.label}` : t('sidebar.diffViewer.diskVersion')
-}
-
-const diffViewportComparison = computed<CardViewportComparison | undefined>(() => {
-  const before = diffBeforeRender.value
-  const after = diffAfterRender.value
-  if (!before || !after) return undefined
-  const addedInstance = Boolean(diffSelectedInstanceId.value && !diffBeforeInstance.value && diffAfterInstance.value)
-  const removedInstance = Boolean(diffSelectedInstanceId.value && diffBeforeInstance.value && !diffAfterInstance.value)
-  const beforeFace = before.document.faces[activeFaceKey.value]
-  const afterFace = after.document.faces[activeFaceKey.value]
-  return {
-    before: {
-      face: addedInstance ? afterFace : beforeFace,
-      resourceContext: before.resources,
-      placeholder: addedInstance,
-      diffHighlights: diffBeforeHighlights.value,
-    },
-    after: {
-      face: removedInstance ? beforeFace : afterFace,
-      resourceContext: after.resources,
-      placeholder: removedInstance,
-      diffHighlights: diffAfterHighlights.value,
-    },
-    divider: diffDivider.value,
-    viewMode: diffViewMode.value,
-    transitionRevision: diffDividerTransitionRevision.value,
-    beforeLabel: formatDiffRevisionLabel(props.comparison?.before),
-    afterLabel: formatDiffRevisionLabel(props.comparison?.after),
-  }
-})
-
-function handleDiffDividerChange(value: number): void {
-  diffDivider.value = Math.min(1, Math.max(0, value))
-  commitDiffUiState()
-}
-
-function commitDiffUiState(): void {
-  emit('update-diff-ui-state', { divider: diffDivider.value, viewMode: diffViewMode.value })
-}
-
-function toggleDiffViewMode(): void {
-  diffViewMode.value = diffViewMode.value === 'split' ? 'side-by-side' : 'split'
-  commitDiffUiState()
-  cardViewportRef.value?.flashStatus?.({
-    icon: 'layout.columns',
-    message: diffViewMode.value === 'side-by-side'
-      ? t('cardDesigner.viewportStatus.diffSideBySide')
-      : t('cardDesigner.viewportStatus.diffSplit'),
-  })
-}
-
-function setDiffDividerPreset(divider: 0 | 0.5 | 1): void {
-  const switchedFromSideBySide = diffViewMode.value === 'side-by-side'
-  diffViewMode.value = 'split'
-  diffDivider.value = divider
-  diffDividerTransitionRevision.value += 1
-  commitDiffUiState()
-  if (switchedFromSideBySide) {
-    cardViewportRef.value?.flashStatus?.({
-      icon: 'layout.columns',
-      message: t('cardDesigner.viewportStatus.diffSplit'),
-    })
-  }
-}
-type CdeDiffBlockDescriptor = {
-  block: CardBlock
-  faceKey: 'front' | 'back'
-  parentId: string
-  order: number
-  location: unknown
-}
-function collectDiffBlocks(document: CardDocument | null | undefined): Map<string, CdeDiffBlockDescriptor> {
-  const result = new Map<string, CdeDiffBlockDescriptor>()
-  if (!document) return result
-  const visit = (block: CardBlock, faceKey: 'front' | 'back', parentId: string, order: number, location: unknown) => {
-    result.set(block.id, { block, faceKey, parentId, order, location })
-    if (!isBlockContainer(block)) return
-    block.children.forEach((child, index) => visit(child.block, faceKey, block.id, index, child.location))
-  }
-  for (const faceKey of ['front', 'back'] as const) {
-    document.faces[faceKey].children.forEach((child, index) => {
-      visit(child.block, faceKey, `face:${faceKey}`, index, child.location)
-    })
-  }
-  return result
-}
-function diffBlockOwnRecord(block: CardBlock): Record<string, unknown> {
-  const { children: _children, ...record } = block as CardBlock & { children?: unknown }
-  return record
-}
-function collectChangedDiffBlockIds(
-  beforeDocument: CardDocument | null | undefined = diffModel.value?.beforeDocument,
-  afterDocument: CardDocument | null | undefined = diffModel.value?.afterDocument,
-): Set<string> {
-  const before = collectDiffBlocks(beforeDocument)
-  const after = collectDiffBlocks(afterDocument)
-  return new Set([...before].flatMap(([blockId, descriptor]) => {
-    const afterDescriptor = after.get(blockId)
-    if (!afterDescriptor) return []
-    const ownBlockChanged = !diffValuesEqual(
-      diffBlockOwnRecord(descriptor.block),
-      diffBlockOwnRecord(afterDescriptor.block),
-    )
-    const layoutChanged = descriptor.parentId !== afterDescriptor.parentId
-      || descriptor.faceKey !== afterDescriptor.faceKey
-      || descriptor.order !== afterDescriptor.order
-      || !diffValuesEqual(descriptor.location, afterDescriptor.location)
-    return ownBlockChanged || layoutChanged ? [blockId] : []
-  }))
-}
-const diffBeforeHighlights = computed(() => {
-  const before = collectDiffBlocks(diffBeforeProjectedDocument.value)
-  const after = collectDiffBlocks(diffAfterProjectedDocument.value)
-  const changed = collectChangedDiffBlockIds(diffBeforeProjectedDocument.value, diffAfterProjectedDocument.value)
-  return [...before].flatMap(([blockId, descriptor]) => descriptor.faceKey !== activeFaceKey.value
-    ? []
-    : [{ blockId, kind: !after.has(blockId) ? 'removed' as const : changed.has(blockId) ? 'changed' as const : undefined }]
-  ).filter((item): item is { blockId: string; kind: 'removed' | 'changed' } => Boolean(item.kind))
-})
-const diffAfterHighlights = computed(() => {
-  const before = collectDiffBlocks(diffBeforeProjectedDocument.value)
-  const after = collectDiffBlocks(diffAfterProjectedDocument.value)
-  const changed = collectChangedDiffBlockIds(diffBeforeProjectedDocument.value, diffAfterProjectedDocument.value)
-  return [...after].flatMap(([blockId, descriptor]) => descriptor.faceKey !== activeFaceKey.value
-    ? []
-    : [{ blockId, kind: !before.has(blockId) ? 'added' as const : changed.has(blockId) ? 'changed' as const : undefined }]
-  ).filter((item): item is { blockId: string; kind: 'added' | 'changed' } => Boolean(item.kind))
-})
-
 const editorRootRef = ref<HTMLElement | null>(null)
 const overlayGeometryConfig = CDE_OVERLAY_GEOMETRY_CONFIG
 const overlayTopMinHeight = CDE_OVERLAY_TOP_MIN_HEIGHT
@@ -582,11 +390,6 @@ const {
   topMinHeight: overlayTopMinHeight,
   commitLayout: layout => emit('update-card-designer-layout', layout),
 })
-const diffViewportInsets = computed(() => ({
-  ...viewportInsets.value,
-  left: (viewportInsets.value.left ?? 0) + overlaySplitGap,
-  right: (viewportInsets.value.right ?? 0) + overlaySplitGap,
-}))
 const faceToolsStyle = computed(() => ({
   right: `${(viewportInsets.value.right ?? 0) + overlayGeometryConfig.floatingGap}px`,
   bottom: `${overlayGeometryConfig.floatingGap}px`,
@@ -639,6 +442,38 @@ const alignmentSnappingEnabled = ref(
   ?? props.alignmentSnappingEnabledByDefault
   ?? true,
 )
+
+// 对比视图投影与对比选择：组件只留下「定位后如何揭示字段」的导航入口。
+const {
+  diffBeforeRender,
+  diffAfterRender,
+  diffViewportComparison,
+  diffViewportInsets,
+  diffBlockTreeData,
+  diffInstanceTreeData,
+  diffPropertyInputs,
+  diffSelectedBlockKeys,
+  diffSelectedInstanceKeys,
+  diffInstanceIds,
+  diffViewMode,
+  hasDiffModel,
+  resolveDiffBlock,
+  handleDiffDividerChange,
+  setDiffDividerPreset,
+  toggleDiffViewMode,
+} = useCdeDiffView({
+  mode: toRef(props, 'mode'),
+  comparison: toRef(props, 'comparison'),
+  diffUiState: toRef(props, 'diffUiState'),
+  renderEnvironment: projectStore.renderEnvironment,
+  activeFaceKey,
+  viewportInsets,
+  blueprintCardId: BLUEPRINT_CARD_ID,
+  translate: messageKey => t(messageKey),
+  hasMessage: messageKey => te(messageKey),
+  flashStatus: status => cardViewportRef.value?.flashStatus?.(status),
+  emitDiffUiState: state => emit('update-diff-ui-state', state),
+})
 
 function createViewState(): CardDesignerViewState {
   return {
@@ -811,7 +646,6 @@ const selectedBlockKeys = computed<string[]>({
     commitViewState()
   },
 })
-const diffSelectedBlockKeys = ref<string[]>([])
 const effectiveSelectedBlockKeys = computed(() => props.mode === 'diff' ? diffSelectedBlockKeys.value : selectedBlockKeys.value)
 const isMultiBlockSelection = computed(() => effectiveSelectedBlockKeys.value.length > 1)
 const selectedCardKeys = ref<string[]>([])
@@ -819,127 +653,6 @@ const selectedCardId = ref<string | null>(
   props.cardDesignerView?.selectedInstanceId ?? BLUEPRINT_CARD_ID,
 )
 const forceStructureTreeReveal = ref(false)
-// 对比模式的选择与编辑选择平行存在：它只作用于对比投影 不写文档 也不写会话状态。
-const diffSelectedInstanceKeys = ref<string[]>([])
-const diffSelectedInstanceId = computed(() => {
-  const key = diffSelectedInstanceKeys.value[0]
-  return props.mode === 'diff' && key && key !== BLUEPRINT_CARD_ID ? key : null
-})
-// 对比中可投影的实例 id 全集：对比模式的有效性判断以它为准 而不是当前打开的文档。
-const diffInstanceIds = computed<ReadonlySet<string>>(() => new Set([
-  ...(diffModel.value?.beforeDocument.instances ?? []).map(instance => instance.id),
-  ...(diffModel.value?.afterDocument.instances ?? []).map(instance => instance.id),
-]))
-watch([diffSelectedInstanceKeys, diffInstanceIds], ([keys, instanceIds]) => {
-  const validKeys = keys.filter(key => key === BLUEPRINT_CARD_ID || instanceIds.has(key))
-  if (validKeys.length === keys.length) return
-  diffSelectedInstanceKeys.value = validKeys
-})
-const diffBeforeInstance = computed(() => diffSelectedInstanceId.value
-  ? diffModel.value?.beforeDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
-  : null)
-const diffAfterInstance = computed(() => diffSelectedInstanceId.value
-  ? diffModel.value?.afterDocument.instances.find(instance => instance.id === diffSelectedInstanceId.value) ?? null
-  : null)
-const diffBeforeProjectedDocument = computed(() => {
-  const document = diffModel.value?.beforeDocument
-  return document ? applyInstance(document, diffBeforeInstance.value) : null
-})
-const diffAfterProjectedDocument = computed(() => {
-  const document = diffModel.value?.afterDocument
-  return document ? applyInstance(document, diffAfterInstance.value) : null
-})
-const diffInstanceTreeData = computed<OcNodeCollection>(() => {
-  const items = new Map<string, OcNode>()
-  const rootKeys = ['__blueprint__']
-  items.set('__blueprint__', {
-    label: t('cardDesigner.dataTable.blueprint'),
-    visual: { type: 'icon', icon: 'file.opencard' },
-  })
-  const ids = diffInstanceIds.value
-  for (const id of ids) {
-    const before = diffModel.value?.beforeDocument.instances.find(instance => instance.id === id)
-    const after = diffModel.value?.afterDocument.instances.find(instance => instance.id === id)
-    const changed = Boolean(before && after && JSON.stringify(before) !== JSON.stringify(after))
-    items.set(id, {
-      label: after?.name || before?.name || id,
-      visual: { type: 'icon', icon: 'file.opencard' },
-      tone: after && !before ? 'success' : before && !after ? 'danger' : changed ? 'warning' : undefined,
-      tail: after && !before
-        ? { type: 'badge', icon: 'action.add', tone: 'success', label: t('sidebar.diffViewer.added') }
-        : before && !after
-          ? { type: 'badge', icon: 'action.minus', tone: 'danger', label: t('sidebar.diffViewer.removed') }
-          : changed
-            ? { type: 'badge', icon: 'status.circle-medium', tone: 'warning', label: t('sidebar.diffViewer.changed') }
-            : undefined,
-    })
-    rootKeys.push(id)
-  }
-  return { rootKeys, items, children: new Map() }
-})
-const diffBlockTreeData = computed<OcNodeCollection>(() => {
-  const items = new Map<string, OcNode>()
-  const children = new Map<string, string[]>()
-  const beforeBlocks = new Map<string, CardBlock>()
-  const afterBlocks = new Map<string, CardBlock>()
-  const collect = (document: CardDocument | null | undefined, target: Map<string, CardBlock>) => {
-    const face = document?.faces[activeFaceKey.value]
-    for (const child of face?.children ?? []) visitCardBlockTree(child.block, block => target.set(block.id, block))
-  }
-  const beforeDocument = diffBeforeProjectedDocument.value
-  const afterDocument = diffAfterProjectedDocument.value
-  collect(beforeDocument, beforeBlocks)
-  collect(afterDocument, afterBlocks)
-  const allBeforeBlocks = collectDiffBlocks(beforeDocument)
-  const allAfterBlocks = collectDiffBlocks(afterDocument)
-  const changedBlockIds = collectChangedDiffBlockIds(beforeDocument, afterDocument)
-  const rootKeys: string[] = []
-  const addTopology = (document: CardDocument | null | undefined) => {
-    for (const child of document?.faces[activeFaceKey.value]?.children ?? []) {
-      const add = (block: CardBlock, parent: string) => {
-        const list = children.get(parent) ?? []
-        if (!list.includes(block.id)) list.push(block.id)
-        children.set(parent, list)
-        if (isBlockContainer(block)) for (const nested of block.children) add(nested.block, block.id)
-      }
-      add(child.block, '__face__')
-    }
-  }
-  addTopology(beforeDocument)
-  addTopology(afterDocument)
-  const statusById = new Map<string, 'added' | 'removed' | 'changed'>()
-  const allIds = new Set([...beforeBlocks.keys(), ...afterBlocks.keys()])
-  for (const id of allIds) {
-    const block = afterBlocks.get(id) ?? beforeBlocks.get(id)
-    if (!block) continue
-    const kind = !allBeforeBlocks.has(id)
-      ? 'added'
-      : !allAfterBlocks.has(id)
-        ? 'removed'
-        : changedBlockIds.has(id)
-          ? 'changed'
-          : undefined
-    if (kind) statusById.set(id, kind)
-    items.set(id, {
-      label: getBlockProperty<string>(block, 'name') || id,
-      visual: {
-        type: 'icon',
-        icon: getBlockPresentation(block.type).icon,
-        iconTone: getBlockPresentation(block.type).iconTone,
-      },
-      tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : kind === 'changed' ? 'warning' : undefined,
-      tail: kind ? {
-        type: 'badge',
-        icon: kind === 'added' ? 'action.add' : kind === 'removed' ? 'action.minus' : 'status.circle-medium',
-        tone: kind === 'added' ? 'success' : kind === 'removed' ? 'danger' : 'warning',
-        label: t(`sidebar.diffViewer.${kind}`),
-      } : undefined,
-    })
-  }
-  rootKeys.push(...(children.get('__face__') ?? []))
-  children.delete('__face__')
-  return { rootKeys, items, children }
-})
 
 // 文档状态与读写协议。
 const {
@@ -1425,129 +1138,6 @@ const { propertyEditorInputs } = useCdePropertyEditorProjection({
   blueprintCardId: BLUEPRINT_CARD_ID,
   translate: (messageKey, parameters) => parameters ? t(messageKey, parameters) : t(messageKey),
   hasMessage: messageKey => te(messageKey),
-})
-function diffValuesEqual(before: unknown, after: unknown): boolean {
-  if (Object.is(before, after)) return true
-  if (Array.isArray(before) || Array.isArray(after)) {
-    return Array.isArray(before) && Array.isArray(after)
-      && before.length === after.length
-      && before.every((value, index) => diffValuesEqual(value, after[index]))
-  }
-  if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return false
-  const beforeRecord = before as Readonly<Record<string, unknown>>
-  const afterRecord = after as Readonly<Record<string, unknown>>
-  const beforeKeys = Object.keys(beforeRecord).sort()
-  const afterKeys = Object.keys(afterRecord).sort()
-  return diffValuesEqual(beforeKeys, afterKeys)
-    && beforeKeys.every(key => diffValuesEqual(beforeRecord[key], afterRecord[key]))
-}
-
-type DiffPropertyProjection = {
-  record: Readonly<Record<string, unknown>>
-  fields: Readonly<Record<string, PropertyEditorFieldDefinition>>
-}
-
-function createDiffPropertyProjection(
-  beforeRecord: Readonly<Record<string, unknown>> | null,
-  afterRecord: Readonly<Record<string, unknown>> | null,
-  fields: PropertyEditorInput['fields'],
-): DiffPropertyProjection {
-  const record: Record<string, unknown> = {}
-  const projectedFields: Record<string, PropertyEditorFieldDefinition> = {}
-  const fieldKeys = new Set([...Object.keys(beforeRecord ?? {}), ...Object.keys(afterRecord ?? {})])
-  const wholeRecordAddedOrRemoved = !beforeRecord || !afterRecord
-  for (const fieldKey of fieldKeys) {
-    const definition = fields[fieldKey]
-    if (!definition || definition.isHidden) continue
-    const hasBefore = Boolean(beforeRecord && Object.prototype.hasOwnProperty.call(beforeRecord, fieldKey))
-    const hasAfter = Boolean(afterRecord && Object.prototype.hasOwnProperty.call(afterRecord, fieldKey))
-    const beforeValue = beforeRecord?.[fieldKey]
-    const afterValue = afterRecord?.[fieldKey]
-    if (!wholeRecordAddedOrRemoved && hasBefore && hasAfter && diffValuesEqual(beforeValue, afterValue)) continue
-    if (hasBefore) {
-      const projectedKey = `${fieldKey}@old`
-      record[projectedKey] = beforeValue
-      projectedFields[projectedKey] = {
-        ...definition,
-        isReadonly: true,
-        tail: {
-          type: 'badge',
-          icon: 'action.minus',
-          tone: 'danger',
-          label: t('sidebar.diffViewer.removed'),
-        },
-      }
-    }
-    if (hasAfter) {
-      const projectedKey = `${fieldKey}@new`
-      record[projectedKey] = afterValue
-      projectedFields[projectedKey] = {
-        ...definition,
-        isReadonly: true,
-        tail: {
-          type: 'badge',
-          icon: 'action.add',
-          tone: 'success',
-          label: t('sidebar.diffViewer.added'),
-        },
-      }
-    }
-  }
-  return { record, fields: projectedFields }
-}
-
-const diffPropertyInputs = computed<readonly PropertyEditorInput[]>(() => {
-  const blockId = diffSelectedBlockKeys.value[0]
-  if (!blockId) return []
-  const beforeDescriptor = collectDiffBlocks(diffBeforeProjectedDocument.value).get(blockId)
-  const afterDescriptor = collectDiffBlocks(diffAfterProjectedDocument.value).get(blockId)
-  if (!beforeDescriptor && !afterDescriptor) return []
-  const block = afterDescriptor?.block ?? beforeDescriptor!.block
-  const blockRecord = block as unknown as Readonly<Record<string, unknown>>
-  const blockFields = resolveCardPropertyFields(blockRecord, {
-    allowDelete: false,
-    translate: key => t(key),
-    hasMessage: key => te(key),
-  })
-  const blockProjection = createDiffPropertyProjection(
-    beforeDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
-    afterDescriptor?.block as unknown as Readonly<Record<string, unknown>> | null ?? null,
-    blockFields,
-  )
-  const inputs: PropertyEditorInput[] = [{
-    key: blockId,
-    title: getBlockProperty<string>(block, 'name')?.trim() || blockId,
-    record: blockProjection.record,
-    fields: blockProjection.fields,
-  }]
-  const beforeLayout = beforeDescriptor ? {
-    parent: beforeDescriptor.parentId,
-    order: beforeDescriptor.order,
-    face: beforeDescriptor.faceKey,
-    ...(beforeDescriptor.location as Readonly<Record<string, unknown>>),
-  } : null
-  const afterLayout = afterDescriptor ? {
-    parent: afterDescriptor.parentId,
-    order: afterDescriptor.order,
-    face: afterDescriptor.faceKey,
-    ...(afterDescriptor.location as Readonly<Record<string, unknown>>),
-  } : null
-  if (!diffValuesEqual(beforeLayout, afterLayout)) {
-    const layoutRecord = afterLayout ?? beforeLayout!
-    const layoutFields = resolveCardPropertyFields(layoutRecord, {
-      allowDelete: false,
-      translate: key => t(key),
-      hasMessage: key => te(key),
-    })
-    const layoutProjection = createDiffPropertyProjection(beforeLayout, afterLayout, layoutFields)
-    inputs.push({
-      key: `${blockId}:layout`,
-      title: 'Layout',
-      record: layoutProjection.record,
-      fields: layoutProjection.fields,
-    })
-  }
-  return inputs.filter(input => Object.keys(input.record).length > 0)
 })
 const { getDataTableCellDefinition } = useCdeDataTableCellProjection({
   cardDoc,
@@ -2234,22 +1824,19 @@ function resolveDiffNavigationField(
 async function navigateDiffTarget(
   token: CardDesignerNavigationToken,
 ): Promise<CardDesignerNavigationResult> {
-  if (!diffModel.value) return 'not-found'
+  if (!hasDiffModel.value) return 'not-found'
   const target = token.target
 
   if (target.instanceId !== null && !diffInstanceIds.value.has(target.instanceId)) return 'not-found'
   diffSelectedInstanceKeys.value = [target.instanceId ?? BLUEPRINT_CARD_ID]
   if (target.faceKey) activeFaceKey.value = target.faceKey
 
-  const descriptor = target.blockId
-    ? collectDiffBlocks(diffAfterProjectedDocument.value).get(target.blockId)
-      ?? collectDiffBlocks(diffBeforeProjectedDocument.value).get(target.blockId)
-    : undefined
+  const descriptor = target.blockId ? resolveDiffBlock(target.blockId) : null
   if (!descriptor || (target.faceKey && descriptor.faceKey !== target.faceKey)) {
     diffSelectedBlockKeys.value = []
     return 'not-found'
   }
-  diffSelectedBlockKeys.value = [descriptor.block.id]
+  diffSelectedBlockKeys.value = [descriptor.blockId]
 
   const projected = resolveDiffNavigationField(target)
   if (!projected) return 'not-found'
