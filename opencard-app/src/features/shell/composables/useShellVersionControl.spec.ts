@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -159,7 +159,8 @@ describe('useShellVersionControl', () => {
 
     mocks.readHistory.mockResolvedValue(ok([commitSummary('b2', [{ path: DOCUMENT_PATH, status: 'modified' }])]))
     await versionControl.refreshTimeline()
-    await vi.waitFor(() => expect(versionControl.versionGraphExpandedKeys.value).toEqual([]))
+    // 重载后 a1 真的不在数据里了：仍然存在的 b2 保留展开，只有消失的 a1 被剪掉。
+    await vi.waitFor(() => expect(versionControl.versionGraphExpandedKeys.value).toEqual(['project-timeline:b2']))
 
     versionControl.handleVersionGraphExpansionChange({ key: 'project-timeline:b2', expanded: true })
     expect(versionControl.versionGraphExpandedKeys.value).toEqual(['project-timeline:b2'])
@@ -169,6 +170,33 @@ describe('useShellVersionControl', () => {
 
     versionControl.handleVersionGraphExpansionSync({ expandedKeys: ['project-timeline:c3'] })
     expect(versionControl.versionGraphExpandedKeys.value).toEqual(['project-timeline:c3'])
+  })
+
+  it('keeps expanded version graph nodes when the timeline is refreshed', async () => {
+    mocks.readHistory.mockResolvedValue(ok([
+      commitSummary('a1', [{ path: DOCUMENT_PATH, status: 'modified' }]),
+      commitSummary('b2', [{ path: DOCUMENT_PATH, status: 'modified' }]),
+    ]))
+    const { versionControl, projectPath, activeSession } = createVersionControl()
+    projectPath.value = PROJECT_ROOT
+    activeSession.value = workspaceSession()
+    await vi.waitFor(() => expect(versionControl.timelineProjectTreeData.value.rootKeys).toEqual([
+      'project-timeline:a1',
+      'project-timeline:b2',
+    ]))
+
+    versionControl.handleVersionGraphExpansionChange({ key: 'project-timeline:a1', expanded: true })
+    versionControl.handleVersionGraphExpansionChange({ key: 'project-timeline:b2', expanded: true })
+    expect(versionControl.versionGraphExpandedKeys.value).toEqual(['project-timeline:a1', 'project-timeline:b2'])
+
+    await versionControl.refreshTimeline()
+    await nextTick()
+
+    expect(versionControl.timelineProjectTreeData.value.rootKeys).toEqual([
+      'project-timeline:a1',
+      'project-timeline:b2',
+    ])
+    expect(versionControl.versionGraphExpandedKeys.value).toEqual(['project-timeline:a1', 'project-timeline:b2'])
   })
 
   it('keeps the commit dialog open while a commit runs and closes it on success', async () => {

@@ -118,6 +118,9 @@ export function useShellVersionControl(options: ShellVersionControlOptions): She
   ))
   const versionGraphExpandedKeys = ref<string[]>([])
   watch(timelineProjectTreeData, data => {
+    // 重载期间时间线会先发布一棵空树：数据已清空，历史尚未载入。
+    // 空树不携带任何节点信息，不能据此判定展开键已失效，否则每次刷新都会丢掉展开状态。
+    if (data.rootKeys.length === 0) return
     versionGraphExpandedKeys.value = versionGraphExpandedKeys.value.filter(key => data.children.has(key))
   })
   watch(fileChangeRevision, () => {
