@@ -1,21 +1,30 @@
-import { defineComponent, h, nextTick } from 'vue'
-import { createI18n } from 'vue-i18n'
-import { config, shallowMount } from '@vue/test-utils'
+import { defineComponent, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createCardFace,
-  setBlockProperty,
   createFlowContainerBlock,
   createImageBlock,
   createSimpleContainerBlock,
   createTextBlock,
-  type CardDocument,
+  setBlockProperty,
 } from '../../entities/card/model'
-import enUS from '../../locales/en-US'
 import type { IconToken } from '../../shared/ui/icon/iconTokens'
 import type { SessionNavigationToken } from '../editor-runtime/model/editorIssue'
 import { fileSystemService } from '../workspace/services/fileSystemService'
-import CardDesignEditor from './CardDesignEditor.vue'
+import {
+  cdeStub,
+  createCdeDocument,
+  editorTrees,
+  editorViewport,
+  emittedDocument,
+  mountCde,
+} from './cardDesignerMount'
+
+type EditorHandle = {
+  navigate: (value: SessionNavigationToken) => Promise<string>
+  selectViewportBlock: (blockId: string) => void
+  toggleActiveFace: () => void
+}
 
 class ResizeObserverMock {
   observe() {}
@@ -23,93 +32,31 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-function createDocument(): CardDocument {
-  return {
-    type: 'card-document',
-
-    id: 'document-1',
-    name: 'Document',
-    description: 'Reusable hero\ncard.',
-    notes: 'Review print\nmargins.',
-    version: '1.0.0',
-    width: '540',
-    height: '850',
-    instances: [{
-      type: 'card-instance',
-      id: 'instance-1',
-      name: 'Instance 1',
-      amount: '1',
-      data: {},
-    }],
-    faces: {
-      front: createCardFace({
-        id: 'face-front',
-        children: [{
-          block: createSimpleContainerBlock({
-            id: 'container-1',
-            name: 'Container',
-            children: [{
-              block: createTextBlock({ id: 'text-1', name: 'Title', content: 'Hello' }),
-              location: {
-                id: 'location-2',
-                type: 'simple-container-location',
-                anchor: 'lt',
-              },
-            }],
-          }),
-          location: {
-            id: 'location-1',
-            type: 'simple-container-location',
-            anchor: 'lt',
-          },
-        }],
-      }),
-      back: createCardFace({ id: 'face-back' }),
-    },
-  }
-}
+const heroFilePath = 'D:/Project/cards/hero.ocdocument'
+const heroFileName = 'hero.ocdocument'
+const flowFilePath = 'D:/Project/cards/flow.ocdocument'
+const flowFileName = 'flow.ocdocument'
+const neutralView = () => ({ activeFace: 'front' as const, clipToFace: false, selectedInstanceId: null })
 
 describe('CardDesignEditor issue navigation', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-    config.global.stubs.CdeOverlayDock = false
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    delete config.global.stubs.CdeOverlayDock
   })
 
   it('toggles structure containers through double-click activation', async () => {
-    const OcTreeStub = defineComponent({
-      name: 'OcTree',
-      props: {
-        role: String,
-        activationMode: String,
-        expandedKeys: Array,
-        tabNavigation: String,
-      },
-      emits: ['node-activate'],
-      template: '<div />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          OcTree: OcTreeStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+    const wrapper = mountCde({
+      stubs: {
+        OcTree: cdeStub('OcTree', {
+          props: { role: String, activationMode: String, expandedKeys: Array, tabNavigation: String },
+          emits: ['node-activate'],
+        }),
       },
     })
-    const structureTree = wrapper.findAllComponents(OcTreeStub)
-      .find(tree => tree.props('role') !== 'listbox')!
+    const { structureTree } = editorTrees(wrapper)
 
     expect(structureTree.props('activationMode')).toBe('double-click')
     expect(structureTree.props('tabNavigation')).toBe('none')
@@ -123,45 +70,16 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('shows a centered summary and hides single-block viewport controls for multiple selection', async () => {
-    const OcTreeStub = defineComponent({
-      name: 'OcTree',
-      props: { role: String, selectedKeys: Array, selectionMode: String },
-      emits: ['selection-change'],
-      template: '<div />',
-    })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      props: { selectedBlockId: String, showInfo: Boolean },
-      emits: ['block-click'],
-      template: '<div class="card-viewport-stub" />',
-    })
-    const OcCardStub = defineComponent({
-      name: 'OcCard',
-      props: { title: String, actions: Array },
-      emits: ['action'],
-      template: '<div><slot /></div>',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          OcTree: OcTreeStub,
-          CardViewport: CardViewportStub,
-          OcCard: OcCardStub,
-          OcPanel: { template: '<div><slot /></div>' },
-          OcEmpty: { template: '<div class="multi-selection-summary"><slot /></div>' },
-          PropertyEditor: { name: 'PropertyEditor', template: '<div class="property-editor-stub" />' },
-          Teleport: true,
-        },
+    const wrapper = mountCde({
+      stubs: {
+        OcTree: cdeStub('OcTree', {
+          props: { role: String, selectedKeys: Array, selectionMode: String },
+          emits: ['selection-change'],
+        }),
+        PropertyEditor: cdeStub('PropertyEditor', { className: 'property-editor-stub' }),
       },
     })
-    const structureTree = wrapper.findAllComponents(OcTreeStub)
-      .find(tree => tree.props('role') !== 'listbox')!
+    const { structureTree } = editorTrees(wrapper)
     expect(structureTree.props('selectionMode')).toBe('multiple')
 
     structureTree.vm.$emit('selection-change', {
@@ -170,14 +88,14 @@ describe('CardDesignEditor issue navigation', () => {
     })
     await nextTick()
 
-    expect(wrapper.get('.multi-selection-summary').text()).toBe('2 blocks selected')
+    expect(wrapper.get('.card-design-editor__multi-selection-summary').text()).toBe('2 blocks selected')
     expect(wrapper.find('.property-editor-stub').exists()).toBe(false)
-    const viewport = wrapper.findComponent(CardViewportStub)
+    const viewport = editorViewport(wrapper)
     expect(viewport.props('selectedBlockId')).toBeNull()
     expect(viewport.props('showInfo')).toBe(true)
-    expect(wrapper.findAllComponents(OcCardStub).map(card => card.props('title')))
+    expect(wrapper.findAllComponents({ name: 'OcCard' }).map(card => card.props('title')).filter(Boolean))
       .toEqual(['Cards', 'Preview', 'Structure', 'Properties'])
-    const propertyCard = wrapper.findAllComponents(OcCardStub).find(card => card.props('title') === 'Properties')!
+    const propertyCard = wrapper.findAllComponents({ name: 'OcCard' }).find(card => card.props('title') === 'Properties')!
     expect(propertyCard.props('actions')).toMatchObject([{ key: 'toggle-property-panel' }])
 
     viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
@@ -187,28 +105,16 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('deletes a multiple structure selection through one shortcut action', async () => {
-    const OcTreeStub = defineComponent({
-      name: 'OcTree',
-      props: { role: String, selectedKeys: Array },
-      emits: ['selection-change'],
-      template: '<div />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      attachTo: document.body,
-      props: { filePath: 'card.ocdocument', modelValue: JSON.stringify(createDocument()) },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          OcTree: OcTreeStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+    const wrapper = mountCde({
+      attachToBody: true,
+      stubs: {
+        OcTree: cdeStub('OcTree', {
+          props: { role: String, selectedKeys: Array },
+          emits: ['selection-change'],
+        }),
       },
     })
-    const structureTree = wrapper.findAllComponents(OcTreeStub)
-      .find(tree => tree.props('role') !== 'listbox')!
+    const { structureTree } = editorTrees(wrapper)
     structureTree.vm.$emit('selection-change', {
       triggerKey: 'text-1',
       selectedKeys: ['container-1', 'text-1'],
@@ -218,8 +124,7 @@ describe('CardDesignEditor issue navigation', () => {
     await wrapper.get('.card-design-editor').trigger('keydown', { key: 'Delete' })
     await nextTick()
 
-    const updates = wrapper.emitted('update:modelValue') ?? []
-    const updated = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    const updated = emittedDocument(wrapper)
     expect(updated.faces.front.children).toEqual([])
     expect(structureTree.props('selectedKeys')).toEqual([])
     wrapper.unmount()
@@ -228,51 +133,27 @@ describe('CardDesignEditor issue navigation', () => {
   it('selects the instance and block, forces tree reveal, and focuses the property field', async () => {
     const revealField = vi.fn().mockResolvedValue(true)
     const treePropSnapshots: Array<Record<string, unknown>> = []
-    const PropertyEditorStub = defineComponent({
-      name: 'PropertyEditor',
-      setup(_, { expose }) {
-        expose({ revealField })
-        return () => h('div')
-      },
-    })
-    const OcTreeStub = defineComponent({
-      name: 'OcTree',
-      inheritAttrs: false,
+    const wrapper = mountCde({
       props: {
-        role: String,
-        selectedKeys: Array,
-        selectionExpansionMode: String,
-        scrollToSelection: Boolean,
-      },
-      setup(props) {
-        return () => {
-          treePropSnapshots.push({
-            role: props.role,
-            selectedKeys: [...(props.selectedKeys ?? [])],
-            selectionExpansionMode: props.selectionExpansionMode,
-            scrollToSelection: props.scrollToSelection,
-          })
-          return h('div')
-        }
-      },
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
         structureTreeSelectionBehavior: 'none',
         structureTreeScrollToSelection: false,
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          PropertyEditor: PropertyEditorStub,
-          OcTree: OcTreeStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        PropertyEditor: cdeStub('PropertyEditor', { exposed: { revealField } }),
+        OcTree: cdeStub('OcTree', {
+          props: {
+            role: String,
+            selectedKeys: Array,
+            selectionExpansionMode: String,
+            scrollToSelection: Boolean,
+          },
+          onRender: props => treePropSnapshots.push({
+            role: props.role,
+            selectedKeys: [...(props.selectedKeys as string[] | undefined ?? [])],
+            selectionExpansionMode: props.selectionExpansionMode,
+            scrollToSelection: props.scrollToSelection,
+          }),
+        }),
       },
     })
     await nextTick()
@@ -291,9 +172,7 @@ describe('CardDesignEditor issue navigation', () => {
         characterOffset: 4,
       },
     }
-    const navigation = (wrapper.vm as unknown as {
-      navigate: (value: SessionNavigationToken) => Promise<string>
-    }).navigate(token)
+    const navigation = (wrapper.vm as unknown as EditorHandle).navigate(token)
     await nextTick()
 
     expect(treePropSnapshots).toContainEqual(expect.objectContaining({
@@ -304,57 +183,30 @@ describe('CardDesignEditor issue navigation', () => {
     await expect(navigation).resolves.toBe('success')
     expect(revealField).toHaveBeenCalledWith('text-1', 'opacity', 4)
 
-    const instanceTree = wrapper.findAllComponents(OcTreeStub)
-      .find((tree) => tree.props('role') === 'listbox')
-    expect(instanceTree?.props('selectedKeys')).toEqual(['instance-1'])
+    const { instanceTree } = editorTrees(wrapper)
+    expect(instanceTree.props('selectedKeys')).toEqual(['instance-1'])
   })
 
   it('stops issue navigation at the outermost packaged container', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     const container = document.faces.front.children[0]!.block
     if (container.type !== 'simple-container-block') throw new Error('Expected simple container')
     container.packaged = 'true'
 
     const revealField = vi.fn().mockResolvedValue(true)
-    const PropertyEditorStub = defineComponent({
-      name: 'PropertyEditor',
-      setup(_, { expose }) {
-        expose({ revealField })
-        return () => h('div')
-      },
-    })
-    const OcTreeStub = defineComponent({
-      name: 'OcTree',
-      props: {
-        role: String,
-        selectedKeys: Array,
-        scrollToSelection: Boolean,
-      },
-      template: '<div />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(document),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          PropertyEditor: PropertyEditorStub,
-          OcTree: OcTreeStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+    const wrapper = mountCde({
+      props: { modelValue: document },
+      stubs: {
+        PropertyEditor: cdeStub('PropertyEditor', { exposed: { revealField } }),
+        OcTree: cdeStub('OcTree', {
+          props: { role: String, selectedKeys: Array, scrollToSelection: Boolean },
+        }),
       },
     })
     await nextTick()
     await nextTick()
 
-    const result = (wrapper.vm as unknown as {
-      navigate: (value: SessionNavigationToken) => Promise<string>
-    }).navigate({
+    const result = (wrapper.vm as unknown as EditorHandle).navigate({
       protocol: 'card-designer',
       version: 2,
       target: {
@@ -369,51 +221,31 @@ describe('CardDesignEditor issue navigation', () => {
 
     await expect(result).resolves.toBe('not-found')
     await nextTick()
-    const structureTree = wrapper.findAllComponents(OcTreeStub)
-      .find(tree => tree.props('role') !== 'listbox')
-    expect(structureTree?.props('selectedKeys')).toEqual(['container-1'])
+    const { structureTree } = editorTrees(wrapper)
+    expect(structureTree.props('selectedKeys')).toEqual(['container-1'])
     expect(revealField).not.toHaveBeenCalled()
   })
 
   it('shows reset after an instance Block field is overridden', async () => {
-    const PropertyEditorStub = defineComponent({
-      name: 'PropertyEditor',
-      props: { inputs: Array },
-      emits: ['update-property'],
-      setup(_, { expose }) {
-        expose({ revealField: vi.fn().mockResolvedValue(true) })
-        return () => h('div')
-      },
-    })
-    const OcTreeStub = defineComponent({
-      name: 'OcTree',
-      props: { role: String, selectedKeys: Array },
-      emits: ['selection-change'],
-      template: '<div />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
         structureTreeSelectionBehavior: 'none',
         structureTreeScrollToSelection: false,
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          PropertyEditor: PropertyEditorStub,
-          OcTree: OcTreeStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        PropertyEditor: cdeStub('PropertyEditor', {
+          props: { inputs: Array },
+          emits: ['update-property'],
+          exposed: { revealField: vi.fn().mockResolvedValue(true) },
+        }),
+        OcTree: cdeStub('OcTree', {
+          props: { role: String, selectedKeys: Array },
+          emits: ['selection-change'],
+        }),
       },
     })
 
-    const trees = wrapper.findAllComponents(OcTreeStub)
-    const instanceTree = trees.find(tree => tree.props('role') === 'listbox')!
-    const structureTree = trees.find(tree => tree.props('role') !== 'listbox')!
+    const { instanceTree, structureTree } = editorTrees(wrapper)
     instanceTree.vm.$emit('selection-change', {
       triggerKey: 'instance-1',
       selectedKeys: ['instance-1'],
@@ -440,41 +272,25 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('keeps data-table mode and reveals a block field Cell', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     document.dataTable = { blocks: { 'text-1': ['content'] } }
     const revealCell = vi.fn().mockResolvedValue(true)
-    const CardDataTableStub = defineComponent({
-      name: 'CardDataTable',
-      setup(_, { expose }) {
-        expose({ revealCell })
-        return () => h('div', { class: 'card-data-table-stub' })
-      },
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(document),
+        modelValue: document,
         cardDesignerMode: 'data-table',
-        cardDesignerView: {
-          activeFace: 'front',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: neutralView(),
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardDataTable: CardDataTableStub,
-          Teleport: true,
-        },
+      stubs: {
+        CardDataTable: cdeStub('CardDataTable', {
+          className: 'card-data-table-stub',
+          exposed: { revealCell },
+        }),
       },
     })
     await nextTick()
 
-    const result = await (wrapper.vm as unknown as {
-      navigate: (value: SessionNavigationToken) => Promise<string>
-    }).navigate({
+    const result = await (wrapper.vm as unknown as EditorHandle).navigate({
       protocol: 'card-designer',
       version: 2,
       target: {
@@ -498,24 +314,15 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('marks a data-table instance Cell as resettable after editing it', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     document.dataTable = { blocks: { 'text-1': ['content'] } }
-    const CardDataTableStub = defineComponent({
-      name: 'CardDataTable',
-      props: { faceGroups: Array },
-      emits: ['update-cell'],
-      template: '<div />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(document),
-        cardDesignerMode: 'data-table',
-      },
-      global: {
-        plugins: [i18n],
-        stubs: { CardDataTable: CardDataTableStub, Teleport: true },
+    const wrapper = mountCde({
+      props: { modelValue: document, cardDesignerMode: 'data-table' },
+      stubs: {
+        CardDataTable: cdeStub('CardDataTable', {
+          props: { faceGroups: Array },
+          emits: ['update-cell'],
+        }),
       },
     })
     const table = wrapper.findComponent({ name: 'CardDataTable' })
@@ -537,48 +344,21 @@ describe('CardDesignEditor issue navigation', () => {
 
   it('returns from data-table mode to PropertyEditor for a non-block issue', async () => {
     const revealField = vi.fn().mockResolvedValue(true)
-    const PropertyEditorStub = defineComponent({
-      name: 'PropertyEditor',
-      setup(_, { expose }) {
-        expose({ revealField })
-        return () => h('div', { class: 'property-editor-stub' })
-      },
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      setup(_, { expose }) {
-        expose({ fitView: vi.fn(), zoomBy: vi.fn(), zoomByWheelAt: vi.fn() })
-        return () => h('div')
-      },
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
         cardDesignerMode: 'data-table',
-        cardDesignerView: {
-          activeFace: 'front',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: neutralView(),
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          PropertyEditor: PropertyEditorStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        PropertyEditor: cdeStub('PropertyEditor', {
+          className: 'property-editor-stub',
+          exposed: { revealField },
+        }),
       },
     })
     await nextTick()
 
-    const navigation = (wrapper.vm as unknown as {
-      navigate: (value: SessionNavigationToken) => Promise<string>
-    }).navigate({
+    const navigation = (wrapper.vm as unknown as EditorHandle).navigate({
       protocol: 'card-designer',
       version: 2,
       target: {
@@ -600,29 +380,13 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('projects relative file, blueprint, and instance information for the viewport', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      setup(_, { slots }) {
-        return () => h('div', { class: 'card-viewport-stub' }, slots.info?.())
-      },
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
+        filePath: heroFilePath,
+        fileName: heroFileName,
         resourceRootPath: 'D:/Project',
-        modelValue: JSON.stringify(createDocument()),
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
-      },
+      stubs: { CardViewport: false },
     })
     await nextTick()
 
@@ -642,13 +406,7 @@ describe('CardDesignEditor issue navigation', () => {
     expect(wrapper.findAll('.card-design-editor__card-info > .is-group-separated').map((item) => item.text()))
       .toEqual(['Front Face', 'Review print\nmargins.'])
 
-    await wrapper.setProps({
-      cardDesignerView: {
-        activeFace: 'front',
-        clipToFace: false,
-        selectedInstanceId: 'instance-1',
-      },
-    })
+    await wrapper.setProps({ cardDesignerView: { ...neutralView(), selectedInstanceId: 'instance-1' } })
     await nextTick()
 
     expect(infoValues()).toEqual([
@@ -666,46 +424,18 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('switches face and clipping through session state without modifying the document', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      props: {
-        face: Object,
-        clipToFace: Boolean,
-        alignmentSnappingEnabled: Boolean,
-      },
-      emits: ['face-dimension-change'],
-      setup(_, { slots }) {
-        return () => h('div', { class: 'card-viewport-stub' }, slots.info?.())
-      },
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
         filePath: 'draft://53e4786d-a867-4a8c-b235-cbedb03ea801',
         fileName: 'UNTITLED.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
-        cardDesignerView: {
-          activeFace: 'back',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: { ...neutralView(), activeFace: 'back' },
         alignmentSnappingEnabledByDefault: false,
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcOverlayToolbar: false,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
       },
     })
     await nextTick()
     await nextTick()
 
-    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    const viewport = editorViewport(wrapper)
     expect(viewport.props('face')).toEqual(expect.objectContaining({ faceKey: 'back' }))
     expect(viewport.props('clipToFace')).toBe(false)
     expect(viewport.props('alignmentSnappingEnabled')).toBe(false)
@@ -767,14 +497,12 @@ describe('CardDesignEditor issue navigation', () => {
     viewport.vm.$emit('face-dimension-change', { dimension: 'width', value: 600, final: false })
     viewport.vm.$emit('face-dimension-change', { dimension: 'width', value: 600, final: true })
     await nextTick()
-    const contentUpdates = wrapper.emitted('update:modelValue') ?? []
-    const latestContent = contentUpdates[contentUpdates.length - 1]?.[0]
-    expect(JSON.parse(String(latestContent)).width).toBe('600')
+    expect(emittedDocument(wrapper).width).toBe('600')
     expect(wrapper.emitted('modified')?.[0]?.[0]).toBe(true)
   })
 
   it('keeps independent block selections for each face', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     document.faces.back = createCardFace({
       id: 'face-back',
       children: [{
@@ -782,22 +510,15 @@ describe('CardDesignEditor issue navigation', () => {
         location: { id: 'back-location-1', type: 'simple-container-location', anchor: 'lt' },
       }],
     })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      emits: ['block-click'],
-      template: '<div />',
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: { filePath: 'card.ocdocument', modelValue: JSON.stringify(document) },
-      global: { plugins: [i18n], stubs: { CardViewport: CardViewportStub, Teleport: true } },
+    const wrapper = mountCde({
+      props: { modelValue: document },
+      stubs: {
+        CardViewport: cdeStub('CardViewport', { emits: ['block-click'] }),
+      },
     })
     await nextTick()
 
-    const editor = wrapper.vm as unknown as {
-      selectViewportBlock: (blockId: string) => void
-      toggleActiveFace: () => void
-    }
+    const editor = wrapper.vm as unknown as EditorHandle
     editor.selectViewportBlock('text-1')
     await nextTick()
     const selectionUpdateCount = (wrapper.emitted('update-card-designer-view') ?? []).length
@@ -816,32 +537,21 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('fills a simple-container child without changing its anchor', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      props: { selectedBlockId: String },
-      emits: ['block-click', 'selection-action'],
-      template: '<div class="card-viewport-stub" />',
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
+        filePath: heroFilePath,
+        fileName: heroFileName,
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        CardViewport: cdeStub('CardViewport', {
+          props: { selectedBlockId: String },
+          emits: ['block-click', 'selection-action'],
+        }),
       },
     })
     await nextTick()
 
-    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    const viewport = editorViewport(wrapper)
     viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
     await nextTick()
     expect(viewport.props('selectedBlockId')).toBe('text-1')
@@ -851,8 +561,7 @@ describe('CardDesignEditor issue navigation', () => {
     })
     await nextTick()
 
-    const updates = wrapper.emitted('update:modelValue') ?? []
-    const document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    const document = emittedDocument(wrapper)
     const container = document.faces.front.children[0]!.block
     expect(container.type).toBe('simple-container-block')
     if (container.type !== 'simple-container-block') return
@@ -863,43 +572,25 @@ describe('CardDesignEditor issue navigation', () => {
 
   it('projects rich-text selection Actions and activates the existing content field editor', async () => {
     const activateField = vi.fn(async () => true)
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
+    const wrapper = mountCde({
       props: {
-        selectedBlockId: String,
-        selectionCommandActions: Array,
+        filePath: heroFilePath,
+        fileName: heroFileName,
       },
-      emits: ['block-click', 'selection-command'],
-      template: '<div class="card-viewport-stub" />',
-    })
-    const PropertyEditorStub = defineComponent({
-      name: 'PropertyEditor',
-      setup(_, { expose }) {
-        expose({ activateField, revealField: vi.fn(async () => true) })
-        return () => h('div', { class: 'property-editor-stub' })
-      },
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          PropertyEditor: PropertyEditorStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        CardViewport: cdeStub('CardViewport', {
+          props: { selectedBlockId: String, selectionCommandActions: Array },
+          emits: ['block-click', 'selection-command'],
+        }),
+        PropertyEditor: cdeStub('PropertyEditor', {
+          className: 'property-editor-stub',
+          exposed: { activateField, revealField: vi.fn(async () => true) },
+        }),
       },
     })
     await nextTick()
 
-    const viewport = wrapper.findComponent(CardViewportStub)
+    const viewport = editorViewport(wrapper)
     viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
     await nextTick()
     expect(viewport.props('selectionCommandActions')).toEqual([{
@@ -917,40 +608,27 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('projects four Flow Container direction Actions and writes each direction through Block commands', async () => {
-    const source = createDocument()
+    const source = createCdeDocument()
     source.faces.front.children[0]!.block = createFlowContainerBlock({
       id: 'flow-1',
       direction: 'lr',
     })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
+    const wrapper = mountCde({
       props: {
-        selectedBlockId: String,
-        selectionCommandActions: Array,
+        filePath: flowFilePath,
+        fileName: flowFileName,
+        modelValue: source,
       },
-      emits: ['block-click', 'selection-command'],
-      template: '<div class="card-viewport-stub" />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'D:/Project/cards/flow.ocdocument',
-        fileName: 'flow.ocdocument',
-        modelValue: JSON.stringify(source),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        CardViewport: cdeStub('CardViewport', {
+          props: { selectedBlockId: String, selectionCommandActions: Array },
+          emits: ['block-click', 'selection-command'],
+        }),
       },
     })
     await nextTick()
 
-    const viewport = wrapper.findComponent(CardViewportStub)
+    const viewport = editorViewport(wrapper)
     viewport.vm.$emit('block-click', 'flow-1', new MouseEvent('click'))
     await nextTick()
     expect(viewport.props('selectionCommandActions')).toEqual([
@@ -969,54 +647,35 @@ describe('CardDesignEditor issue navigation', () => {
     for (const [key, direction] of directions) {
       viewport.vm.$emit('selection-command', { key, blockId: 'flow-1' })
       await nextTick()
-      const updates = wrapper.emitted('update:modelValue') ?? []
-      const document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
-      expect(document.faces.front.children[0]!.block).toMatchObject({ direction })
+      expect(emittedDocument(wrapper).faces.front.children[0]!.block).toMatchObject({ direction })
     }
   })
 
   it('fits the viewport when opening a card file without refitting content updates', async () => {
     const fitView = vi.fn()
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
+    const wrapper = mountCde({
       props: {
-        transform: Object,
-      },
-      emits: ['viewport-size-change'],
-      setup(_, { expose }) {
-        expose({ fitView })
-        return {}
-      },
-      template: '<div class="card-viewport-stub" />',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
+        filePath: heroFilePath,
+        fileName: heroFileName,
         viewportTransform: { x: 80, y: -40, scale: 2 },
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        CardViewport: cdeStub('CardViewport', {
+          props: { transform: Object },
+          emits: ['viewport-size-change'],
+          exposed: { fitView },
+        }),
       },
     })
     await nextTick()
 
-    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    const viewport = editorViewport(wrapper)
     expect(viewport.props('transform')).toEqual({ x: 0, y: 0, scale: 1 })
     viewport.vm.$emit('viewport-size-change', { width: 1000, height: 800 })
     await nextTick()
     expect(fitView).toHaveBeenCalledTimes(1)
 
-    const updatedDocument = createDocument()
-    updatedDocument.name = 'Updated Document'
+    const updatedDocument = createCdeDocument({ name: 'Updated Document' })
     await wrapper.setProps({ modelValue: JSON.stringify(updatedDocument) })
     await nextTick()
     expect(fitView).toHaveBeenCalledTimes(1)
@@ -1036,57 +695,49 @@ describe('CardDesignEditor issue navigation', () => {
     const focusLayerBlock = vi.fn()
     const getFocusedLayerBlockId = vi.fn(() => 'container-1')
     const cycleLayerByInitial = vi.fn(() => true)
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      props: {
-        selectedBlockId: String,
-        selectionActionLabels: Object,
-        layerViewActive: Boolean,
-        spaceModifierActive: Boolean,
-        layerViewShortcutLegendLabel: String,
-        layerViewShortcutHints: Array,
-        face: Object,
-      },
-      emits: ['block-click', 'blank-click', 'z-index-step'],
-      setup(_, { expose }) {
-        expose({
-          zoomBy,
-          fitView,
-          flashStatus,
-          nudgeSelection,
-          runSelectionQuickAction,
-          stepLayer,
-          focusLayerBlock,
-          getFocusedLayerBlockId,
-          cycleLayerByInitial,
-        })
-        return {}
-      },
-      template: '<div class="card-viewport-stub"><input class="shortcut-input" /></div>',
-    })
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const source = createDocument()
+    const source = createCdeDocument()
     setBlockProperty(source.faces.front.children[0]!.block, 'zIndex', '2')
-    const wrapper = shallowMount(CardDesignEditor, {
-      attachTo: document.body,
+    const wrapper = mountCde({
+      attachToBody: true,
       props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
-        modelValue: JSON.stringify(source),
+        filePath: heroFilePath,
+        fileName: heroFileName,
+        modelValue: source,
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        CardViewport: defineComponent({
+          name: 'CardViewport',
+          props: {
+            selectedBlockId: String,
+            selectionActionLabels: Object,
+            layerViewActive: Boolean,
+            spaceModifierActive: Boolean,
+            layerViewShortcutLegendLabel: String,
+            layerViewShortcutHints: Array,
+            face: Object,
+          },
+          emits: ['block-click', 'blank-click', 'z-index-step'],
+          setup(_, { expose }) {
+            expose({
+              zoomBy,
+              fitView,
+              flashStatus,
+              nudgeSelection,
+              runSelectionQuickAction,
+              stepLayer,
+              focusLayerBlock,
+              getFocusedLayerBlockId,
+              cycleLayerByInitial,
+            })
+            return {}
+          },
+          template: '<div class="card-viewport-stub"><input class="shortcut-input" /></div>',
+        }),
       },
     })
     await nextTick()
 
-    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    const viewport = editorViewport(wrapper)
     viewport.vm.$emit('block-click', 'text-1', new MouseEvent('click'))
     await nextTick()
 
@@ -1244,8 +895,7 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('fills and centers a flow child only on the cross axis', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const source = createDocument()
+    const source = createCdeDocument()
     source.faces.front.children[0]!.block = createFlowContainerBlock({
       id: 'flow-1',
       direction: 'lr',
@@ -1254,37 +904,25 @@ describe('CardDesignEditor issue navigation', () => {
         location: { id: 'flow-location', type: 'flow-container-location', index: '0', align: 'start' },
       }],
     })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      emits: ['block-click', 'selection-action'],
-      template: '<div class="card-viewport-stub" />',
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'D:/Project/cards/flow.ocdocument',
-        fileName: 'flow.ocdocument',
-        modelValue: JSON.stringify(source),
+        filePath: flowFilePath,
+        fileName: flowFileName,
+        modelValue: source,
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: CardViewportStub,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+      stubs: {
+        CardViewport: cdeStub('CardViewport', { emits: ['block-click', 'selection-action'] }),
       },
     })
     await nextTick()
 
-    const viewport = wrapper.findComponent({ name: 'CardViewport' })
+    const viewport = editorViewport(wrapper)
     viewport.vm.$emit('block-click', 'flow-text', new MouseEvent('click'))
     await nextTick()
     viewport.vm.$emit('selection-action', { type: 'fill-cross-axis', blockId: 'flow-text' })
     await nextTick()
 
-    let updates = wrapper.emitted('update:modelValue') ?? []
-    let document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    let document = emittedDocument(wrapper)
     let flow = document.faces.front.children[0]!.block
     expect(flow.type).toBe('flow-container-block')
     if (flow.type !== 'flow-container-block') return
@@ -1293,20 +931,17 @@ describe('CardDesignEditor issue navigation', () => {
 
     viewport.vm.$emit('selection-action', { type: 'center-cross-axis', blockId: 'flow-text' })
     await nextTick()
-    updates = wrapper.emitted('update:modelValue') ?? []
-    document = JSON.parse(String(updates[updates.length - 1]?.[0])) as CardDocument
+    document = emittedDocument(wrapper)
     flow = document.faces.front.children[0]!.block
     if (flow.type !== 'flow-container-block') return
     expect(flow.children[0]!.location.align).toBe('center')
   })
 
   it('keeps face tools visible and right-aligned when both right panels are collapsed', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
+        filePath: heroFilePath,
+        fileName: heroFileName,
         cardDesignerLayout: {
           panels: {
             instanceExpanded: true,
@@ -1322,16 +957,7 @@ describe('CardDesignEditor issue navigation', () => {
           rightExpandedDockExtent: 280,
         },
       },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: true,
-          OcOverlayToolbar: false,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
-      },
+      stubs: { OcCard: false, OcOverlayToolbar: false },
     })
     await nextTick()
 
@@ -1343,21 +969,10 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('projects symmetric Dock extent updates without CSS variable state machines', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'D:/Project/cards/hero.ocdocument',
-        fileName: 'hero.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          CardViewport: true,
-          OcCard: { template: '<div><slot /></div>' },
-          OcPanel: { template: '<div><slot /></div>' },
-          Teleport: true,
-        },
+        filePath: heroFilePath,
+        fileName: heroFileName,
       },
     })
     await nextTick()
@@ -1375,7 +990,7 @@ describe('CardDesignEditor issue navigation', () => {
     await nextTick()
     expect(docks[0]?.props('extent')).toBe(120)
     expect(wrapper.emitted('update-card-designer-layout')).toBeUndefined()
-    expect(wrapper.findComponent({ name: 'CardViewport' }).props('viewportInsets')).toMatchObject({
+    expect(editorViewport(wrapper).props('viewportInsets')).toMatchObject({
       left: expect.closeTo(120 + 6 * (120 / 280)),
       right: 286,
     })
@@ -1392,32 +1007,17 @@ describe('CardDesignEditor issue navigation', () => {
     docks[1]?.vm.$emit('update:extent', 0)
     await nextTick()
     expect(docks[1]?.props('extent')).toBe(0)
-    expect(wrapper.findComponent({ name: 'CardViewport' }).props('viewportInsets')).toMatchObject({
+    expect(editorViewport(wrapper).props('viewportInsets')).toMatchObject({
       right: 0,
     })
   })
 
   it('renders the Card Designer mode controlled by its prop', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const CardViewportStub = defineComponent({
-      name: 'CardViewport',
-      setup(_, { expose }) {
-        expose({ fitView: vi.fn(), zoomBy: vi.fn(), zoomByWheelAt: vi.fn() })
-        return () => h('div')
-      },
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
         cardDesignerMode: 'data-table',
-        cardDesignerView: {
-          activeFace: 'front',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: neutralView(),
       },
-      global: { plugins: [i18n], stubs: { CardViewport: CardViewportStub } },
     })
     await nextTick()
 
@@ -1428,9 +1028,7 @@ describe('CardDesignEditor issue navigation', () => {
 
     table.vm.$emit('add-block', 'text-1')
     await nextTick()
-    const blockUpdates = wrapper.emitted('update:modelValue') ?? []
-    const blockConfiguredDocument = JSON.parse(String(blockUpdates[blockUpdates.length - 1]?.[0])) as CardDocument
-    expect(blockConfiguredDocument.dataTable?.blocks).toEqual({ 'text-1': [] })
+    expect(emittedDocument(wrapper).dataTable?.blocks).toEqual({ 'text-1': [] })
     table.vm.$emit('include-field', 'text-1', 'content')
     await nextTick()
     const configuredGroups = table.props('faceGroups') as Array<{
@@ -1439,9 +1037,7 @@ describe('CardDesignEditor issue navigation', () => {
     expect(configuredGroups[0]?.blocks).toEqual([
       expect.objectContaining({ key: 'text-1', fields: [expect.objectContaining({ key: 'content' })] }),
     ])
-    const contentUpdates = wrapper.emitted('update:modelValue') ?? []
-    const configuredDocument = JSON.parse(String(contentUpdates[contentUpdates.length - 1]?.[0])) as CardDocument
-    expect(configuredDocument.dataTable?.blocks).toEqual({ 'text-1': ['content'] })
+    expect(emittedDocument(wrapper).dataTable?.blocks).toEqual({ 'text-1': ['content'] })
     const modifiedUpdates = wrapper.emitted('modified') ?? []
     expect(modifiedUpdates[modifiedUpdates.length - 1]?.[0]).toBe(true)
 
@@ -1453,30 +1049,12 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('keeps delete as a stable toggle and uses one property sort action', async () => {
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const OcCardStub = defineComponent({
-      name: 'OcCard',
-      props: ['title', 'actions', 'collapsed'],
-      emits: ['action'],
-      template: '<div><slot /></div>',
-    })
-    const wrapper = shallowMount(CardDesignEditor, {
-      props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(createDocument()),
-      },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          OcCard: OcCardStub,
-          OcPanel: { template: '<div><slot /></div>' },
-          PropertyEditor: false,
-        },
-      },
+    const wrapper = mountCde({
+      stubs: { PropertyEditor: false },
     })
     await nextTick()
 
-    const propertyCard = wrapper.findAllComponents(OcCardStub)
+    const propertyCard = wrapper.findAllComponents({ name: 'OcCard' })
       .find(card => card.props('title') === 'Properties')!
     const getAction = (key: string) => (propertyCard.props('actions') as Array<{
       key: string
@@ -1507,21 +1085,14 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('creates a custom field for the explicit table Block and persists it in the document', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     document.dataTable = { blocks: { 'text-1': [] } }
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(document),
+        modelValue: document,
         cardDesignerMode: 'data-table',
-        cardDesignerView: {
-          activeFace: 'front',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: neutralView(),
       },
-      global: { plugins: [i18n] },
     })
     await nextTick()
 
@@ -1540,8 +1111,7 @@ describe('CardDesignEditor issue navigation', () => {
     dialog.vm.$emit('submit', { fieldType: 'number', title: 'Score' })
     await nextTick()
 
-    const contentUpdates = wrapper.emitted('update:modelValue') ?? []
-    const updatedDocument = JSON.parse(String(contentUpdates[contentUpdates.length - 1]?.[0])) as CardDocument
+    const updatedDocument = emittedDocument(wrapper)
     const textBlock = (updatedDocument.faces.front.children[0]!.block as ReturnType<typeof createSimpleContainerBlock>)
       .children[0]!.block
     expect(textBlock.additionalFieldDefinition?.score).toMatchObject({ fieldType: 'number', title: 'Score' })
@@ -1551,21 +1121,14 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('builds binding completion from each data-table column card', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     document.dataTable = { blocks: { 'text-1': ['content'] } }
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
-        filePath: 'card.ocdocument',
-        modelValue: JSON.stringify(document),
+        modelValue: document,
         cardDesignerMode: 'data-table',
-        cardDesignerView: {
-          activeFace: 'front',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: neutralView(),
       },
-      global: { plugins: [i18n] },
     })
     await nextTick()
 
@@ -1602,7 +1165,7 @@ describe('CardDesignEditor issue navigation', () => {
   })
 
   it('provides file and font completion to data-table Cells', async () => {
-    const document = createDocument()
+    const document = createCdeDocument()
     document.faces.front.children.push({
       block: createImageBlock({ id: 'image-1', name: 'Portrait', source: '' }),
       location: { id: 'location-image', type: 'simple-container-location', anchor: 'lt' },
@@ -1619,20 +1182,14 @@ describe('CardDesignEditor issue navigation', () => {
       isFile: true,
       isSymlink: false,
     }])
-    const i18n = createI18n({ legacy: false, locale: 'en-US', messages: { 'en-US': enUS } })
-    const wrapper = shallowMount(CardDesignEditor, {
+    const wrapper = mountCde({
       props: {
         filePath: 'D:/Project/cards/card.ocdocument',
         resourceRootPath: 'D:/Project',
-        modelValue: JSON.stringify(document),
+        modelValue: document,
         cardDesignerMode: 'data-table',
-        cardDesignerView: {
-          activeFace: 'front',
-          clipToFace: false,
-          selectedInstanceId: null,
-        },
+        cardDesignerView: neutralView(),
       },
-      global: { plugins: [i18n] },
     })
     await nextTick()
 
