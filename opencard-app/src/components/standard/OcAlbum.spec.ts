@@ -54,7 +54,7 @@ describe('OcAlbum', () => {
       },
     })
 
-    const image = wrapper.get('.oc-album__cover')
+    const image = wrapper.get('.oc-cover__visual')
     expect(image.attributes('src')).toBe('asset://cover.png')
     expect(image.attributes('alt')).toBe('Theme cover')
     // The album-unique cover owns the media slot; the node icon never stands in for it.
@@ -78,10 +78,10 @@ describe('OcAlbum', () => {
       },
     })
 
-    expect(wrapper.find('.oc-album__cover').exists()).toBe(true)
-    await wrapper.get('.oc-album__cover').trigger('error')
+    expect(wrapper.find('.oc-cover__visual').exists()).toBe(true)
+    await wrapper.get('.oc-cover__visual').trigger('error')
 
-    expect(wrapper.find('.oc-album__cover').exists()).toBe(false)
+    expect(wrapper.find('.oc-cover__visual').exists()).toBe(false)
     expect(wrapper.find('.oc-album__media .oc-icon').exists()).toBe(false)
     expect(wrapper.find('.oc-album__title .oc-icon').exists()).toBe(true)
   })
@@ -99,8 +99,8 @@ describe('OcAlbum', () => {
       },
     })
 
-    await wrapper.get('.oc-album__cover').trigger('error')
-    expect(wrapper.find('.oc-album__cover').exists()).toBe(false)
+    await wrapper.get('.oc-cover__visual').trigger('error')
+    expect(wrapper.find('.oc-cover__visual').exists()).toBe(false)
 
     await wrapper.setProps({
       data: createData({
@@ -112,7 +112,7 @@ describe('OcAlbum', () => {
       }),
     })
 
-    expect(wrapper.get('.oc-album__cover').attributes('src')).toBe('asset://replaced.png')
+    expect(wrapper.get('.oc-cover__visual').attributes('src')).toBe('asset://replaced.png')
   })
 
   it('renders text and status-badge tail parts without turning them into actions', () => {

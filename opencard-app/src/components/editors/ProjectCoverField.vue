@@ -1,21 +1,29 @@
-<!-- 业务 项目封面字段：整幅封面横幅加可编辑的项目相对路径；操作失败通过标题栏即时消息反馈。 -->
+<!-- 业务 项目封面字段：整幅封面横幅，点击选择项目内图片；路径与移除收在底部信息条（路径为标题、移除为尾部操作），与相册卡片同一套语言。操作失败通过标题栏即时消息反馈。 -->
 <template>
   <div class="project-cover-field">
-    <button type="button" class="project-cover-field__banner" :class="{ 'is-empty': !cover }"
-      :data-tooltip="actionHint" :aria-label="actionHint" @click="chooseProjectFile">
-      <img v-if="cover" :src="cover.src" :alt="t('projectConfig.cover.previewAlt')" />
-      <span v-else class="project-cover-field__placeholder">
-        <OcIcon name="file.image" size="lg" tone="muted" />
-        <OcText tone="muted" size="sm">{{ t('projectConfig.cover.empty') }}</OcText>
+    <div class="project-cover-field__stage" data-tooltip-group>
+      <button type="button" class="project-cover-field__banner"
+        :data-tooltip="actionHint" :aria-label="actionHint" @click="chooseProjectFile">
+        <OcCover v-if="coverVisual" :visual="coverVisual" />
+        <span v-else class="project-cover-field__placeholder">
+          <OcIcon name="file.image" size="lg" tone="muted" />
+          <OcText tone="muted" size="sm">{{ t('projectConfig.cover.empty') }}</OcText>
+        </span>
+      </button>
+      <span v-if="relativePath" class="project-cover-field__info">
+        <span class="project-cover-field__title">
+          <OcIcon name="file.image" size="sm" tone="muted" />
+          <OcText class="project-cover-field__path" tone="muted" size="xs" :truncate="true"
+            :tooltip-on-overflow="relativePath">
+            {{ relativePath }}
+          </OcText>
+        </span>
+        <span class="project-cover-field__remove">
+          <OcButton icon-only size="sm" variant="ghost" type="button" icon="action.image-minus" icon-tone="danger"
+            :data-tooltip="t('projectConfig.cover.remove')" :aria-label="t('projectConfig.cover.remove')"
+            @click="clear" />
+        </span>
       </span>
-    </button>
-    <div class="project-cover-field__path">
-      <OcFieldInput full-width mono :value="pathDraft" :placeholder="t('projectConfig.cover.pathPlaceholder')"
-        :aria-label="t('projectConfig.fields.cover')"
-        @input="updatePathDraft" @change="commitPathDraft" @keydown.enter.prevent="commitPathDraft" />
-      <OcButton v-if="relativePath" icon-only size="sm" variant="ghost" icon="action.image-minus"
-        icon-tone="danger" :data-tooltip="t('projectConfig.cover.remove')"
-        :aria-label="t('projectConfig.cover.remove')" @click="clear" />
     </div>
     <OcText v-if="stateNote" tone="muted" size="sm">{{ stateNote }}</OcText>
   </div>
@@ -25,20 +33,20 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import OcButton from '../base/OcButton.vue'
-import OcFieldInput from '../base/OcFieldInput.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
+import OcCover from '../standard/OcCover.vue'
 import { notifyError } from '../../features/notifications/titlebarNotices'
 import {
   COVER_IMAGE_EXTENSIONS,
   coverImageExtension,
-  normalizeProjectRelativeCoverPath,
   projectRelativePathFromAbsolute,
   type ProjectCover,
 } from '../../features/workspace/model/projectCover'
 import { resolveProjectCover } from '../../features/workspace/services/projectCoverService'
 import { fileSystemService } from '../../features/workspace/services/fileSystemService'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
+import type { OcVisual } from '../../shared/ui/visual/visual.types'
 
 defineOptions({ name: 'ProjectCoverField' })
 
@@ -59,12 +67,14 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const projectStore = useProjectStore()
 const cover = ref<ProjectCover | null>(null)
-const pathDraft = ref('')
 let coverRevision = 0
 
 const relativePath = computed(() => props.modelValue.trim())
 const actionHint = computed(() => (
   relativePath.value ? t('projectConfig.cover.replaceHint') : t('projectConfig.cover.chooseHint')
+))
+const coverVisual = computed<OcVisual | null>(() => (
+  cover.value ? { type: 'image', src: cover.value.src, label: t('projectConfig.cover.previewAlt') } : null
 ))
 /** 引用已写入配置但文件不可用时的状态说明（不是操作失败，因此只做说明）。 */
 const stateNote = computed(() => {
@@ -74,10 +84,6 @@ const stateNote = computed(() => {
   }
   return cover.value ? '' : t('projectConfig.cover.missing', { path: relativePath.value })
 })
-
-watch(() => props.modelValue, value => {
-  pathDraft.value = value ?? ''
-}, { immediate: true })
 
 watch(
   [() => props.modelValue, () => props.projectRootPath, () => projectStore.fileChangeRevision],
@@ -95,27 +101,6 @@ watch(
   },
   { immediate: true },
 )
-
-function updatePathDraft(event: Event): void {
-  if (!(event.target instanceof HTMLInputElement)) return
-  pathDraft.value = event.target.value
-}
-
-/** 只有合法的项目内路径才会写入草稿，出错时通过即时消息说明并回到已生效的路径。 */
-function commitPathDraft(): void {
-  const draft = pathDraft.value.trim()
-  if (!draft) {
-    if (relativePath.value) emit('update:modelValue', '')
-    return
-  }
-  const normalized = normalizeProjectRelativeCoverPath(draft)
-  if (!normalized || !coverImageExtension(normalized)) {
-    notifyError(t('projectConfig.cover.invalidPath', { path: draft }))
-    pathDraft.value = relativePath.value
-    return
-  }
-  if (normalized !== relativePath.value) emit('update:modelValue', normalized)
-}
 
 async function chooseProjectFile(): Promise<void> {
   const picked = await fileSystemService.pickFile({
@@ -138,7 +123,6 @@ async function chooseProjectFile(): Promise<void> {
 }
 
 function clear(): void {
-  pathDraft.value = ''
   emit('update:modelValue', '')
 }
 </script>
@@ -147,6 +131,10 @@ function clear(): void {
 .project-cover-field {
   display: grid;
   gap: var(--oc-space-2);
+}
+
+.project-cover-field__stage {
+  position: relative;
 }
 
 .project-cover-field__banner {
@@ -164,17 +152,14 @@ function clear(): void {
   transition: border-color var(--oc-duration-fast) var(--oc-ease);
 }
 
-.project-cover-field__banner:hover,
+/* 与相册卡片同一套边框语言：悬停加深边框，键盘聚焦才用主题色。 */
+.project-cover-field__banner:hover {
+  border-color: var(--oc-border-strong);
+}
+
 .project-cover-field__banner:focus-visible {
   border-color: var(--oc-border-accent);
   outline: none;
-}
-
-.project-cover-field__banner img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .project-cover-field__placeholder {
@@ -183,9 +168,46 @@ function clear(): void {
   gap: var(--oc-space-2);
 }
 
-.project-cover-field__path {
+/* 相册卡片的信息条语言：路径是标题、移除是尾部操作，悬停整幅横幅才出现。 */
+.project-cover-field__info {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
   display: flex;
+  min-width: 0;
   align-items: center;
-  gap: var(--oc-space-2);
+  gap: var(--oc-space-1);
+  /* 全局 border-box 下 min-height 包含纵向 padding，直接写按钮高度会被 padding 吞掉而撑开。 */
+  min-height: calc(var(--oc-size-sm) + var(--oc-space-1) * 2);
+  padding: var(--oc-space-1) var(--oc-space-3);
+  border-end-start-radius: calc(var(--oc-radius-md) - var(--oc-border-width));
+  border-end-end-radius: calc(var(--oc-radius-md) - var(--oc-border-width));
+  background: var(--oc-bg-glass);
+  -webkit-backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+  backdrop-filter: blur(var(--oc-bg-glass-blur)) saturate(var(--oc-bg-glass-saturate));
+}
+
+.project-cover-field__title {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--oc-space-1);
+}
+
+.project-cover-field__path {
+  min-width: 0;
+}
+
+.project-cover-field__remove {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.project-cover-field__stage:hover .project-cover-field__remove,
+.project-cover-field__stage:focus-within .project-cover-field__remove,
+.project-cover-field__remove:has(.oc-button.is-menu-open) {
+  display: inline-flex;
 }
 </style>

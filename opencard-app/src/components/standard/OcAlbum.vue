@@ -42,14 +42,7 @@
           @focus="activeKey = entry.key"
         >
           <span class="oc-album__media">
-            <OcVisual
-              v-if="resolveCover(entry)"
-              class="oc-album__cover"
-              :visual="resolveCover(entry)!"
-              :label="entry.item.label"
-              size="lg"
-              @image-error="markCoverBroken(entry)"
-            />
+            <OcCover :visual="entry.item.cover ?? null" :label="entry.item.label" />
           </span>
 
           <span class="oc-album__info">
@@ -107,11 +100,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import OcActionButton from './OcActionButton.vue'
+import OcCover from './OcCover.vue'
 import OcIcon from '../base/OcIcon.vue'
 import OcText from '../base/OcText.vue'
 import OcVisual from '../base/OcVisual.vue'
 import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
-import type { OcVisual as OcVisualModel } from '../../shared/ui/visual/visual.types'
 import type {
   OcNode,
   OcNodeActionEvent,
@@ -162,23 +155,6 @@ const albumRootElement = ref<HTMLElement | null>(null)
 const cardRefs = new Map<OcNodeKey, HTMLElement>()
 const activeKey = ref<OcNodeKey | null>(null)
 const selectionAnchorKey = ref<OcNodeKey | null>(null)
-/** 已解析失败的封面图片源，让卡片隐藏该图而不是显示破图。 */
-const brokenCoverSources = ref<ReadonlyMap<OcNodeKey, string>>(new Map())
-
-/** 卡片媒体区要绘制的封面；图片源加载失败后返回 null，媒体区留空。 */
-function resolveCover(entry: AlbumEntry): OcVisualModel | null {
-  const cover = entry.item.cover
-  if (!cover) return null
-  if (cover.type === 'image' && brokenCoverSources.value.get(entry.key) === cover.src) return null
-  return cover
-}
-function markCoverBroken(entry: AlbumEntry): void {
-  const cover = entry.item.cover
-  if (!cover || cover.type !== 'image' || brokenCoverSources.value.get(entry.key) === cover.src) return
-  const next = new Map(brokenCoverSources.value)
-  next.set(entry.key, cover.src)
-  brokenCoverSources.value = next
-}
 
 const selectedKeySet = computed(() => new Set(props.selectedKeys))
 
@@ -378,13 +354,6 @@ function emitActionIntent(key: OcNodeKey, actionKey: string): void {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-/* 封面铺满媒体区；图片与精灵图裁剪都按面积适配，图标变体保持自身尺寸。 */
-.oc-album__cover {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .oc-album__info {

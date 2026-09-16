@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -39,14 +41,6 @@ function removeButton(wrapper: ReturnType<typeof mountField>) {
   return wrapper.findAllComponents(OcButton)[0]!
 }
 
-/** jsdom 里需要显式触发 input 事件，输入框才会把值交给组件。 */
-async function type(wrapper: ReturnType<typeof mountField>, value: string) {
-  const input = wrapper.get('input')
-  ;(input.element as HTMLInputElement).value = value
-  await input.trigger('input')
-  return input
-}
-
 describe('ProjectCoverField', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -58,11 +52,22 @@ describe('ProjectCoverField', () => {
     const wrapper = mountField('assets/cover.png')
     await flushPromises()
 
-    expect(wrapper.get('.project-cover-field__banner img').attributes('src'))
+    expect(wrapper.get('.project-cover-field__banner .oc-cover__visual').attributes('src'))
       .toBe('asset://D:/Project/assets/cover.png')
-    expect((wrapper.get('input').element as HTMLInputElement).value).toBe('assets/cover.png')
     expect(wrapper.get('.project-cover-field__banner').attributes('data-tooltip')).toBe('projectConfig.cover.replaceHint')
     expect(wrapper.text()).not.toContain('projectConfig.cover.missing')
+  })
+
+  it('keeps the path and the remove action in the bottom info bar like an album card', async () => {
+    mocks.fileExists.mockResolvedValue(true)
+    const wrapper = mountField('assets/cover.png')
+    await flushPromises()
+
+    const info = wrapper.get('.project-cover-field__info')
+    expect(info.get('.project-cover-field__path').text()).toBe('assets/cover.png')
+    expect(info.findComponent(OcButton).exists()).toBe(true)
+
+    expect(mountField('').find('.project-cover-field__info').exists()).toBe(false)
   })
 
   it('hints the empty state and only offers removal once a cover is set', () => {
@@ -83,44 +88,8 @@ describe('ProjectCoverField', () => {
     const unsupported = mountField('assets/cover.txt')
     await flushPromises()
     expect(unsupported.text()).toContain('projectConfig.cover.unsupported')
-    expect(unsupported.find('.project-cover-field__banner img').exists()).toBe(false)
+    expect(unsupported.find('.project-cover-field__banner .oc-cover__visual').exists()).toBe(false)
     expect(mocks.notifyError).not.toHaveBeenCalled()
-  })
-
-  it('stores a typed project-relative path without touching the file system', async () => {
-    const wrapper = mountField('')
-
-    const partial = await type(wrapper, 'assets\\hero')
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-
-    const complete = await type(wrapper, 'assets\\hero.webp')
-    await complete.trigger('change')
-
-    expect(partial).toBeDefined()
-    expect(wrapper.emitted('update:modelValue')).toEqual([['assets/hero.webp']])
-    expect(mocks.copyFile).not.toHaveBeenCalled()
-    expect(mocks.writeFile).not.toHaveBeenCalled()
-  })
-
-  it('accepts a typed vector cover path', async () => {
-    const wrapper = mountField('')
-
-    const input = await type(wrapper, 'assets/hero.svg')
-    await input.trigger('change')
-
-    expect(wrapper.emitted('update:modelValue')).toEqual([['assets/hero.svg']])
-    expect(mocks.notifyError).not.toHaveBeenCalled()
-  })
-
-  it('reports an unusable typed path through the title bar and restores the stored value', async () => {
-    const wrapper = mountField('assets/cover.png')
-
-    const input = await type(wrapper, '../outside.png')
-    await input.trigger('change')
-
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
-    expect(mocks.notifyError).toHaveBeenCalledWith('projectConfig.cover.invalidPath:{"path":"../outside.png"}')
-    expect((input.element as HTMLInputElement).value).toBe('assets/cover.png')
   })
 
   it('picks an image inside the project through the banner', async () => {
@@ -158,5 +127,16 @@ describe('ProjectCoverField', () => {
     expect(wrapper.emitted('update:modelValue')).toEqual([['']])
     expect(mocks.copyFile).not.toHaveBeenCalled()
     expect(mocks.writeFile).not.toHaveBeenCalled()
+  })
+
+  it('reserves the remove height so revealing it on hover cannot reflow the bar', () => {
+    // jsdom 不求值 scoped 样式，直接读源码钉住这条不变量。
+    const source = readFileSync(
+      join(process.cwd(), 'src/components/editors/ProjectCoverField.vue'),
+      'utf8',
+    )
+    const start = source.indexOf('\n.project-cover-field__info {')
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(source.slice(start, source.indexOf('}', start))).toContain('min-height: calc(var(--oc-size-sm)')
   })
 })

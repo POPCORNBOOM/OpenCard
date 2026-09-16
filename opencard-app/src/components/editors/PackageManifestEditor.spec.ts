@@ -100,7 +100,7 @@ describe('PackageManifestEditor', () => {
     }]])
     const covered = mountEditor()
 
-    expect(covered.get('.package-manifest-editor__cover').attributes('src'))
+    expect(covered.get('.package-manifest-editor__cover .oc-cover__visual').attributes('src'))
       .toBe('asset:///project/assets/cover.png')
     expect(covered.findAll('.package-manifest-editor h2').map(node => node.text())[0])
       .toBe('packageManifest.cover')

@@ -6,7 +6,9 @@
     <div v-else class="package-manifest-editor">
       <OcPanel v-if="cover" gap="3" padding="4" border="muted" radius="md">
         <h2>{{ t('packageManifest.cover') }}</h2>
-        <img class="package-manifest-editor__cover" :src="cover.src" :alt="t('packageManifest.coverAlt')" />
+        <div class="package-manifest-editor__cover">
+          <OcCover :visual="{ type: 'image', src: cover.src, label: t('packageManifest.coverAlt') }" />
+        </div>
       </OcPanel>
 
       <OcPanel gap="3" padding="4" border="muted" radius="md">
@@ -56,6 +58,7 @@ import { resolveInstalledResourcePackageKey } from '../../features/workspace/mod
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import OcEmpty from '../base/OcEmpty.vue'
 import OcPanel from '../base/OcPanel.vue'
+import OcCover from '../standard/OcCover.vue'
 import ProjectRegistryEditorShell from './ProjectRegistryEditorShell.vue'
 
 const props = defineProps<EditorProps>()
@@ -97,12 +100,13 @@ watch(() => props.filePath, () => emit('modified', false), { immediate: true })
   color: var(--oc-fg-default);
 }
 
+/* 几何与边框归这个框所有；OcCover 只负责把封面铺满框内。 */
 .package-manifest-editor__cover {
   width: var(--oc-cover-preview-width);
   height: var(--oc-cover-preview-height);
+  overflow: hidden;
   border: var(--oc-border-width) solid var(--oc-border-muted);
   border-radius: var(--oc-radius-md);
-  object-fit: cover;
 }
 
 .package-manifest-editor__details,
