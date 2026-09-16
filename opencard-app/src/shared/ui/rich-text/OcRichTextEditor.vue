@@ -202,10 +202,6 @@ const props = defineProps<{
     fontFamily?: string
     fontSize?: string
   }
-  fieldModeLabels?: {
-    useFieldEditor: string
-    useRawStringEditor: string
-  }
 }>()
 
 const emit = defineEmits<{

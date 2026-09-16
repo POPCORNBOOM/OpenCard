@@ -22,7 +22,6 @@
               :binding-completion="definition.binding?.provider"
 		              :project-icon-catalog="definition.projectIcon?.catalog"
               :package-icon-sources="definition.projectIcon?.sources"
-              :field-mode-labels="fieldModeLabels"
               :font-options="definition.fontOptions"
               :base-style="definition.richTextBaseStyle"
               @update:model-value="draftValue = $event" />
@@ -74,10 +73,6 @@ const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as
   | undefined
 const tr = (key: string, fallback: string, parameters?: Record<string, unknown>): string =>
   translate?.(key, parameters) ?? fallback
-const fieldModeLabels = {
-  useFieldEditor: translate?.('propertyEditor.bindings.useFieldEditor') ?? 'Use field editor',
-  useRawStringEditor: translate?.('propertyEditor.bindings.useRawEditor') ?? 'Use raw string editor',
-}
 
 const emit = defineEmits<{
   (e: 'update:value', value: string): void
