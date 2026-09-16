@@ -16,7 +16,7 @@
             v-if="resolvedSource.kind !== 'icon' && (resolvedSource.kind !== 'image' || imageLoadState !== 'loaded')"
             class="image-block__placeholder"
             role="img"
-            :aria-label="imageLoadState === 'error' ? '图片加载失败' : '未配置图片'"
+            :aria-label="imageLoadState === 'error' ? tr('cardRenderer.imageFailed', '图片加载失败') : tr('cardRenderer.imageUnset', '未配置图片')"
         >
             <OcIcon
                 :name="imageLoadState === 'error' ? 'status.warning' : 'file.media'"
@@ -45,7 +45,7 @@
     </div>
 </template>
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import ProjectIconGraphic from './ProjectIconGraphic.vue'
 import { useCardEditorContext } from './cardEditorContext'
@@ -60,6 +60,12 @@ const props = defineProps<{
     block: RenderReadyImageBlock
     placement: BlockRenderPlacement
 }>()
+
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as
+  | ((key: string, parameters?: Record<string, unknown>) => string)
+  | undefined
+const tr = (key: string, fallback: string, parameters?: Record<string, unknown>): string =>
+  translate?.(key, parameters) ?? fallback
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))

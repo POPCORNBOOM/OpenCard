@@ -137,11 +137,11 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
       else content = await fileSystemService.readFile(filePath)
     } else {
       const result = await readFileAtRevision(root, { revision: commitId, path })
-      if (!result.ok || !result.value) throw new Error(result.error?.message ?? '无法读取历史版本')
-      if (result.value.binary && !resourceSnapshot) throw new Error('该版本不是文本文件')
+      if (!result.ok || !result.value) throw new Error(result.error?.message ?? t('sidebar.diffViewer.readRevisionFailed'))
+      if (result.value.binary && !resourceSnapshot) throw new Error(t('sidebar.diffViewer.notTextFile'))
       if (!result.value.binary) content = result.value.content
       const materialized = await materializeRevision(root, { revision: commitId })
-      if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? '无法准备历史资源')
+      if (!materialized.ok || !materialized.value) throw new Error(materialized.error?.message ?? t('sidebar.diffViewer.prepareResourcesFailed'))
       resourceRootPath = materialized.value.rootPath
     }
     const contextLoad = commitId === null
@@ -174,7 +174,7 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
     const root = options.projectRoot.value
     const path = options.filePath.value
     if (!root || !path) {
-      error.value = '项目或文件不可用'
+      error.value = t('sidebar.diffViewer.projectUnavailable')
       return
     }
     const revision = ++requestRevision
@@ -184,8 +184,8 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
     const optionById = new Map(options.revisions.value.map(item => [item.commitId, item]))
     try {
       const [nextBefore, nextAfter] = await Promise.all([
-        loadSnapshot(root, path, beforeCommitId, optionById.get(beforeCommitId)?.label ?? '版本 A'),
-        loadSnapshot(root, path, afterCommitId, optionById.get(afterCommitId)?.label ?? '版本 B'),
+        loadSnapshot(root, path, beforeCommitId, optionById.get(beforeCommitId)?.label ?? t('sidebar.diffViewer.versionA')),
+        loadSnapshot(root, path, afterCommitId, optionById.get(afterCommitId)?.label ?? t('sidebar.diffViewer.versionB')),
       ])
       if (revision !== requestRevision) return
       before.value = nextBefore
@@ -194,7 +194,7 @@ export function useOcdocumentDiffSession(options: OcdocumentDiffSessionOptions) 
       afterSnapshotRoot.value = nextAfter.resourceRootPath ?? null
       loadedPath.value = path
     } catch (cause) {
-      if (revision === requestRevision) error.value = cause instanceof Error ? cause.message : '差异版本读取失败'
+      if (revision === requestRevision) error.value = cause instanceof Error ? cause.message : t('sidebar.diffViewer.readFailed')
     } finally {
       if (revision === requestRevision) loading.value = false
     }

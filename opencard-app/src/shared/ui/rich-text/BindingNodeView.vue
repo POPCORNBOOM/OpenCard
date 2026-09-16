@@ -36,7 +36,7 @@
       :style="expressionStyle"
       role="button"
       tabindex="-1"
-      aria-label="点击选中 binding"
+      :aria-label="tr('propertyEditor.richText.selectBinding', '点击选中 binding')"
       @mousedown.stop
       @click="handleLabelClick"
       @dblclick.stop="startEditing"
@@ -58,7 +58,7 @@
 import type { NodeViewProps } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import { NodeViewWrapper } from '@tiptap/vue-3'
-import { computed, nextTick, onMounted, ref, useId, type ComponentPublicInstance } from 'vue'
+import { computed, getCurrentInstance, nextTick, onMounted, ref, useId, type ComponentPublicInstance } from 'vue'
 import OcFieldInput from '../../../components/base/OcFieldInput.vue'
 import OcAutocompletePopover from '../../../components/standard/OcAutocompletePopover.vue'
 import type { BindingNodeOptions } from './bindingNode'
@@ -68,6 +68,12 @@ import type {
 } from './bindingNode.types'
 
 const props = defineProps<NodeViewProps>()
+
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as
+  | ((key: string, parameters?: Record<string, unknown>) => string)
+  | undefined
+const tr = (key: string, fallback: string, parameters?: Record<string, unknown>): string =>
+  translate?.(key, parameters) ?? fallback
 
 const openBrace = '{{'
 const closeBrace = '}}'

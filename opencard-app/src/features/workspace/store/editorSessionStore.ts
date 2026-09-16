@@ -5,6 +5,7 @@
  * - 只管理会话真相 不处理文件系统目录索引
  */
 import { computed, nextTick, readonly, ref } from 'vue'
+import { i18n } from '../../../i18n'
 import { getPathBasename, isSameOrDescendantPath, normalizePath } from '../../../shared/model/filePath'
 import type { IconToken, IconTone } from '../../../shared/ui/icon/iconRegistry'
 import {
@@ -613,7 +614,7 @@ export function useEditorSessionStore() {
       const fileType = resolveSessionFileType(session)
       const selectedPath = await fileSystemService.pickSavePath({
         defaultPath: projectPath.value ? `${normalizePath(projectPath.value)}/${session.name}` : session.name,
-        title: '保存文件',
+        title: i18n.global.t('app.dialogs.saveFile'),
         fileTypeName: fileType.id,
         extensions: fileType.extensions,
       })

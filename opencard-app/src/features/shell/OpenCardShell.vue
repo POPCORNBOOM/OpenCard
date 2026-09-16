@@ -796,7 +796,7 @@ function restartAutoSaveTimer(): void {
   autoSaveTimer = window.setInterval(() => {
     void saveDirtySessions()
       .then(names => names.forEach(name => notifySuccess(t('app.notifications.saved', { name }), 'action.save')))
-      .catch(error => notifyError(error instanceof Error ? error.message : '自动保存失败'))
+      .catch(error => notifyError(error instanceof Error ? error.message : t('app.notifications.autoSaveFailed')))
   }, workspaceSettings.autoSaveIntervalSeconds * 1000)
 }
 watch(

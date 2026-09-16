@@ -898,13 +898,13 @@ async function setProjectPath(path: string) {
   openTimer.done(`entries ${walk.entries}, worst dir read ${walk.worstMs.toFixed(1)}ms`)
 }
 
-async function chooseProjectDirectory(): Promise<string | null> {
-  const path = await fileSystemService.openProject()
+async function chooseProjectDirectory(title: string): Promise<string | null> {
+  const path = await fileSystemService.openProject(title)
   return path ? normalizePath(path) : null
 }
 
-async function openProject() {
-  const path = await chooseProjectDirectory()
+async function openProject(title: string) {
+  const path = await chooseProjectDirectory(title)
   if (path) {
     await setProjectPath(path)
   }

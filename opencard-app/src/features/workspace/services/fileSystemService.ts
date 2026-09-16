@@ -51,7 +51,7 @@ export interface ReadDirectoryEntriesOptions {
 }
 
 export interface FileSystemService {
-  openProject(): Promise<string | null>
+  openProject(title: string): Promise<string | null>
   pickDirectory(title: string): Promise<string | null>
   pickFile(options: {
     title: string
@@ -96,8 +96,8 @@ export interface FileSystemService {
 }
 
 class FileSystemServiceImpl implements FileSystemService {
-  async openProject(): Promise<string | null> {
-    return await this.pickDirectory('选择项目文件夹')
+  async openProject(title: string): Promise<string | null> {
+    return await this.pickDirectory(title)
   }
 
   async pickDirectory(title: string): Promise<string | null> {

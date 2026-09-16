@@ -13,7 +13,7 @@ import {
 type ProjectLifecycleOptions = {
   project: {
     projectPath: Readonly<Ref<string>>
-    chooseProjectDirectory: () => Promise<string | null>
+    chooseProjectDirectory: (title: string) => Promise<string | null>
     setProjectPath: (path: string) => Promise<void>
     readDirectoryEntries: (path?: string, depth?: number) => Promise<void>
   }
@@ -95,7 +95,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   }
 
   async function openProject(): Promise<boolean> {
-    const path = await options.project.chooseProjectDirectory()
+    const path = await options.project.chooseProjectDirectory(options.translate('app.dialogs.chooseProjectFolder'))
     return path ? await activateProject(path) : false
   }
 
@@ -104,7 +104,7 @@ export function useShellProjectLifecycle(options: ProjectLifecycleOptions) {
   }
 
   async function relocateRecentProject(missingPath: string): Promise<string | null> {
-    const selectedPath = await options.project.chooseProjectDirectory()
+    const selectedPath = await options.project.chooseProjectDirectory(options.translate('app.dialogs.chooseProjectFolder'))
     if (!selectedPath) return null
 
     options.settings.forgetRecentProject(missingPath)

@@ -15,7 +15,7 @@
 -->
 <template>
   <div ref="propertyEditorRoot" class="property-editor" :class="{ 'is-delete-mode': deleteMode }">
-    <OcEmpty v-if="inputs.length === 0">选择一个对象查看属性</OcEmpty>
+    <OcEmpty v-if="inputs.length === 0">{{ t('propertyEditor.emptySelection') }}</OcEmpty>
     <template v-else>
       <OcPanel padding="none" border="none" tone="transparent" gap="none">
         <section v-for="source in displaySources" :key="source.key" class="property-editor__source">

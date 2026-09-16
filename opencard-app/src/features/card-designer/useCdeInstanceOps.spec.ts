@@ -4,6 +4,8 @@ import type { CardDocument } from '../../entities/card/model'
 import { isNodeTailAction, normalizeNodeTail } from '../../shared/ui/node/node.types'
 import { useCdeInstanceOps } from './useCdeInstanceOps'
 
+const translate = (messageKey: string) => messageKey
+
 describe('useCdeInstanceOps tree actions', () => {
   it('projects instance operations behind a single submenu action', () => {
     const document: CardDocument = {
@@ -31,6 +33,7 @@ describe('useCdeInstanceOps tree actions', () => {
       blueprintCardId: '__blueprint__',
       selectedCardId: ref('__blueprint__'),
       selectedCardKeys: ref(['__blueprint__']),
+      translate,
       refreshDocumentState: vi.fn(),
       markDocumentChanged: vi.fn(),
     })
@@ -68,6 +71,7 @@ describe('useCdeInstanceOps tree actions', () => {
       blueprintCardId: '__blueprint__',
       selectedCardId,
       selectedCardKeys,
+      translate,
       refreshDocumentState: vi.fn(),
       markDocumentChanged: vi.fn(),
     })
@@ -105,6 +109,7 @@ describe('useCdeInstanceOps tree actions', () => {
       blueprintCardId: '__blueprint__',
       selectedCardId: ref('__blueprint__'),
       selectedCardKeys: ref(['__blueprint__']),
+      translate,
       refreshDocumentState: vi.fn(),
       markDocumentChanged: vi.fn(),
     })

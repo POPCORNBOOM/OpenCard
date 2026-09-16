@@ -29,7 +29,7 @@
             <OcFieldInput v-else ref="sourceEditor" as="textarea" variant="plain" full-width mono
               class="rich-text-string-popover__source" :value="sourceValue"
               resize="none" autocomplete="off" spellcheck="false"
-              aria-label="HTML 源码"
+              :aria-label="tr('propertyEditor.richText.htmlSource', 'HTML 源码')"
 	              @input="handleSourceInput" />
 	          </div>
 	          <p v-if="sourceDiagnostics.length" class="rich-text-string-popover__diagnostics" role="alert">
@@ -38,14 +38,14 @@
       <template #footer>
           <div class="rich-text-string-popover__footer-content">
             <OcOptionGroup :model-value="editorMode" :options="editorModeOptions"
-              size="md" icon-only appearance="sliding-outline" aria-label="编辑视图"
+              size="md" icon-only appearance="sliding-outline" :aria-label="tr('propertyEditor.richText.editorView', '编辑视图')"
               @update:model-value="setEditorMode" />
             <span class="rich-text-string-popover__actions">
               <OcButton size="md" icon-only icon="action.close" icon-tone="danger"
-                data-tooltip="取消" aria-label="取消富文本编辑" @click="cancelEditor" />
+                :data-tooltip="tr('propertyEditor.richText.cancel', '取消')" :aria-label="tr('propertyEditor.richText.cancelEdit', '取消富文本编辑')" @click="cancelEditor" />
 	              <OcButton size="md" icon-only icon="action.check" icon-tone="success" variant="soft"
 	                :disabled="editorMode === 'source' && sourceDiagnostics.length > 0"
-                data-tooltip="保存" aria-label="保存富文本编辑" @click="saveEditor" />
+                :data-tooltip="tr('propertyEditor.richText.save', '保存')" :aria-label="tr('propertyEditor.richText.saveEdit', '保存富文本编辑')" @click="saveEditor" />
             </span>
           </div>
       </template>
@@ -69,7 +69,11 @@ const props = defineProps<{
   value: unknown
 }>()
 
-const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as ((key: string) => string) | undefined
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as
+  | ((key: string, parameters?: Record<string, unknown>) => string)
+  | undefined
+const tr = (key: string, fallback: string, parameters?: Record<string, unknown>): string =>
+  translate?.(key, parameters) ?? fallback
 const fieldModeLabels = {
   useFieldEditor: translate?.('propertyEditor.bindings.useFieldEditor') ?? 'Use field editor',
   useRawStringEditor: translate?.('propertyEditor.bindings.useRawEditor') ?? 'Use raw string editor',
@@ -91,8 +95,8 @@ const sourceDiagnostics = computed(() => editorMode.value === 'source'
   ? parseRichTextHtml(sourceValue.value).diagnostics
   : [])
 const editorModeOptions: readonly OcOption[] = [
-  { value: 'rich', label: '富文本', icon: 'format.text-variant-outline' },
-  { value: 'source', label: 'HTML 源码', icon: 'format.xml' },
+  { value: 'rich', label: tr('propertyEditor.richText.richTextMode', '富文本'), icon: 'format.text-variant-outline' },
+  { value: 'source', label: tr('propertyEditor.richText.htmlSource', 'HTML 源码'), icon: 'format.xml' },
 ]
 
 async function openEditor(): Promise<void> {

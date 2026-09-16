@@ -769,6 +769,7 @@ const {
   selectedCardId,
   selectedCardKeys,
   documentRevision,
+  translate: messageKey => t(messageKey),
   refreshDocumentState,
   markDocumentChanged,
 })

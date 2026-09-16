@@ -44,20 +44,20 @@ export type OcOverlayToolbarItem = OcOverlayToolbarAction | OcActionDivider | st
 export type OcOverlayToolbarSelectPayload = OcActionSelectPayload
 
 export type OcViewportToolbarLabels = {
-  zoomOut?: string
-  fit?: string
-  zoomIn?: string
+  zoomOut: string
+  fit: string
+  zoomIn: string
 }
 
 export function createViewportToolbarItems(
   scaleLabel: string,
-  labels: OcViewportToolbarLabels = {},
+  labels: OcViewportToolbarLabels,
 ): OcOverlayToolbarItem[] {
   return [
-    { key: 'viewport.zoom-out', icon: 'tool.zoom-out', title: labels.zoomOut ?? '缩小' },
+    { key: 'viewport.zoom-out', icon: 'tool.zoom-out', title: labels.zoomOut },
     scaleLabel,
-    { key: 'viewport.fit', icon: 'tool.fit-screen', title: labels.fit ?? '适应窗口' },
-    { key: 'viewport.zoom-in', icon: 'tool.zoom-in', title: labels.zoomIn ?? '放大' },
+    { key: 'viewport.fit', icon: 'tool.fit-screen', title: labels.fit },
+    { key: 'viewport.zoom-in', icon: 'tool.zoom-in', title: labels.zoomIn },
   ]
 }
 </script>

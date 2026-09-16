@@ -4,7 +4,7 @@
       v-if="renderState !== 'ready'"
       class="qrcode-block__placeholder"
       role="img"
-      :aria-label="renderState === 'error' ? '二维码生成失败' : '未配置二维码内容'"
+      :aria-label="renderState === 'error' ? tr('cardRenderer.qrcodeFailed', '二维码生成失败') : tr('cardRenderer.qrcodeUnset', '未配置二维码内容')"
     >
       <OcIcon :name="renderState === 'error' ? 'status.warning' : 'entity.block-qrcode'"
         :tone="renderState === 'error' ? 'warning' : 'muted'" size="lg" />
@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import OcIcon from '../../../components/base/OcIcon.vue'
 import { useCardEditorContext } from './cardEditorContext'
@@ -25,6 +25,12 @@ const props = defineProps<{
   block: RenderReadyQrCodeBlock
   placement: BlockRenderPlacement
 }>()
+
+const translate = getCurrentInstance()?.appContext.config.globalProperties.$t as
+  | ((key: string, parameters?: Record<string, unknown>) => string)
+  | undefined
+const tr = (key: string, fallback: string, parameters?: Record<string, unknown>): string =>
+  translate?.(key, parameters) ?? fallback
 
 const editorContext = useCardEditorContext()
 const isTransformDisabled = computed(() => editorContext.transformDisabledBlockIds.value.has(props.block.id))

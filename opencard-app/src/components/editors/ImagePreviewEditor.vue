@@ -5,7 +5,7 @@
     class="image-preview-editor"
     :class="{ 'is-panning': isPanning }"
     tabindex="0"
-    :aria-label="`图片预览：${fileName}`"
+    :aria-label="t('imagePreview.viewport', { name: fileName })"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
     @pointerup="stopPanning"
@@ -45,14 +45,14 @@
     />
 
     <div v-if="loadError" class="image-preview-editor__empty">
-      <OcText tone="muted" size="xl">无法预览图片</OcText>
+      <OcText tone="muted" size="xl">{{ t('imagePreview.unavailable') }}</OcText>
       <OcText tone="muted">{{ fileName }}</OcText>
     </div>
 
     <OcOverlayToolbar
       v-if="isImageReady"
       class="image-preview-editor__controls"
-      label="图片预览控制"
+      :label="t('imagePreview.controls')"
       :items="toolbarItems"
       @select="handleToolbarSelect"
       @pointerdown.stop
@@ -187,7 +187,11 @@ const scaleLabel = computed(() => `${Math.round(renderedScale.value * 100)}%`)
 const pixelated = computed(() => props.pixelated ?? false)
 const pixelatedLabel = computed(() => t('projectConfig.icons.pixelated'))
 const toolbarItems = computed(() => [
-  ...createViewportToolbarItems(scaleLabel.value),
+  ...createViewportToolbarItems(scaleLabel.value, {
+    zoomOut: t('cardDesigner.shortcuts.zoomOut'),
+    fit: t('cardDesigner.shortcuts.fitViewport'),
+    zoomIn: t('cardDesigner.shortcuts.zoomIn'),
+  }),
   { type: 'divider' as const, key: 'image-options' },
   {
     key: 'toggle-pixelated',

@@ -240,7 +240,7 @@ describe('ImagePreviewEditor', () => {
       scale: 1,
     }])
 
-    await wrapper.get('[aria-label="适应窗口"]').trigger('click')
+    await wrapper.get('[aria-label="Fit viewport"]').trigger('click')
     const resetEmits = wrapper.emitted('update-viewport-transform') ?? []
     expect(resetEmits[resetEmits.length - 1]).toEqual([{
       x: 0,
@@ -493,7 +493,7 @@ describe('ImagePreviewEditor', () => {
 
     expect((await zoomByWheel(wrapper, -240)).scale).toBeGreaterThan(1)
 
-    await wrapper.get('[aria-label="适应窗口"]').trigger('click')
+    await wrapper.get('[aria-label="Fit viewport"]').trigger('click')
     const reset = lastTransform(wrapper)!
     expect(reset.x).toBe(0)
     expect(reset.y).toBe(0)

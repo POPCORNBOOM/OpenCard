@@ -242,10 +242,10 @@ export function useCdePropertyPanelState(options: UseCdePropertyPanelStateOption
     }
     const activeFace = options.activeFace.value
     if (selectedFaceEditorRecord.value && activeFace) {
-      inputs.push({ key: activeFace.id, title: '卡面', record: selectedFaceEditorRecord.value, fields: resolveFields(selectedFaceEditorRecord.value) })
+      inputs.push({ key: activeFace.id, title: options.translate('propertyEditor.sources.face'), record: selectedFaceEditorRecord.value, fields: resolveFields(selectedFaceEditorRecord.value) })
     }
     if (selectedInstanceEditorRecord.value && selectedCard) {
-      inputs.push({ key: selectedCard.id, title: '实例', record: selectedInstanceEditorRecord.value, fields: resolveFields(selectedInstanceEditorRecord.value) })
+      inputs.push({ key: selectedCard.id, title: options.translate('propertyEditor.sources.instance'), record: selectedInstanceEditorRecord.value, fields: resolveFields(selectedInstanceEditorRecord.value) })
     }
     return inputs
   })

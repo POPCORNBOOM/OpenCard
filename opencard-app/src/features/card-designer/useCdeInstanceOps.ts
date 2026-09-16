@@ -20,12 +20,12 @@ type InstanceActionSet = {
   remove: OcNodeAction
 }
 
-function createInstanceActions(): InstanceActionSet {
-  const rename = cdeNodeAction('rename', 'action.edit', '重命名', { shortcut: 'block.rename' })
-  const duplicate = cdeNodeAction('duplicate-instance', 'action.copy', '复制实例', { shortcut: 'instance.duplicate' })
-  const remove = cdeNodeAction('delete-instance', 'action.delete', '删除实例', { shortcut: 'instance.delete' })
+function createInstanceActions(translate: (messageKey: string) => string): InstanceActionSet {
+  const rename = cdeNodeAction('rename', 'action.edit', translate('cardDesigner.treeActions.rename'), { shortcut: 'block.rename' })
+  const duplicate = cdeNodeAction('duplicate-instance', 'action.copy', translate('cardDesigner.dataTable.duplicateInstance'), { shortcut: 'instance.duplicate' })
+  const remove = cdeNodeAction('delete-instance', 'action.delete', translate('cardDesigner.dataTable.deleteInstance'), { shortcut: 'instance.delete' })
   return {
-    more: cdeNodeAction('instance-more', 'nav.more', '更多操作', { children: [rename, duplicate, remove] }),
+    more: cdeNodeAction('instance-more', 'nav.more', translate('cardDesigner.treeActions.more'), { children: [rename, duplicate, remove] }),
     rename,
     duplicate,
     remove,
@@ -38,6 +38,7 @@ type UseCdeInstanceOpsOptions = {
   blueprintCardId: string
   selectedCardId: Ref<string | null>
   selectedCardKeys: Ref<string[]>
+  translate: (messageKey: string) => string
   refreshDocumentState: (structural?: boolean) => void
   markDocumentChanged: (mode?: CdeDocumentChangeMode, target?: string, structural?: boolean) => void
 }
@@ -53,10 +54,10 @@ export function useCdeInstanceOps(options: UseCdeInstanceOpsOptions) {
     options.documentRevision.value
     const rootKeys = [options.blueprintCardId]
     const items = new Map<string, OcNode>()
-    const actions = createInstanceActions()
+    const actions = createInstanceActions(options.translate)
 
     items.set(options.blueprintCardId, {
-      label: '蓝图',
+      label: options.translate('cardDesigner.dataTable.blueprint'),
       visual: { type: 'icon', icon: 'entity.card-blueprint' },
     })
 
