@@ -54,7 +54,6 @@ export const OC_THEME_TOKEN_KEYS = [
   '--oc-diff-added-border',
   '--oc-diff-removed-border',
   '--oc-diff-changed-border',
-  '--oc-diff-moved-border',
   '--oc-diff-divider',
   '--oc-diff-divider-width',
   '--oc-diff-version-label-max-width',

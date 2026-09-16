@@ -13,7 +13,6 @@ export const OC_SHARED_THEME_TOKENS = {
   '--oc-diff-added-border': '#35C759',
   '--oc-diff-removed-border': '#FF453A',
   '--oc-diff-changed-border': 'var(--oc-icon-warning)',
-  '--oc-diff-moved-border': 'var(--oc-icon-warning)',
   '--oc-diff-divider': 'color-mix(in srgb, var(--oc-border-strong) 68%, transparent)',
   '--oc-diff-divider-width': 'var(--oc-border-width)',
   '--oc-diff-version-label-max-width': 'min(38cqw, 280px)',

@@ -255,7 +255,7 @@ export type CardViewportStatusFlash = {
 
 export type CardDiffHighlight = {
   blockId: string
-  kind: 'added' | 'removed' | 'changed' | 'moved'
+  kind: 'added' | 'removed' | 'changed'
 }
 
 export interface CardViewportComparisonLayer {

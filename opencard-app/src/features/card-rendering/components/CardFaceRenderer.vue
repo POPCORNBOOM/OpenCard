@@ -36,7 +36,7 @@ const props = withDefaults(defineProps<{
     clipToFace?: boolean
     /** 卡面资源唯一解析上下文。 */
   resourceContext: CardRenderResourceContext
-  diffHighlights?: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]
+  diffHighlights?: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' }[]
   visualReadiness?: CardVisualReadinessRegistrar
 }>(), {
     transformDisabledBlockIds: () => [],
@@ -48,7 +48,7 @@ const props = withDefaults(defineProps<{
 const cardCanvasRef = ref<HTMLElement>()
 const diagnostics = createCardRenderDiagnosticRegistry()
 watch(diagnostics.issues, issues => emit('runtime-issues-change', issues), { immediate: true, flush: 'post' })
-async function applyDiffHighlights(highlights: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' | 'moved' }[]) {
+async function applyDiffHighlights(highlights: readonly { blockId: string; kind: 'added' | 'removed' | 'changed' }[]) {
   await nextTick()
   const root = cardCanvasRef.value
   if (!root) return

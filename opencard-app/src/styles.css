@@ -31,7 +31,6 @@
 @property --oc-diff-added-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-diff-removed-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-diff-changed-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
-@property --oc-diff-moved-border { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-diff-divider { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-accent { syntax: '<color>'; inherits: true; initial-value: transparent; }
 @property --oc-accent-neighbor { syntax: '<color>'; inherits: true; initial-value: transparent; }
@@ -105,7 +104,6 @@ html.oc-theme-transitioning {
     --oc-diff-added-border var(--oc-duration-theme) var(--oc-ease),
     --oc-diff-removed-border var(--oc-duration-theme) var(--oc-ease),
     --oc-diff-changed-border var(--oc-duration-theme) var(--oc-ease),
-    --oc-diff-moved-border var(--oc-duration-theme) var(--oc-ease),
     --oc-diff-divider var(--oc-duration-theme) var(--oc-ease),
     --oc-accent var(--oc-duration-theme) var(--oc-ease),
     --oc-accent-neighbor var(--oc-duration-theme) var(--oc-ease),
