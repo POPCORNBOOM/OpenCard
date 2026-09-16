@@ -4,6 +4,7 @@ import { nextTick } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import OcOptionGroup from '../../../../components/standard/OcOptionGroup.vue'
 import { EMPTY_PROJECT_ICON_CATALOG } from '../../../../features/workspace/services/projectIconCatalog'
+import { i18n, setAppLocale } from '../../../../i18n'
 import OcRichTextEditor from '../../rich-text/OcRichTextEditor.vue'
 import RichTextPreview from '../../rich-text/RichTextPreview.vue'
 import RichTextStringPropertyField from './RichTextStringPropertyField.vue'
@@ -212,6 +213,32 @@ describe('RichTextStringPropertyField', () => {
     expect(sourceEditor?.value).toBe(source)
     expect(document.querySelector('.rich-text-string-popover__diagnostics')?.textContent).toContain('script')
     expect(wrapper.emitted('update:value')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  /**
+   * A language switch must re-label the editor view switch of an already open dialog, not wait for
+   * the next open.
+   */
+  it('re-labels the editor view switch when the language changes while the dialog is open', async () => {
+    setAppLocale('en-US')
+    const wrapper = mount(RichTextStringPropertyField, {
+      attachTo: document.body,
+      props: { definition: { title: 'Content', fieldType: 'string', richText: true }, value: '<p>Original</p>' },
+      global: { plugins: [i18n] },
+    })
+
+    await wrapper.get('.rich-text-string-field__preview').trigger('click')
+    await nextTick()
+    expect(document.querySelector('[role="radio"][aria-label="Rich text"]')).not.toBeNull()
+    expect(document.querySelector('[role="radio"][aria-label="HTML source"]')).not.toBeNull()
+
+    setAppLocale('zh-CN')
+    await nextTick()
+    expect(document.querySelector('[role="radio"][aria-label="Rich text"]')).toBeNull()
+    expect(document.querySelector('[role="radio"][aria-label="HTML source"]')).toBeNull()
+    expect(document.querySelector('[role="radio"][aria-label="富文本"]')).not.toBeNull()
+    expect(document.querySelector('[role="radio"][aria-label="HTML 源码"]')).not.toBeNull()
     wrapper.unmount()
   })
 })

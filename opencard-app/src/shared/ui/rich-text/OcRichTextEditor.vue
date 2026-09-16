@@ -312,14 +312,14 @@ const fontOptions = computed<readonly RichTextFontSelectOption[]>(() => [
     labelStyle: { fontFamily: option.cssFamily ?? option.value },
   })),
 ])
-const strokeWidthOptions = [
+const strokeWidthOptions = computed(() => [
   { label: tr('propertyEditor.richText.noStroke', '无描边'), value: '0px' },
   { label: '0.5 px', value: '0.5px' },
   { label: '1 px', value: '1px' },
   { label: '1.5 px', value: '1.5px' },
   { label: '2 px', value: '2px' },
   { label: '3 px', value: '3px' },
-] as const
+] as const)
 const fontSizeSteps = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64, 80, 96] as const
 const defaultFontSize = 16
 const richTextParseOptions = { preserveWhitespace: 'full' as const }
@@ -339,16 +339,16 @@ function visualEditorHtml(value: string): string {
   return documentNode.body.innerHTML
 }
 
-const alignments: ReadonlyArray<{
+const alignments = computed<ReadonlyArray<{
   value: 'left' | 'center' | 'right' | 'justify'
   icon: IconToken
   title: string
-}> = [
+}>>(() => [
   { value: 'left', icon: 'format.align-start', title: tr('propertyEditor.richText.alignLeft', '左对齐') },
   { value: 'center', icon: 'format.align-center', title: tr('propertyEditor.richText.alignCenter', '居中') },
   { value: 'right', icon: 'format.align-end', title: tr('propertyEditor.richText.alignRight', '右对齐') },
   { value: 'justify', icon: 'format.align-justify', title: tr('propertyEditor.richText.alignJustify', '两端对齐') },
-]
+])
 
 const foregroundColor = computed(() => editor.value?.getAttributes('textStyle').color || '#24292f')
 const backgroundColor = computed(() => editor.value?.getAttributes('highlight').color || '#fff59d')

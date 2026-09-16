@@ -94,10 +94,10 @@ const sourceValue = ref('')
 const sourceDiagnostics = computed(() => editorMode.value === 'source'
   ? parseRichTextHtml(sourceValue.value).diagnostics
   : [])
-const editorModeOptions: readonly OcOption[] = [
+const editorModeOptions = computed<readonly OcOption[]>(() => [
   { value: 'rich', label: tr('propertyEditor.richText.richTextMode', '富文本'), icon: 'format.text-variant-outline' },
   { value: 'source', label: tr('propertyEditor.richText.htmlSource', 'HTML 源码'), icon: 'format.xml' },
-]
+])
 
 async function openEditor(): Promise<void> {
   draftValue.value = stringValue.value
