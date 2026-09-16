@@ -67,6 +67,12 @@ import { useI18n } from 'vue-i18n'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { EditorEmits, EditorProps } from '../../features/editor-runtime/registry/editorRegistry'
 import type { EditorPresentation } from '../../shared/ui/editorPresentation.types'
+import {
+  VIEWPORT_WHEEL_ZOOM_SENSITIVITY,
+  VIEWPORT_ZOOM_ANIMATION_EPSILON,
+  VIEWPORT_ZOOM_ANIMATION_SMOOTHING,
+  normalizeViewportWheelDelta,
+} from '../../shared/ui/viewport/viewportNavigation'
 import { useProjectStore } from '../../features/workspace/store/projectStore'
 import OcText from '../base/OcText.vue'
 import OcOverlayToolbar, { createViewportToolbarItems } from '../standard/OcOverlayToolbar.vue'
@@ -78,11 +84,6 @@ type ImageState = { width: number; height: number; failed: boolean }
 const MIN_SCALE = 0.1
 const MAX_SCALE = 16
 const ZOOM_STEP = 1.25
-const WHEEL_ZOOM_SENSITIVITY = 0.0015
-const WHEEL_LINE_HEIGHT = 16
-const MAX_WHEEL_DELTA_PX = 240
-const ZOOM_ANIMATION_SMOOTHING = 0.25
-const ZOOM_ANIMATION_EPSILON = 0.001
 const TRANSFORM_EPSILON = 0.01
 const VIEWPORT_PADDING = 32
 const KEYBOARD_PAN_STEP = 32
@@ -296,20 +297,17 @@ function handleWheel(event: WheelEvent): void {
   const viewport = viewportRef.value
   if (!viewport) return
   const rect = viewport.getBoundingClientRect()
-  const delta = normalizeWheelDelta(event)
-  const nextScale = targetScale.value * Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY)
+  const delta = normalizeViewportWheelDelta(
+    event.deltaY,
+    event.deltaMode,
+    viewportHeight.value || window.innerHeight,
+  )
+  const nextScale = targetScale.value * Math.exp(-delta * VIEWPORT_WHEEL_ZOOM_SENSITIVITY)
   const pointerX = event.clientX - rect.left
   const viewportX = isDiff.value && contentViewportWidth.value > 0
     ? pointerX % contentViewportWidth.value
     : pointerX
   zoomAt(nextScale, viewportX, event.clientY - rect.top)
-}
-
-function normalizeWheelDelta(event: WheelEvent): number {
-  let delta = event.deltaY
-  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= WHEEL_LINE_HEIGHT
-  else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= viewportHeight.value || window.innerHeight
-  return clamp(delta, -MAX_WHEEL_DELTA_PX, MAX_WHEEL_DELTA_PX)
 }
 
 function zoomBy(factor: number): void {
@@ -374,9 +372,9 @@ function startZoomAnimation(): void {
     const panXDelta = targetPanX.value - panX.value
     const panYDelta = targetPanY.value - panY.value
     if (
-      Math.abs(scaleDelta) < ZOOM_ANIMATION_EPSILON
-      && Math.abs(panXDelta) < ZOOM_ANIMATION_EPSILON
-      && Math.abs(panYDelta) < ZOOM_ANIMATION_EPSILON
+      Math.abs(scaleDelta) < VIEWPORT_ZOOM_ANIMATION_EPSILON
+      && Math.abs(panXDelta) < VIEWPORT_ZOOM_ANIMATION_EPSILON
+      && Math.abs(panYDelta) < VIEWPORT_ZOOM_ANIMATION_EPSILON
     ) {
       scale.value = targetScale.value
       panX.value = targetPanX.value
@@ -384,9 +382,9 @@ function startZoomAnimation(): void {
       zoomAnimationFrame = null
       return
     }
-    scale.value += scaleDelta * ZOOM_ANIMATION_SMOOTHING
-    panX.value += panXDelta * ZOOM_ANIMATION_SMOOTHING
-    panY.value += panYDelta * ZOOM_ANIMATION_SMOOTHING
+    scale.value += scaleDelta * VIEWPORT_ZOOM_ANIMATION_SMOOTHING
+    panX.value += panXDelta * VIEWPORT_ZOOM_ANIMATION_SMOOTHING
+    panY.value += panYDelta * VIEWPORT_ZOOM_ANIMATION_SMOOTHING
     zoomAnimationFrame = requestAnimationFrame(animate)
   }
   zoomAnimationFrame = requestAnimationFrame(animate)
